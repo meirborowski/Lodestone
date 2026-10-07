@@ -6,15 +6,21 @@
 - Two ways to host: a listen server (a player hosts and plays at the same time) and a dedicated server (headless - no window, renderer or audio)
 - Players connect directly by IP and port
 - Designed for small sessions (2-16 players)
-- Fixed network tick rate (default 30 Hz, configurable per project)
+- The network sends snapshots every Nth simulation tick - 30 Hz by default, with the default 60 Hz simulation tick - configurable per project (see [Simulation](../Architecture.md#simulation))
 
 ## Replication
 - Components are marked as replicated, per component and per field. Only changed data is sent
 - Entities spawned or destroyed on the server (including prefabs) are spawned or destroyed on clients, matched by network ID
 - Each entity has an owner (the server or a client). Clients can only send input and requests for entities they own
 - Remote entities are interpolated between received states so they move smoothly
-- Locally controlled entities use client-side prediction with server reconciliation, so player movement feels responsive under latency
+- Locally controlled entities use client-side prediction with server reconciliation, so player movement feels responsive under latency (see [Prediction](#prediction))
 - Animation state replicates (see [Animation](Animation.md))
+
+## Prediction
+Confirm this scope before Milestone 7 and record it as a decision - physics and the character controller are built around it.
+- What's predicted: the locally controlled character's movement, through the built-in character controller component (see [Physics](Physics.md)) driven by per-tick input commands
+- The client keeps a history of its input commands and predicted states. When a server snapshot arrives, it restores the server's state for that tick and re-simulates the input commands the server hasn't processed yet
+- Scripts aren't re-simulated: scripted gameplay runs authoritatively on the server and reaches clients through replication
 
 ## Scripting
 - Query the network role (`IsServer`, `IsClient`, `IsHost`) and entity ownership
@@ -38,3 +44,4 @@
 - Integration tests that run a server and several clients over loopback, in CI on all platforms
 - Tests under simulated latency, jitter, packet loss and reordering
 - Fuzz tests that feed malformed packets to the server and clients
+- ThreadSanitizer runs on CI (see [CI](../Testing.md#ci))

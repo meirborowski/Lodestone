@@ -15,7 +15,11 @@
 - [spdlog](https://github.com/gabime/spdlog) for logging
 - [nlohmann/json](https://github.com/nlohmann/json) for scene, prefab, project and asset metadata files (pretty-printed so they diff cleanly in git)
 - [doctest](https://github.com/doctest/doctest) for unit tests
-- Lua for scripting, bound with [sol2](https://github.com/ThePhD/sol2), though this is up for discussion - if you'd recommend something else, propose it with your reasoning before starting
+- [Lua 5.4](https://www.lua.org/) for scripting, bound with [sol2](https://github.com/ThePhD/sol2) (see [Decision 0001](Decisions/0001-scripting-language.md)). sol2 releases are infrequent - pin a commit that builds cleanly on every supported compiler
+- [cpp-httplib](https://github.com/yhirose/cpp-httplib) for the MCP server's HTTP transport
+- [efsw](https://github.com/SpartanJ/efsw) for file watching (hot reload)
+- [stb_image_write](https://github.com/nothings/stb) for saving rendered images (reference-image tests and screenshots)
+- [nativefiledialog-extended](https://github.com/btzy/nativefiledialog-extended) for the editor's native file dialogs
 
 When adding a dependency, add it to THIRD_PARTY_LICENSES.md. Only permissively licensed dependencies are allowed.
 
@@ -27,18 +31,20 @@ When adding a dependency, add it to THIRD_PARTY_LICENSES.md. Only permissively l
 - Useful C++23 features for this codebase: `std::expected` (see [Error Handling](CodeStyle.md#error-handling)), deducing `this` (removes duplicate const/non-const overloads), `std::to_underlying` (for `enum class`), `std::unreachable`, `if consteval`
 
 ## Platforms & Compilers
-- Windows: MSVC Build Tools 14.52+ (Visual Studio 2026)
+- Windows: MSVC Build Tools 14.52+ (Visual Studio 2026). Confirm that GitHub's hosted Windows runner image has it; if not, CI installs the Build Tools
 - macOS: Apple Clang (Xcode 16.3+)
-- Ubuntu 24.04+: GCC 14+ and Clang 18+ (Ubuntu 24.04's default GCC 13 is too old - install the `gcc-14` / `g++-14` packages)
+- Ubuntu 24.04+: GCC 14+ and Clang 19+ (Ubuntu 24.04's default GCC 13 is too old - install the `gcc-14` / `g++-14` packages)
+  - Clang 18 can't use `std::expected` with libstdc++: libstdc++ only enables `<expected>` when `__cpp_concepts >= 202002L`, and Clang 18 reports a lower value. Milestone 1's CI confirms that Clang 19 works
 
 ## Build Prerequisites
 - CMake 3.28+
 - The Vulkan SDK (which includes DXC)
 - Git LFS
+- clang-format and clang-tidy, at the LLVM version CI pins (see [Enforcement](CodeStyle.md#enforcement))
 
 Everything else is fetched by CMake. Document the setup steps for each platform in AGENTS.md and the README.
 
 ## Build Configurations
 - **Debug** - no optimization, asserts, Vulkan validation layers enabled
 - **Release** - optimized, with asserts, logging and the editor
-- **Dist** - fully optimized, no editor code, no asserts or developer logging. Used for exported games
+- **Dist** - fully optimized, no editor code, no asserts or developer logging. Used for exported games. CI builds it from Milestone 1 onward, so code that differs in Dist can't rot unnoticed

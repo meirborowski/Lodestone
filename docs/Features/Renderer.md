@@ -11,5 +11,6 @@
 - HDR pipeline with tonemapping
 
 ## Performance
-- Sustain 60 fps at 1920x1080 on a mid-range GPU (e.g. RTX 3060 class) with all renderer features enabled in the test scene
+- Sustain 60 fps at 1920x1080 on a mid-range GPU (e.g. RTX 3060 class) with all renderer features enabled in the benchmark scene
+- CI renders in software, so it can't check this - it's measured with a local benchmark against a recorded baseline (see [Performance](../Testing.md#performance))
 - Use the stats overlay and GPU timings to catch regressions

@@ -1,6 +1,8 @@
 # Code Style
 
-- Indent with tabs; opening braces go on their own line
+- Indent with tabs
+- Opening braces go on their own line for types, functions and control statements. Namespace braces stay on the same line (`namespace Lodestone {`), and namespace contents are indented. Short enums and short functions defined in a class body (such as accessors) may be written on one line
+- Braces may be omitted around a single-statement body
 - `#pragma once` in every header; file names match the primary type they contain (`SceneRenderer.h` / `SceneRenderer.cpp`)
 - All engine code lives in the `Lodestone` namespace
 - Naming:
@@ -15,6 +17,13 @@
 - Ownership via smart pointer aliases: `Ref<T>` (shared) and `Scope<T>` (unique), created with `CreateRef<T>()` / `CreateScope<T>()`; raw pointers are non-owning only
 - Class layout: public interface first, then protected, then private; member variables grouped at the bottom
 - Use `const` wherever possible; pass non-trivial types by const reference
+
+## Enforcement
+Tools enforce this style, so it doesn't depend on anyone remembering it:
+- `.clang-format` encodes the formatting rules, and CI fails on unformatted code. clang-format and clang-tidy are pinned to a single LLVM version - different versions format differently
+- `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks
+- Engine code builds with warnings as errors (`/W4 /WX` on MSVC, `-Wall -Wextra -Wpedantic -Werror` on GCC and Clang). Third-party code is excluded: its headers are included as system headers, and the flags aren't applied to its targets
+- The tool configs and this doc must agree - if they diverge, fix whichever is wrong
 
 ## Example
 
