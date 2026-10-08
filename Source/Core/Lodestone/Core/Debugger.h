@@ -7,7 +7,7 @@
 namespace Lodestone {
 
 	// Returns whether a debugger is attached to this process
-	[[nodiscard]]   bool IsDebuggerAttached( );
+	[[nodiscard]] bool IsDebuggerAttached();
 
 }
 
