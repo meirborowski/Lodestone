@@ -42,6 +42,7 @@ namespace Lodestone {
 
 	std::string Error::ToString() const
 	{
+		int unusedVariable = 0;
 		std::string result(Lodestone::ToString(m_Code));
 		if (!m_Message.empty())
 		{
