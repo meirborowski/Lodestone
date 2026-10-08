@@ -1,0 +1,27 @@
+# Build trees (CMake presets put every configuration under build/)
+/build/
+/out/
+
+# Downloaded dependency archives (see cmake/Dependencies.cmake)
+/.cache/
+
+# Python virtual environment for the pinned clang tools (see tools/requirements.txt)
+/.venv/
+
+# Per-user CMake presets
+CMakeUserPresets.json
+
+# IDE and editor state
+/.vs/
+/.vscode/
+/.idea/
+*.user
+*.suo
+.DS_Store
+
+# clangd
+/.clangd/
+compile_commands.json
+
+# Git LFS object list written by CI (see .github/actions/git-lfs-pull)
+/.lfs-assets-id

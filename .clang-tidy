@@ -1,0 +1,94 @@
+# Enforces the naming rules in docs/CodeStyle.md and catches common bugs. Pinned to the clang-tidy version in
+# tools/requirements.txt. Keep this file and the doc in agreement.
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-missing-std-forward,
+  cppcoreguidelines-prefer-member-initializer,
+  cppcoreguidelines-rvalue-reference-param-not-moved,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-virtual-class-destructor,
+  misc-*,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  -modernize-avoid-c-arrays,
+  -modernize-macro-to-enum,
+  performance-*,
+  -performance-enum-size,
+  portability-*,
+  -portability-avoid-pragma-once,
+  readability-*,
+  -readability-braces-around-statements,
+  -readability-convert-member-functions-to-static,
+  -readability-else-after-return,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-implicit-bool-conversion,
+  -readability-magic-numbers,
+  -readability-math-missing-parentheses,
+  -readability-redundant-access-specifiers,
+  -readability-uppercase-literal-suffix,
+  -readability-use-concise-preprocessor-directives
+WarningsAsErrors: '*'
+# Only Lodestone's own headers; build trees (generated files, fetched dependencies) are excluded
+HeaderFilterRegex: '.*[/\\](Source|Tests|Samples)[/\\].*'
+ExcludeHeaderFilterRegex: '.*[/\\](build|_deps)[/\\].*'
+SystemHeaders: false
+FormatStyle: none
+CheckOptions:
+  # Types, functions and methods: PascalCase
+  readability-identifier-naming.NamespaceCase: CamelCase
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.UnionCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.TypedefCase: CamelCase
+  readability-identifier-naming.TemplateParameterCase: CamelCase
+  readability-identifier-naming.ConceptCase: CamelCase
+  readability-identifier-naming.FunctionCase: CamelCase
+  readability-identifier-naming.MethodCase: CamelCase
+  # Local variables and parameters: camelCase
+  readability-identifier-naming.LocalVariableCase: camelBack
+  readability-identifier-naming.LocalConstantCase: camelBack
+  readability-identifier-naming.ParameterCase: camelBack
+  readability-identifier-naming.ConstantParameterCase: camelBack
+  # Private and protected member variables: m_ + PascalCase. Public data members (plain structs) are PascalCase
+  readability-identifier-naming.PrivateMemberPrefix: m_
+  readability-identifier-naming.PrivateMemberCase: CamelCase
+  readability-identifier-naming.ProtectedMemberPrefix: m_
+  readability-identifier-naming.ProtectedMemberCase: CamelCase
+  readability-identifier-naming.PublicMemberCase: CamelCase
+  # Static variables: s_ + PascalCase; globals: g_ + PascalCase. clang-tidy treats namespace-scope variables with
+  # internal linkage as globals, so those accept either prefix
+  readability-identifier-naming.ClassMemberPrefix: s_
+  readability-identifier-naming.ClassMemberCase: CamelCase
+  readability-identifier-naming.StaticVariablePrefix: s_
+  readability-identifier-naming.StaticVariableCase: CamelCase
+  readability-identifier-naming.GlobalVariablePrefix: g_
+  readability-identifier-naming.GlobalVariableCase: CamelCase
+  readability-identifier-naming.GlobalVariableIgnoredRegexp: '^s_[A-Z][A-Za-z0-9]*$'
+  # Constants at namespace and class scope, and static local constants: PascalCase. Local constants are camelCase
+  readability-identifier-naming.ClassConstantCase: CamelCase
+  readability-identifier-naming.GlobalConstantCase: CamelCase
+  readability-identifier-naming.StaticConstantCase: CamelCase
+  # Macros: UPPER_SNAKE_CASE with an LS_ prefix. Third-party configuration macros keep their own names
+  readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
+  readability-identifier-naming.MacroDefinitionPrefix: LS_
+  readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(DOCTEST|SOL|SPDLOG|FMT|GLM|JPH|IMGUI|NOMINMAX|WIN32)_?.*$'
+  # Allow the C++ standard's spelling where an interface requires it (format_as, begin/end, ...)
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(format_as|begin|end|swap|hash)$'
+  readability-identifier-naming.MethodIgnoredRegexp: '^(begin|end|swap|size|empty|data)$'
+  misc-const-correctness.AnalyzeValues: true
+  misc-const-correctness.WarnPointersAsValues: false
+  bugprone-unchecked-optional-access.IgnoreSmartPointerDereference: true

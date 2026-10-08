@@ -1,15 +1,16 @@
 # Code Style
 
-- Indent with tabs
-- Opening braces go on their own line for types, functions and control statements. Namespace braces stay on the same line (`namespace Lodestone {`), and namespace contents are indented. Short enums and short functions defined in a class body (such as accessors) may be written on one line
+- Indent with tabs. Lines are at most 120 columns, with tabs counting as 4
+- Opening braces go on their own line for types, functions and control statements. Namespace braces stay on the same line (`namespace Lodestone {`), and namespace contents are indented. Short functions defined in a class body (such as accessors) may be written on one line. Enums always put their values on separate lines (see [Decision 0006](Decisions/0006-code-style-tooling.md))
 - Braces may be omitted around a single-statement body
 - `#pragma once` in every header; file names match the primary type they contain (`SceneRenderer.h` / `SceneRenderer.cpp`)
 - All engine code lives in the `Lodestone` namespace
 - Naming:
   - Types (classes, structs, enums, type aliases), functions and methods: `PascalCase`
-  - Local variables and function parameters: `camelCase`
-  - Member variables: `m_` prefix + `PascalCase` (`m_Width`)
+  - Local variables, local constants and function parameters: `camelCase`
+  - Private and protected member variables: `m_` prefix + `PascalCase` (`m_Width`). Public data members of plain structs, such as components, are `PascalCase` without a prefix (`Translation`)
   - Static variables: `s_` prefix (`s_Instance`); globals: `g_` prefix
+  - Constants at namespace or class scope: `PascalCase` (`MaxEntities`)
   - Macros: `UPPER_SNAKE_CASE` with an `LS_` prefix (`LS_ASSERT`, `LS_CORE_INFO`)
   - Enums are `enum class` with `PascalCase` values
   - Accessors are `GetX()` / `SetX()`; boolean queries are `IsX()` / `HasX()`
@@ -20,9 +21,10 @@
 
 ## Enforcement
 Tools enforce this style, so it doesn't depend on anyone remembering it:
-- `.clang-format` encodes the formatting rules, and CI fails on unformatted code. clang-format and clang-tidy are pinned to a single LLVM version - different versions format differently
-- `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks
-- Engine code builds with warnings as errors (`/W4 /WX` on MSVC, `-Wall -Wextra -Wpedantic -Werror` on GCC and Clang). Third-party code is excluded: its headers are included as system headers, and the flags aren't applied to its targets
+- `.clang-format` encodes the formatting rules, and CI fails on unformatted code. clang-format and clang-tidy are pinned to a single LLVM version in `tools/requirements.txt` - different versions format differently. Install them with `pip install -r tools/requirements.txt`
+- `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks, with every warning an error
+- Check formatting with `python tools/format.py` (fix it with `--fix`), and run clang-tidy with `python tools/tidy.py` on a configured build tree. CI runs the same scripts
+- Engine code builds with warnings as errors (`/W4 /WX` on MSVC; `-Wall -Wextra -Wpedantic -Werror -Wshadow -Wnon-virtual-dtor -Woverloaded-virtual` on GCC and Clang). Third-party code is excluded: its headers are included as system headers, and the flags aren't applied to its targets
 - The tool configs and this doc must agree - if they diverge, fix whichever is wrong
 
 ## Example
@@ -32,7 +34,11 @@ Tools enforce this style, so it doesn't depend on anyone remembering it:
 
 namespace Lodestone {
 
-	enum class ProjectionType { Perspective, Orthographic };
+	enum class ProjectionType
+	{
+		Perspective,
+		Orthographic
+	};
 
 	class Camera
 	{

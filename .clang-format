@@ -1,0 +1,104 @@
+# Encodes docs/CodeStyle.md. Pinned to the clang-format version in tools/requirements.txt - other versions format
+# differently. Keep this file and the doc in agreement.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: Latest
+ColumnLimit: 120
+LineEnding: LF
+InsertNewlineAtEOF: true
+
+# Indent with tabs (spaces only for alignment)
+UseTab: ForContinuationAndIndentation
+IndentWidth: 4
+TabWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+PPIndentWidth: 4
+IndentRequiresClause: true
+
+# Braces on their own line for types, functions and control statements; namespace braces stay on the same line and
+# namespace contents are indented
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: true
+  AfterUnion: true
+  AfterExternBlock: false
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: true
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+NamespaceIndentation: All
+FixNamespaceComments: false
+CompactNamespaces: false
+
+# Short functions defined in a class body may stay on one line. Enums always wrap: clang-format can only keep short
+# enums on one line by also putting the opening brace of long enums on the same line as the enum name
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLambdasOnASingleLine: All
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortCaseExpressionOnASingleLine: false
+
+# Declarations
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+BreakTemplateDeclarations: Yes
+RequiresClausePosition: OwnLine
+BreakConstructorInitializers: BeforeColon
+ConstructorInitializerIndentWidth: 4
+PackConstructorInitializers: NextLineOnly
+BreakInheritanceList: BeforeColon
+AlwaysBreakBeforeMultilineStrings: false
+BinPackArguments: true
+BinPackParameters: BinPack
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignTrailingComments:
+  Kind: Never
+AlignEscapedNewlines: Left
+Cpp11BracedListStyle: true
+SpaceAfterTemplateKeyword: true
+SpaceBeforeCpp11BracedList: false
+LambdaBodyIndentation: Signature
+
+# Blank lines
+MaxEmptyLinesToKeep: 1
+KeepEmptyLines:
+  AtEndOfFile: false
+  AtStartOfBlock: true
+  AtStartOfFile: false
+EmptyLineBeforeAccessModifier: LogicalBlock
+EmptyLineAfterAccessModifier: Never
+SeparateDefinitionBlocks: Leave
+
+# Includes: the file's own header first, then Lodestone headers, then third-party headers, then the standard library
+SortIncludes: CaseInsensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"Lodestone/'
+    Priority: 2
+  - Regex: '^<(doctest|fmt|sol|spdlog|lua|GLFW|nvrhi|glm|entt|imgui|ImGuizmo|Jolt|miniaudio|enet|cgltf|stb|nlohmann|httplib|efsw|nfd)[/.>]'
+    Priority: 3
+  - Regex: '^<sys/|^<unistd\.h>|^<Windows\.h>'
+    Priority: 5
+  - Regex: '^<'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 2
+IncludeIsMainRegex: '(Tests)?$'
