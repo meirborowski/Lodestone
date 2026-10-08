@@ -13,3 +13,8 @@ Record every significant design decision here - especially ones made without ask
 
 ## Index
 - [0001 - Scripting language: Lua 5.4 with sol2](0001-scripting-language.md)
+- [0002 - Build system: presets, configurations and dependencies](0002-build-system.md)
+- [0003 - Lua compiled as C++](0003-lua-compiled-as-cpp.md)
+- [0004 - MSVC: /std:c++latest until Build Tools 14.52 is stable](0004-msvc-cpp23-switch.md)
+- [0005 - Logging, asserts and fatal errors](0005-logging-and-asserts.md)
+- [0006 - Code style tooling: pinned clang-format and clang-tidy](0006-code-style-tooling.md)

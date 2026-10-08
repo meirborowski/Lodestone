@@ -18,6 +18,11 @@ Tests carry CTest labels, so the right set runs at the right time:
 
 Run the `unit` tier on every change, and every tier before opening a pull request. CI runs every tier.
 
+- Each test executable is added with `ls_add_test_executable()` in `Tests/CMakeLists.txt`, which registers every doctest test case with CTest under the executable's tier label
+- Run a tier with `ctest --preset debug -L unit`, or every tier with `ctest --preset debug`
+- Tests are built and run in every configuration, Dist included. Tests of behaviour that differs in Dist (asserts, developer logging) check the Dist behaviour there
+- Shared test helpers live in `Tests/Common` (`LodestoneTestSupport`): capturing log output, and temporary directories
+
 ## Test Integrity
 Never delete, skip or weaken a test, loosen a tolerance, or regenerate a reference image just to get a build green. If a test really is wrong, fix it and explain why in the commit message.
 
@@ -42,5 +47,6 @@ Never delete, skip or weaken a test, loosen a tolerance, or regenerate a referen
 - Where no GPU is available, rendering tests run on lavapipe (see [Reference Images](#reference-images))
 - On macOS, a smoke step checks that MoltenVK loads and a Vulkan device is found, and fails with a clear message otherwise
 - Caching keeps CI fast and within GitHub's quotas: ccache or sccache for compiles, the FetchContent dependencies, and Git LFS objects (LFS bandwidth is metered, and every CI checkout counts)
-- main is protected: changes are squash-merged through pull requests, only after CI passes
+- main is protected: changes are squash-merged through pull requests, only after CI passes. The `CI passed` job succeeds only when every other job does, so it's the one check branch protection requires
 - CI must stay green - a failing build gets fixed before any other work
+- The workflow is `.github/workflows/ci.yml`. Actions are pinned to commit hashes

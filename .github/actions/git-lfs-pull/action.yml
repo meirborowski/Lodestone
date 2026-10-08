@@ -1,0 +1,23 @@
+name: Pull Git LFS objects
+description: >
+  Pulls the Git LFS objects of the checked-out commit. LFS bandwidth is metered, so the objects are restored from the
+  Actions cache when they haven't changed, and only downloaded otherwise.
+
+runs:
+  using: composite
+  steps:
+    - name: List Git LFS objects
+      shell: bash
+      run: git lfs ls-files --long | cut -d ' ' -f1 | sort > .lfs-assets-id
+
+    - name: Restore Git LFS objects
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .git/lfs
+        key: git-lfs-${{ hashFiles('.lfs-assets-id') }}
+        restore-keys: git-lfs-
+        enableCrossOsArchive: true
+
+    - name: Pull Git LFS objects
+      shell: bash
+      run: git lfs pull

@@ -1,0 +1,78 @@
+name: Set up the C++ toolchain
+description: >
+  Installs or selects the compiler for a CI job, exports CC and CXX so CMake uses it, and reports the toolchain versions.
+
+inputs:
+  compiler:
+    description: "msvc, appleclang, gcc or clang"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install GCC 14
+      if: inputs.compiler == 'gcc'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends g++-14 ninja-build
+        echo "CC=gcc-14" >> "$GITHUB_ENV"
+        echo "CXX=g++-14" >> "$GITHUB_ENV"
+
+    - name: Install Clang 19
+      if: inputs.compiler == 'clang'
+      shell: bash
+      run: |
+        sudo apt-get update
+        # llvm-19 provides llvm-ar and the linker plugin for link-time optimization; libclang-rt-19-dev the sanitizers
+        sudo apt-get install -y --no-install-recommends clang-19 llvm-19 libclang-rt-19-dev ninja-build
+        echo "CC=clang-19" >> "$GITHUB_ENV"
+        echo "CXX=clang++-19" >> "$GITHUB_ENV"
+
+    - name: Select Xcode 16.4
+      if: inputs.compiler == 'appleclang'
+      shell: bash
+      run: |
+        sudo xcode-select --switch /Applications/Xcode_16.4.app
+        echo "CC=clang" >> "$GITHUB_ENV"
+        echo "CXX=clang++" >> "$GITHUB_ENV"
+
+    - name: Set up MSVC
+      if: inputs.compiler == 'msvc'
+      shell: pwsh
+      run: |
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installation = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $installation) { throw "No Visual Studio installation with the C++ x64 tools was found" }
+        $vcvars = Join-Path $installation 'VC\Auxiliary\Build\vcvars64.bat'
+        # Export the variables the developer environment adds or changes (PATH, INCLUDE, LIB, ...) to the next steps
+        $before = @{}
+        cmd /c set | ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { $before[$Matches[1]] = $Matches[2] } }
+        cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+          if ($_ -match '^([^=]+)=(.*)$' -and $before[$Matches[1]] -ne $Matches[2]) {
+            "$($Matches[1])=$($Matches[2])" >> $env:GITHUB_ENV
+          }
+        }
+        "CC=cl" >> $env:GITHUB_ENV
+        "CXX=cl" >> $env:GITHUB_ENV
+
+    - name: Check the MSVC version
+      if: inputs.compiler == 'msvc'
+      shell: pwsh
+      run: |
+        # vcvars sets VCToolsVersion to the Build Tools version, e.g. 14.51.36231
+        if (-not $env:VCToolsVersion) { throw "VCToolsVersion isn't set - the MSVC environment wasn't set up" }
+        $version = [version]$env:VCToolsVersion
+        Write-Output "MSVC Build Tools $version"
+        # The stable /std:c++23 switch ships with Build Tools 14.52. Until then CMake passes /std:c++latest
+        # (see docs/Decisions/0004-msvc-cpp23-switch.md)
+        if ($version -lt [version]'14.52') {
+          Write-Output "::notice title=MSVC::Build Tools $version predate 14.52, so C++23 is enabled with /std:c++latest"
+        }
+
+    - name: Report toolchain versions
+      shell: bash
+      run: |
+        cmake --version | head -n 1
+        echo "Ninja $(ninja --version)"
+        if [ "$CXX" != "cl" ]; then "$CXX" --version | head -n 1; fi

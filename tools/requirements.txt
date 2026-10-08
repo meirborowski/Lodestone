@@ -1,0 +1,4 @@
+# Code style tools, pinned to one LLVM version: different versions format and lint differently.
+# CI installs exactly these; install them locally with: pip install -r tools/requirements.txt
+clang-format==22.1.8
+clang-tidy==22.1.8

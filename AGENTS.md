@@ -17,6 +17,54 @@ The documents in `docs/` describe the target design of the engine. Build it mile
 - Use Git LFS for binary assets (HDRIs, glTF models, textures, audio, fonts, reference images)
 - Keep a THIRD_PARTY_LICENSES.md listing every dependency and its license. Only use permissively licensed dependencies (e.g. MIT, BSD, zlib, Apache 2.0, public domain/CC0)
 
+## Building and Testing
+Prerequisites: CMake 3.28+, Ninja, Git LFS, Python 3.12+, and a C++23 compiler - MSVC from Visual Studio 2026 (Windows), Xcode 16.3+ (macOS), or GCC 14+ / Clang 19+ (Ubuntu 24.04+). See [Tech Stack & Build](docs/TechStack.md#build-prerequisites).
+
+```sh
+cmake --workflow --preset debug     # configure, build and run every test (also: release, dist)
+cmake --preset debug                # or step by step: configure,
+cmake --build --preset debug        # build,
+ctest --preset debug -L unit        # and run a test tier (unit, render, integration, fuzz)
+```
+
+- Windows: run these from a Developer PowerShell for VS 2026 (or after `vcvars64.bat`), so Ninja finds MSVC. If another compiler is on the `PATH`, set `CC=cl` and `CXX=cl` before the first configure
+- Ubuntu: GCC 13 is the default and too old - configure with `CC=gcc-14 CXX=g++-14` or `CC=clang-19 CXX=clang++-19`
+- Sanitizers (GCC and Clang only): `cmake --workflow --preset asan` builds and tests with AddressSanitizer and UndefinedBehaviorSanitizer
+- Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`
+
+Code style tools, pinned to one LLVM version (install once, ideally in a virtual environment: `pip install -r tools/requirements.txt`):
+
+```sh
+python tools/format.py --fix                    # format every source file (without --fix: check only, as CI does)
+python tools/tidy.py --build-dir build/debug    # clang-tidy, on a configured build tree
+```
+
+Before every pull request: format, clang-tidy, and every test tier in Debug, Release and Dist.
+
+## Project Layout
+| Path | Contents |
+|---|---|
+| `Source/Core` | `LodestoneCore` - ECS, scenes, assets and the simulation. Never links GLFW, nvrhi or miniaudio |
+| `Source/Client` | `LodestoneClient` - window, device input, renderer and audio |
+| `Source/Editor` | `LodestoneEditor` - editor UI, MCP server, headless mode. Not built in Dist |
+| `Source/Runtime` | `LodestoneRuntime` - the player for exported games |
+| `Source/Server` | `LodestoneServer` - the headless dedicated server |
+| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`), and shared helpers in `Tests/Common` |
+| `cmake` | Build configurations, compiler settings, dependencies, and `ls_configure_target()` |
+| `tools` | Formatting and clang-tidy scripts, and the pinned tool versions |
+| `docs` | Design docs, milestones and decisions |
+| `.github` | CI workflow and its composite actions |
+
+Headers live next to their sources and are included by their path below the target's source directory: `#include "Lodestone/Core/Log.h"`. Every target that compiles Lodestone code calls `ls_configure_target()`, which turns on warnings as errors.
+
+Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through.
+
+## Skills
+Workflows that repeat have skills in `.claude/skills/`:
+- `build-and-test` - building, testing, formatting and clang-tidy on any platform
+- `ship-change` - branch, review, pull request, CI and squash-merge
+- `add-dependency` - adding a pinned third-party dependency
+
 ## Git
 - Work on a branch, push it to the [GitHub repo](https://github.com/meirborowski/Lodestone), and squash-merge it into main through a pull request once CI passes - never push directly to main
 - IMPORTANT: before every commit, review the full diff (in Claude Code, run `/code-review`), and make sure all changes comply with the code style, meet production-grade quality standards, and have been properly tested, with unit tests that pass where necessary

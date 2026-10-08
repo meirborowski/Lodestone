@@ -1,0 +1,186 @@
+# Builds and tests Lodestone on every platform and configuration, and checks formatting, clang-tidy and sanitizers.
+# See docs/Testing.md#ci. Branch protection requires the "CI passed" job, which succeeds only when every job does.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CMAKE_COLOR_DIAGNOSTICS: "ON"
+
+jobs:
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned clang-format
+        run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
+
+      - name: Check formatting
+        run: python tools/format.py
+
+  build:
+    name: ${{ matrix.toolchain.name }} ${{ matrix.preset }}
+    runs-on: ${{ matrix.toolchain.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain:
+          - { name: Windows MSVC, id: windows-msvc, os: windows-2025-vs2026, compiler: msvc }
+          - { name: macOS Apple Clang, id: macos-appleclang, os: macos-15, compiler: appleclang }
+          - { name: Ubuntu GCC 14, id: ubuntu-gcc14, os: ubuntu-24.04, compiler: gcc }
+          - { name: Ubuntu Clang 19, id: ubuntu-clang19, os: ubuntu-24.04, compiler: clang }
+        preset: [debug, release, dist]
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/git-lfs-pull
+
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: ${{ matrix.toolchain.compiler }}
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ matrix.toolchain.id }}-${{ matrix.preset }}
+          max-size: 500M
+
+      - name: Restore dependency archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/dependencies
+          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
+          restore-keys: dependencies-
+          enableCrossOsArchive: true
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  sanitizers:
+    name: Ubuntu Clang 19 ASan+UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/git-lfs-pull
+
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: clang
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ubuntu-clang19-asan
+          max-size: 500M
+
+      - name: Restore dependency archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/dependencies
+          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
+          restore-keys: dependencies-
+          enableCrossOsArchive: true
+
+      # The runner's address space layout randomization uses more bits than AddressSanitizer's shadow memory layout
+      # allows, which makes instrumented programs crash at startup
+      - name: Reduce address space randomization for AddressSanitizer
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: cmake --preset asan
+
+      - name: Build
+        run: cmake --build --preset asan
+
+      - name: Test
+        run: ctest --preset asan
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: clang
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install the pinned clang-tidy
+        run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
+
+      - name: Restore dependency archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/dependencies
+          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
+          restore-keys: dependencies-
+          enableCrossOsArchive: true
+
+      # clang-tidy only needs the compilation database and the fetched dependencies, so the tree isn't built
+      - name: Configure
+        run: cmake --preset debug
+
+      - name: Run clang-tidy
+        run: python tools/tidy.py --build-dir build/debug
+
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [format, build, sanitizers, clang-tidy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check that every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A required job didn't succeed: $result"
+              exit 1
+            fi
+          done
