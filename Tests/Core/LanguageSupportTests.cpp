@@ -13,8 +13,9 @@
 #include <utility>
 #include <version>
 
+// Deducing this has no check here: Clang 19 and Apple Clang 17 implement it without defining its feature-test macro
+// (__cpp_explicit_this_parameter), so the Counter class below checks it by using it
 static_assert(__cpp_lib_expected >= 202211L, "std::expected with monadic operations is required");
-static_assert(__cpp_explicit_this_parameter >= 202110L, "Deducing this is required");
 static_assert(__cpp_lib_to_underlying >= 202102L, "std::to_underlying is required");
 static_assert(__cpp_lib_unreachable >= 202202L, "std::unreachable is required");
 static_assert(__cpp_if_consteval >= 202106L, "if consteval is required");

@@ -19,6 +19,7 @@ Accepted
   - Constants at namespace and class scope are PascalCase; local constants are camelCase
   - clang-tidy can't tell file-static variables from globals, so namespace-scope variables with internal linkage may use either `s_` or `g_`
   - Besides `-Wall -Wextra -Wpedantic`, GCC and Clang warn on shadowing (`-Wshadow`), non-virtual destructors in classes with virtual functions (`-Wnon-virtual-dtor`) and hidden overloads (`-Woverloaded-virtual`)
+  - Designated initializers may leave out members that have default member initializers - the natural way to fill in an options struct. Clang 19 warns about that under `-Wmissing-designated-field-initializers`, which is turned off; GCC 14 has no separate flag, so it gets `-Wno-missing-field-initializers`
 
 ## Alternatives
 - **Distribution packages** (apt `clang-format-22`, Homebrew `llvm`) - different versions on different platforms, and they change underneath us

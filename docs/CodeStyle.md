@@ -25,6 +25,7 @@ Tools enforce this style, so it doesn't depend on anyone remembering it:
 - `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks, with every warning an error
 - Check formatting with `python tools/format.py` (fix it with `--fix`), and run clang-tidy with `python tools/tidy.py` on a configured build tree. CI runs the same scripts
 - Engine code builds with warnings as errors (`/W4 /WX` on MSVC; `-Wall -Wextra -Wpedantic -Werror -Wshadow -Wnon-virtual-dtor -Woverloaded-virtual` on GCC and Clang). Third-party code is excluded: its headers are included as system headers, and the flags aren't applied to its targets
+- Designated initializers may leave out members that have default member initializers, so options structs are filled in with only the fields that matter: `Log::Init({.Console = LogConsole::None})`. GCC's and Clang's warnings about that are off
 - The tool configs and this doc must agree - if they diverge, fix whichever is wrong
 
 ## Example
