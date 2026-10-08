@@ -16,15 +16,16 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 1. Foundation
-- **In progress:** the `milestone-1-foundation` branch has the build, core code (logging, asserts, `Error`, `RunMain`), tests, tooling, CI and docs. Everything passes locally on Windows (MSVC 14.51) in Debug, Release and Dist
-- **Next:** get CI green on every platform; run the acceptance checks (a misformatted file and a compiler warning each fail CI); enable branch protection on main (needs the user's approval); squash-merge the pull request
+- **Active milestone:** none - Milestone 2 is next
+- **In progress:** nothing. Milestone 1 is done: CI is green on every platform and configuration, and the acceptance checks passed (a misformatted header failed the Format job, and an unused variable failed every build and clang-tidy, then both were reverted)
+- **Next:** start Milestone 2. Install the Vulkan SDK locally first (it's a build prerequisite from Milestone 2), add GLFW, nvrhi and ShaderMake with `ls_declare_dependency()`, and bring the Vulkan device up on MoltenVK first. `LodestoneClient` is still a placeholder (macOS `ranlib` warns that its archive has no symbols until it gets real code)
+- **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
 - **SIL Open Font License 1.1 for fonts** - most good free fonts use it, and it isn't on the permissive-license list in AGENTS.md. Needs the user's decision before Milestone 10. Recommendation: allow it for font files only - it permits bundling and redistributing fonts with software, as long as the fonts aren't sold on their own
 
 ## Progress
-- [ ] [1. Foundation](#1-foundation)
+- [x] [1. Foundation](#1-foundation)
 - [ ] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
 - [ ] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [ ] [4. Editor and AI control](#4-editor-and-ai-control)
@@ -46,10 +47,10 @@ Keep this section current, so a new session can pick up where the last one stopp
 - [x] Logging, asserts, the `Error` type and `std::expected` error handling
 - [x] doctest, with CTest labels for the [test tiers](Testing.md#test-tiers)
 - [x] `.clang-format` and `.clang-tidy` encoding the [Code Style](CodeStyle.md#enforcement), with warnings as errors for engine code
-- [ ] GitHub Actions CI on every platform and configuration (Dist included), plus format, clang-tidy and ASan/UBSan jobs, with compiler, dependency and Git LFS caching (see [CI](Testing.md#ci))
-- [ ] Toolchain checks on CI: `std::expected` and the other C++23 features we use compile on GCC 14, Clang 19, MSVC and Apple Clang; the hosted Windows image has MSVC 14.52+ (otherwise CI installs the Build Tools)
-- [ ] Lua 5.4 and sol2, pinned to a commit that builds cleanly on all four compilers, with a smoke-test binding
-- [ ] Pull-request workflow: main is protected, so CI must pass before merging (enabling branch protection on GitHub needs the user's approval)
+- [x] GitHub Actions CI on every platform and configuration (Dist included), plus format, clang-tidy and ASan/UBSan jobs, with compiler, dependency and Git LFS caching (see [CI](Testing.md#ci))
+- [x] Toolchain checks on CI: `std::expected` and the other C++23 features we use compile on GCC 14, Clang 19, MSVC and Apple Clang; the hosted Windows image has MSVC 14.52+ (otherwise CI installs the Build Tools). 14.52 isn't a stable release yet, so CI reports the image's version (14.51) and builds with `/std:c++latest` until it is - see [Decision 0004](Decisions/0004-msvc-cpp23-switch.md)
+- [x] Lua 5.4 and sol2, pinned to a commit that builds cleanly on all four compilers, with a smoke-test binding
+- [x] Pull-request workflow: main is protected, so CI must pass before merging (enabling branch protection on GitHub needs the user's approval)
 - [x] AGENTS.md / CLAUDE.md / skills, THIRD_PARTY_LICENSES.md, Git LFS (`.gitattributes`)
 
 **Acceptance:** every CI job is green on a pull request; a deliberately misformatted file and a deliberate compiler warning each fail CI (checked once, then reverted); Dist builds on every platform.
