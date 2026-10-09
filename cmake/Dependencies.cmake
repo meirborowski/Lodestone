@@ -135,6 +135,10 @@ set(NVRHI_FETCH_VULKAN_HEADERS OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi)
 
+# NVRHI's Vulkan backend calls into NVRHI's common library without declaring it. Linkers that resolve symbols in one
+# pass (GNU ld) need the common library after the backend on the command line, which this dependency guarantees
+target_link_libraries(nvrhi_vk PUBLIC nvrhi)
+
 # stb's single-file libraries, compiled once in a translation unit of their own, so third-party code is never built
 # with Lodestone's warnings or checked by clang-tidy. Only the decoders Lodestone uses are compiled, and stb never
 # touches files itself: Lodestone reads and writes them, so paths behave the same on every platform

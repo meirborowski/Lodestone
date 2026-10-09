@@ -145,7 +145,8 @@ jobs:
         run: ctest --preset ${{ matrix.preset }}
 
       # Opens a window and presents frames: on lavapipe on Windows, under Xvfb with Ubuntu's lavapipe on Linux (the
-      # pinned build renders offscreen only), and on MoltenVK on macOS
+      # pinned build renders offscreen only), and on MoltenVK on macOS. The runtime loads lavapipe itself, since
+      # Windows runners are elevated and the Vulkan loader ignores VK_DRIVER_FILES there
       - name: Run the windowed runtime
         timeout-minutes: 5
         shell: bash
@@ -153,13 +154,13 @@ jobs:
           runtime="build/${{ matrix.preset }}/Source/Runtime/LodestoneRuntime"
           case "$RUNNER_OS" in
             Windows)
-              VK_DRIVER_FILES="$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/lvp_icd.x86_64.json)" \
-                "$runtime.exe" --frames 60 --no-vsync
+              "$runtime.exe" --frames 60 --no-vsync \
+                --vulkan-driver "$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/vulkan_lvp.dll)"
               ;;
             Linux)
               sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers
-              VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run --auto-servernum \
-                "$runtime" --frames 60 --no-vsync
+              xvfb-run --auto-servernum "$runtime" --frames 60 --no-vsync \
+                --vulkan-driver /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
               ;;
             macOS)
               "$runtime" --frames 60 --no-vsync

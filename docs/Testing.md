@@ -35,7 +35,7 @@ Never delete, skip or weaken a test, loosen a tolerance, or regenerate a referen
 
 How it works:
 - `tools/lavapipe.env` pins the Mesa version. On Windows, CMake downloads lavapipe; on Linux, build it once with `tools/build-lavapipe.sh`. Both install into `.cache/lavapipe`. Without lavapipe, reference-image tests are skipped with a message saying how to get it; CI configures with `LS_REQUIRE_LAVAPIPE=ON`, so there it's an error instead
-- The rendering test executable (`LodestoneRenderTests`) selects lavapipe itself, however it's started. Reference-image test cases are in the `ReferenceImages` doctest test suite
+- Rendering tests create their graphics devices with `MakeRenderTestDeviceConfig()` (`Tests/Render/RenderTestDevice.h`), which loads lavapipe directly, however the tests are started. Reference-image test cases are in the `ReferenceImages` doctest test suite
 - A test renders offscreen, reads the image back (`ReadTexture()`) and calls `CheckReferenceImage("Name", image)` from `Tests/Common/ReferenceImage.h`, which compares it with `Tests/ReferenceImages/Name.png`. The default tolerance allows each channel to differ by 2, and 0.1% of the pixels to differ by more; a test that needs another tolerance passes one, and says why
 - On a mismatch, the rendered image and a difference image are written to `<build tree>/RenderOutput`
 - To create or deliberately update reference images, run the rendering tests with `LS_UPDATE_REFERENCE_IMAGES=1`, check every changed image by eye, and commit them with the reason (see the `update-reference-images` skill)

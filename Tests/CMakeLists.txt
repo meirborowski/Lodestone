@@ -33,21 +33,18 @@ target_compile_definitions(LodestoneTestSupport
 )
 ls_configure_target(LodestoneTestSupport)
 
-# ls_add_test_executable(<target> PREFIX <prefix> LABELS <tier>... SOURCES <file>... [MAIN <file>]
+# ls_add_test_executable(<target> PREFIX <prefix> LABELS <tier>... SOURCES <file>...
 #                        [LIBRARIES <library>...] [TEST_SPEC <doctest filter>...])
 #
-# Adds a doctest executable and registers each of its test cases with CTest as "<prefix>.<test case name>". MAIN
-# replaces the standard test runner (Common/TestMain.cpp); TEST_SPEC limits which test cases are registered.
+# Adds a doctest executable, with the standard test runner (Common/TestMain.cpp), and registers each of its test cases
+# with CTest as "<prefix>.<test case name>". TEST_SPEC limits which test cases are registered.
 function(ls_add_test_executable target)
-	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX;MAIN" "LABELS;SOURCES;LIBRARIES;TEST_SPEC")
+	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX" "LABELS;SOURCES;LIBRARIES;TEST_SPEC")
 	if(NOT ARG_PREFIX OR NOT ARG_LABELS OR NOT ARG_SOURCES)
 		message(FATAL_ERROR "ls_add_test_executable(${target}) needs PREFIX, LABELS and SOURCES")
 	endif()
-	if(NOT ARG_MAIN)
-		set(ARG_MAIN Common/TestMain.cpp)
-	endif()
 
-	add_executable(${target} ${ARG_MAIN} ${ARG_SOURCES})
+	add_executable(${target} Common/TestMain.cpp ${ARG_SOURCES})
 	target_link_libraries(${target} PRIVATE LodestoneTestSupport ${ARG_LIBRARIES})
 	ls_configure_target(${target})
 
@@ -88,9 +85,10 @@ ls_add_test_executable(LodestoneClientTests
 		LodestoneClient
 )
 
-# Rendering tests, on lavapipe wherever it's available (see cmake/Lavapipe.cmake). Without it, only the tests that
-# don't compare against reference images are registered - on macOS, they check that MoltenVK provides a Vulkan device
-if(LS_LAVAPIPE_ICD)
+# Rendering tests, on lavapipe wherever it's available (see cmake/Lavapipe.cmake and Render/RenderTestDevice.h).
+# Without it, only the tests that don't compare against reference images are registered - on macOS, they check that
+# MoltenVK provides a Vulkan device and renders
+if(LS_LAVAPIPE_DRIVER)
 	set(LS_RENDER_TEST_SPEC "")
 else()
 	set(LS_RENDER_TEST_SPEC "--test-suite-exclude=ReferenceImages")
@@ -98,16 +96,17 @@ endif()
 ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
 	LABELS render
-	MAIN Render/RenderTestMain.cpp
 	SOURCES
 		Render/GraphicsDeviceTests.cpp
+		Render/RenderTestDevice.cpp
+		Render/RenderTestDevice.h
 		Render/TriangleRenderTests.cpp
 	LIBRARIES
 		LodestoneClient
 	TEST_SPEC ${LS_RENDER_TEST_SPEC}
 )
-if(LS_LAVAPIPE_ICD)
-	target_compile_definitions(LodestoneRenderTests PRIVATE LS_LAVAPIPE_ICD="${LS_LAVAPIPE_ICD}")
+if(LS_LAVAPIPE_DRIVER)
+	target_compile_definitions(LodestoneRenderTests PRIVATE LS_LAVAPIPE_DRIVER="${LS_LAVAPIPE_DRIVER}")
 else()
 	# Skipped rather than silently missing, so the reason shows in every test run
 	add_test(NAME "Render.Reference-image tests"

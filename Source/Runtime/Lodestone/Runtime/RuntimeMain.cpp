@@ -12,13 +12,16 @@
 #include <array>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <optional>
 #include <thread>
 
 namespace {
 
 	constexpr std::array<std::string_view, 2> Flags = {"--version", "--no-vsync"};
 	// --frames N: exit after rendering N frames, for automated runs
-	constexpr std::array<std::string_view, 1> Options = {"--frames"};
+	// --vulkan-driver <library>: render with this Vulkan driver instead of the installed ones, e.g. lavapipe
+	constexpr std::array<std::string_view, 2> Options = {"--frames", "--vulkan-driver"};
 
 	// Until exported games can be loaded (Milestone 12), the runtime opens a window and draws the bring-up triangle
 	std::expected<int, Lodestone::Error> Run(const Lodestone::CommandLine& commandLine)
@@ -49,6 +52,8 @@ namespace {
 		deviceConfig.SupportsPresentation =
 			[&window](VkInstance instance, VkPhysicalDevice physicalDevice, uint32_t queueFamily)
 		{ return (*window)->SupportsVulkanPresentation(instance, physicalDevice, queueFamily); };
+		if (const std::optional<std::string_view> driver = commandLine.GetValue("--vulkan-driver"))
+			deviceConfig.Driver = std::filesystem::path(*driver);
 		auto device = GraphicsDevice::Create(deviceConfig);
 		if (!device)
 			return std::unexpected(std::move(device).error());

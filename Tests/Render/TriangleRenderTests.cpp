@@ -2,6 +2,7 @@
 #include "Lodestone/Graphics/GraphicsDevice.h"
 #include "Lodestone/Graphics/TextureReadback.h"
 #include "Lodestone/Graphics/TriangleRenderer.h"
+#include "Render/RenderTestDevice.h"
 
 #include <doctest/doctest.h>
 #include <spdlog/fmt/fmt.h>
@@ -67,7 +68,7 @@ namespace Lodestone {
 
 	TEST_CASE("The triangle renders offscreen and matches its reference image" * doctest::test_suite("ReferenceImages"))
 	{
-		const auto device = GraphicsDevice::Create({});
+		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
 
 		const Image image = RenderTriangle(**device);
@@ -80,7 +81,7 @@ namespace Lodestone {
 	// cleared, and each corner of the triangle has its own color
 	TEST_CASE("The triangle renders offscreen")
 	{
-		const auto device = GraphicsDevice::Create({});
+		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
 
 		const Image image = RenderTriangle(**device);
@@ -108,7 +109,7 @@ namespace Lodestone {
 
 	TEST_CASE("Reading back an unsupported format fails")
 	{
-		const auto device = GraphicsDevice::Create({});
+		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
 		nvrhi::IDevice* nvrhiDevice = (*device)->GetNvrhiDevice();
 

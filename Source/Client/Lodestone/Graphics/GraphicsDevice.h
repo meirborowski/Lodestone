@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
@@ -58,6 +59,10 @@ namespace Lodestone {
 		bool EnableValidation = false;
 #endif
 		GpuPreference Preference = GpuPreference::HighPerformance;
+		// A Vulkan driver library to use instead of the installed drivers, such as lavapipe for rendering tests. The
+		// engine loads it and hands it to the Vulkan loader directly (VK_LUNARG_direct_driver_loading), so it works
+		// where the loader ignores VK_DRIVER_FILES, e.g. in elevated processes on Windows. Empty: the installed drivers
+		std::filesystem::path Driver;
 	};
 
 	struct GraphicsDeviceInfo

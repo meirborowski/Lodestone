@@ -10,7 +10,7 @@ Reference-image tests must give the same result on every machine (see [Reference
 - **One pinned Mesa version** - `tools/lavapipe.env` pins Mesa 26.2.4, with the hashes of its source release and of the prebuilt Windows release. CMake, the build script and CI all read it
 - **Windows: the prebuilt release** - CMake downloads [mesa-dist-win](https://github.com/pal1000/mesa-dist-win)'s release of that Mesa version, checks its hash, and extracts only lavapipe into `.cache/lavapipe`
 - **Linux: built from source** - `tools/build-lavapipe.sh` builds lavapipe alone (no OpenGL, other drivers or window systems) from the pinned source release, with LLVM linked statically, into `.cache/lavapipe`. The driver manifest uses a relative path, so the build can be restored anywhere. CI builds it once in its own job and caches it, keyed on the pinned version and the script
-- **Selected in-process** - the rendering test executable points the Vulkan loader at lavapipe's manifest (`VK_DRIVER_FILES`) before Vulkan starts, so rendering tests use lavapipe however they're run - from CTest, an IDE or the command line - and never the machine's GPU
+- **Loaded directly** - rendering tests create their devices with lavapipe's library as `GraphicsDeviceConfig::Driver`. The engine loads it and hands it to the Vulkan loader through `VK_LUNARG_direct_driver_loading`, in exclusive mode, so rendering tests use lavapipe however they're run - from CTest, an IDE or the command line - and never the machine's GPU. Environment variables such as `VK_DRIVER_FILES` aren't used: the loader ignores them in elevated processes, which GitHub's Windows runners are
 - **Required on CI** - Windows and Linux CI configure with `LS_REQUIRE_LAVAPIPE=ON`, so a missing lavapipe fails the build instead of skipping tests. Locally, without lavapipe, reference-image tests are skipped with the reason and the command to build it
 - **macOS: skipped, with a logged reason** - no reference-image comparison runs on macOS. A skipped test, `Render.Reference-image tests`, shows the reason in every test run. The other rendering tests (device creation, offscreen rendering, readback) run on MoltenVK, which is the macOS smoke check that MoltenVK loads and provides a Vulkan device
 
@@ -19,6 +19,7 @@ Reference-image tests must give the same result on every machine (see [Reference
 - **Reference images per platform or GPU** - several sets of images to keep up to date, and differences between them would hide real regressions
 - **Comparing on whatever GPU is present** - results would depend on the machine, so failures couldn't be trusted
 - **A distribution's Mesa package** - its version changes with the distribution, which would change the images underneath us
+- **Selecting lavapipe with `VK_DRIVER_FILES`** - simpler, but the Vulkan loader ignores it in elevated processes, and registering lavapipe as a system driver instead would change the machine for every program
 
 ## Consequences
 - Updating Mesa means changing `tools/lavapipe.env` and regenerating every reference image in the same change, with the reason in the commit message

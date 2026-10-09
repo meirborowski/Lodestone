@@ -405,6 +405,27 @@ namespace Lodestone {
 			}
 		}
 
+		// A driver the engine loads itself replaces the installed drivers
+		VkDirectDriverLoadingInfoLUNARG driverInfo{};
+		driverInfo.sType = VK_STRUCTURE_TYPE_DIRECT_DRIVER_LOADING_INFO_LUNARG;
+		VkDirectDriverLoadingListLUNARG driverList{};
+		driverList.sType = VK_STRUCTURE_TYPE_DIRECT_DRIVER_LOADING_LIST_LUNARG;
+		if (!config.Driver.empty())
+		{
+			if (!HasExtension(*availableExtensions, VK_LUNARG_DIRECT_DRIVER_LOADING_EXTENSION_NAME))
+				return std::unexpected(Error(ErrorCode::DeviceError,
+					"The Vulkan loader can't load a driver directly (VK_LUNARG_direct_driver_loading needs loader "
+					"1.3.238 or newer)"));
+			const auto entryPoint = LoadVulkanDriver(config.Driver);
+			if (!entryPoint)
+				return std::unexpected(entryPoint.error());
+			driverInfo.pfnGetInstanceProcAddr = *entryPoint;
+			driverList.mode = VK_DIRECT_DRIVER_LOADING_MODE_EXCLUSIVE_LUNARG;
+			driverList.driverCount = 1;
+			driverList.pDrivers = &driverInfo;
+			m_InstanceExtensions.emplace_back(VK_LUNARG_DIRECT_DRIVER_LOADING_EXTENSION_NAME);
+		}
+
 		// Drivers that don't fully conform to Vulkan, such as MoltenVK on macOS, are only listed on request
 		VkInstanceCreateFlags flags = 0;
 		if (HasExtension(*availableExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME))
@@ -424,10 +445,17 @@ namespace Lodestone {
 		const std::vector<const char*> extensions = ToCStrings(m_InstanceExtensions);
 		VkDebugUtilsMessengerCreateInfoEXT messengerInfo = MakeDebugMessengerInfo(m_ValidationErrorCount);
 
+		// Also reports problems in vkCreateInstance and vkDestroyInstance, which the messenger can't see
+		const void* next = debugUtils ? &messengerInfo : nullptr;
+		if (driverList.driverCount != 0)
+		{
+			driverList.pNext = next;
+			next = &driverList;
+		}
+
 		VkInstanceCreateInfo info{};
 		info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		// Also reports problems in vkCreateInstance and vkDestroyInstance, which the messenger can't see
-		info.pNext = debugUtils ? &messengerInfo : nullptr;
+		info.pNext = next;
 		info.flags = flags;
 		info.pApplicationInfo = &application;
 		info.enabledLayerCount = static_cast<uint32_t>(layers.size());
