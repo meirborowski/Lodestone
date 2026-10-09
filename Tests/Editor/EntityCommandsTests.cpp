@@ -303,7 +303,8 @@ namespace Lodestone {
 		fixture.CheckUndoRedo(CreateScope<SetFieldsCommand>(
 			fixture.Player, "Transform", Json::Value{{"Position", {0.0, 0.0, 0.0}}, {"Scale", {2.0, 2.0, 2.0}}}));
 
-		const TransformComponent& transform = fixture.Get(fixture.Player).GetTransform();
+		// A copy: the entity handle is a temporary
+		const TransformComponent transform = fixture.Get(fixture.Player).GetTransform();
 		CHECK(transform.Position == glm::vec3(0.0f));
 		CHECK(transform.Scale == glm::vec3(2.0f));
 		CHECK(fixture.History.GetUndoName() == "Set Transform Position, Scale");

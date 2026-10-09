@@ -245,8 +245,12 @@ namespace Lodestone {
 			{
 				if (glm::determinant(glm::mat3(local)) < 0.0f)
 					scale.x = -scale.x;
-				const glm::mat3 rotation(
-					glm::vec3(local[0]) / scale.x, glm::vec3(local[1]) / scale.y, glm::vec3(local[2]) / scale.z);
+				// The axes without their scale. Named first: written inline, GCC reads glm::vec3(local[0]) as the
+				// declaration of an array parameter
+				const glm::vec3 xAxis = glm::vec3(local[0]) / scale.x;
+				const glm::vec3 yAxis = glm::vec3(local[1]) / scale.y;
+				const glm::vec3 zAxis = glm::vec3(local[2]) / scale.z;
+				const glm::mat3 rotation{xAxis, yAxis, zAxis};
 				Json::Value fields = Json::Value::object();
 				fields["Position"] = Json::FromFieldValue(glm::vec3(local[3]));
 				fields["Rotation"] = Json::FromFieldValue(glm::normalize(glm::quat_cast(rotation)));
