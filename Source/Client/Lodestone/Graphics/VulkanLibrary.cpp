@@ -53,7 +53,8 @@ namespace Lodestone {
 			void* module = dlopen(library.c_str(), RTLD_NOW | RTLD_LOCAL);
 			if (module == nullptr)
 			{
-				const char* reason = dlerror();
+				// glibc and macOS keep dlerror()'s state per thread
+				const char* reason = dlerror(); // NOLINT(concurrency-mt-unsafe)
 				return std::unexpected(Error(ErrorCode::DeviceError,
 					fmt::format(
 						"Can't load the Vulkan driver {}: {}", library, reason != nullptr ? reason : "unknown")));

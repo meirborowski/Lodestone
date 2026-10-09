@@ -181,7 +181,15 @@ namespace Lodestone {
 		uint32_t count = 0;
 		const char** names = glfwGetRequiredInstanceExtensions(&count);
 		if (names == nullptr)
+		{
+			// GLFW reports no error when the Vulkan loader works but lists no window surface extensions, which it
+			// only does for installed drivers that support them
+			if (glfwGetError(nullptr) == GLFW_NO_ERROR)
+				return std::unexpected(Error(ErrorCode::DeviceError,
+					"No installed Vulkan driver can present to windows (the Vulkan loader lists no window surface "
+					"extensions)"));
 			return std::unexpected(MakeGlfwError("Finding the Vulkan extensions the window system needs"));
+		}
 		return std::vector<std::string>(names, names + count);
 	}
 

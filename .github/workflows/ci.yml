@@ -144,9 +144,22 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+      # The Vulkan loader lists window surface extensions only for installed drivers, and the runner has no GPU
+      # driver, so the windowed runtime needs lavapipe installed as a system driver. Rendering tests, above, load it
+      # directly instead
+      - name: Install lavapipe as a Vulkan driver
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $manifest = (Resolve-Path .cache/lavapipe/mesa-*-windows/x64/lvp_icd.x86_64.json).Path
+          $drivers = 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers'
+          New-Item -Path $drivers -Force | Out-Null
+          New-ItemProperty -Path $drivers -Name $manifest -PropertyType DWord -Value 0 -Force | Out-Null
+          Write-Output "Installed $manifest"
+
       # Opens a window and presents frames: on lavapipe on Windows, under Xvfb with Ubuntu's lavapipe on Linux (the
-      # pinned build renders offscreen only), and on MoltenVK on macOS. The runtime loads lavapipe itself, since
-      # Windows runners are elevated and the Vulkan loader ignores VK_DRIVER_FILES there
+      # pinned build renders offscreen only), and on MoltenVK on macOS. --vulkan-driver makes sure it's lavapipe
+      # that renders
       - name: Run the windowed runtime
         timeout-minutes: 5
         shell: bash
