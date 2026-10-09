@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 3. ECS, scenes and assets
-- **In progress:** the `milestone-3-ecs-scenes-assets` branch, in a pull request: every item is implemented and passes locally on Windows (Debug, Release and Dist, clang-tidy). Waiting for CI on every platform, then merge
-- **Next:** Milestone 4 (editor and AI control). It will run the simulation in play mode and edit scenes through the reflection registry; the runtime doesn't use scenes or the simulation yet
+- **Active milestone:** 4. Editor and AI control
+- **In progress:** nothing yet. Milestone 3 is done: EnTT, reflection, scenes, the simulation with input commands and rollback, the asset registry and fuzz tests pass on every CI platform
+- **Next:** Milestone 4. The plan: an editor library and executable (not built in Dist); a command system with undo/redo shared by the UI and MCP; an editor context (project, scene, selection, history, play mode); prefabs and duplicate/undo-delete built on serialized entity subtrees; a simple debug scene renderer for the viewport and screenshots until Milestone 5's renderer; Dear ImGui (docking) on NVRHI with ImGuizmo; an MCP server over stdio and localhost HTTP with Host/Origin checks; headless mode; and tests for every tool and both transports
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -27,7 +27,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 ## Progress
 - [x] [1. Foundation](#1-foundation)
 - [x] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
-- [ ] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
+- [x] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [ ] [4. Editor and AI control](#4-editor-and-ai-control)
 - [ ] [5. 3D renderer](#5-3d-renderer)
 - [ ] [6. Animation](#6-animation)
