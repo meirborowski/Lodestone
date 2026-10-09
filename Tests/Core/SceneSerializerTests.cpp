@@ -176,8 +176,8 @@ namespace Lodestone {
 		Scene& scene = **loaded;
 
 		CHECK(scene.GetEntityCount() == 3);
-		Entity player = scene.FindEntity(*UUID::Parse("22222222-2222-4222-8222-222222222222"));
-		Entity camera = scene.FindEntity(*UUID::Parse("33333333-3333-4333-8333-333333333333"));
+		Entity player = scene.FindEntity(UUID(0x22222222'2222'4222ull, 0x8222'222222222222ull));
+		Entity camera = scene.FindEntity(UUID(0x33333333'3333'4333ull, 0x8333'333333333333ull));
 		REQUIRE(player.IsValid());
 		REQUIRE(camera.IsValid());
 		CHECK(player.GetName() == "Player");

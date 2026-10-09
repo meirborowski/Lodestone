@@ -9,8 +9,9 @@ namespace Lodestone {
 
 	namespace {
 
-		// Component and field names appear in files, MCP and scripts, so they're plain identifiers
-		bool IsIdentifier(std::string_view name)
+		// Component and field names appear in files, MCP and scripts, so they're plain identifiers. Only asserts use
+		// it, which Dist compiles out
+		[[maybe_unused]] bool IsIdentifier(std::string_view name)
 		{
 			const auto isLetter = [](char character)
 			{ return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z'); };
@@ -19,7 +20,8 @@ namespace Lodestone {
 				std::ranges::all_of(name, [&](char character) { return isLetter(character) || isDigit(character); });
 		}
 
-		bool HasLimits(FieldType type)
+		// Only asserts use it, which Dist compiles out
+		[[maybe_unused]] bool HasLimits(FieldType type)
 		{
 			switch (type)
 			{

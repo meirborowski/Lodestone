@@ -70,7 +70,8 @@ namespace Lodestone {
 		const auto loaded =
 			AssetMetadataSerializer::Load(std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Assets" / "Brick.png.v1.meta");
 		REQUIRE_MESSAGE(loaded.has_value(), Testing::DescribeError(loaded));
-		CHECK(loaded->Id == *UUID::Parse("8f14e45f-ceea-467a-9575-d8e1a3d1c2b0"));
+		// 8f14e45f-ceea-467a-9575-d8e1a3d1c2b0
+		CHECK(loaded->Id == UUID(0x8f14e45f'ceea'467aull, 0x9575'd8e1a3d1c2b0ull));
 		CHECK(loaded->Type == AssetType::Texture);
 		CHECK(loaded->ImportSettings == Json::Value({{"srgb", true}}));
 	}

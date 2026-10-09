@@ -6,7 +6,6 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
 
-#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -86,14 +85,22 @@ namespace Lodestone {
 
 	std::string_view ToString(AssetType type)
 	{
-		const auto entry = std::ranges::find(AssetTypeNames, type, &std::pair<AssetType, std::string_view>::first);
-		return entry != AssetTypeNames.end() ? entry->second : "Unknown";
+		for (const auto& [value, name] : AssetTypeNames)
+		{
+			if (value == type)
+				return name;
+		}
+		return "Unknown";
 	}
 
 	std::optional<AssetType> AssetTypeFromString(std::string_view name)
 	{
-		const auto entry = std::ranges::find(AssetTypeNames, name, &std::pair<AssetType, std::string_view>::second);
-		return entry != AssetTypeNames.end() ? std::optional(entry->first) : std::nullopt;
+		for (const auto& [value, valueName] : AssetTypeNames)
+		{
+			if (valueName == name)
+				return value;
+		}
+		return std::nullopt;
 	}
 
 	std::optional<AssetType> GetAssetTypeForFile(const std::filesystem::path& path)
@@ -103,9 +110,12 @@ namespace Lodestone {
 		for (const char8_t character : path.extension().u8string())
 			extension.push_back(
 				static_cast<char>(character >= u8'A' && character <= u8'Z' ? character - u8'A' + u8'a' : character));
-		const auto entry =
-			std::ranges::find(AssetExtensions, extension, &std::pair<std::string_view, AssetType>::first);
-		return entry != AssetExtensions.end() ? std::optional(entry->second) : std::nullopt;
+		for (const auto& [assetExtension, type] : AssetExtensions)
+		{
+			if (assetExtension == extension)
+				return type;
+		}
+		return std::nullopt;
 	}
 
 	const FileFormat& AssetMetadataSerializer::GetFormat()
