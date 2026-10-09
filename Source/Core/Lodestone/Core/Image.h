@@ -35,6 +35,8 @@ namespace Lodestone {
 		[[nodiscard]] static std::expected<Image, Error> Decode(std::span<const uint8_t> encoded);
 		// Writes the image as a PNG file, replacing any existing file
 		[[nodiscard]] std::expected<void, Error> SavePng(const std::filesystem::path& path) const;
+		// The image as the bytes of a PNG file
+		[[nodiscard]] std::expected<std::vector<uint8_t>, Error> EncodePng() const;
 
 		uint32_t GetWidth() const { return m_Width; }
 		uint32_t GetHeight() const { return m_Height; }

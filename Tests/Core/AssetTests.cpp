@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace Lodestone {
 
@@ -129,6 +130,23 @@ namespace Lodestone {
 		CHECK(registry.Find(brick->Metadata.Id) == brick);
 		CHECK(registry.GetAbsolutePath(*brick) == root / "Textures" / "Brick.png");
 		CHECK(registry.FindByPath("Notes.txt") == nullptr);
+	}
+
+	TEST_CASE("Every asset is listed, sorted by path")
+	{
+		const Testing::TemporaryDirectory directory("AssetList");
+		const std::filesystem::path& root = directory.GetPath();
+		WriteText(root / "Scenes" / "Main.lscene", "{}");
+		WriteText(root / "Audio.wav", "wav");
+		WriteText(root / "Textures" / "Brick.png", "png");
+		AssetRegistry registry(root);
+		REQUIRE(registry.Scan().has_value());
+
+		std::vector<std::string> paths;
+		for (const AssetInfo* asset : registry.GetAll())
+			paths.push_back(asset->Path);
+
+		CHECK(paths == std::vector<std::string>{"Audio.wav", "Scenes/Main.lscene", "Textures/Brick.png"});
 	}
 
 	TEST_CASE("Assets keep their UUIDs across scans, and when they move with their metadata")

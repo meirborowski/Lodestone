@@ -23,6 +23,7 @@ Run the `unit` tier on every change, and every tier before opening a pull reques
 - Tests are built and run in every configuration, Dist included. Tests of behaviour that differs in Dist (asserts, developer logging) check the Dist behaviour there
 - Shared test helpers live in `Tests/Common` (`LodestoneTestSupport`): capturing log output, temporary directories, reference-image comparison, the fuzzer, and `DescribeError()` for assertion messages about `std::expected` results
 - Files that tests load - documents in older format versions, scenes, asset metadata - live in `Tests/Fixtures`. Every version of a file format keeps a fixture, and every migration is tested against the fixture of the version it upgrades from
+- The editor's tests (not built in Dist): `LodestoneEditorTests` (`unit`) covers commands, the editor context, every MCP tool in-process, the MCP protocol, the stdio transport, picking, and the UI - Dear ImGui runs without a window or GPU, so tests draw every panel and press shortcuts. `LodestoneEditorIntegrationTests` (`integration`) runs the HTTP transport over loopback, and CTest runs `Tests/Editor/McpAgentSmokeTest.py` against the headless editor over stdio and HTTP (see [AI Control](AIControl.md#testing))
 - Fuzz tests (`LodestoneFuzzTests`) feed a loader its corpus in `Tests/Fuzz/Corpus/<format>`, then mutations of it, for the time budget. Each run prints its seed; `LS_FUZZ_SEED=<seed>` replays it. Anything that loads must also save and load again unchanged (see [Decision 0013](Decisions/0013-fuzz-testing.md))
 - The configure step checks the layering: `LodestoneCore`, its tests and the server fail to configure if they link GLFW, nvrhi or `LodestoneClient` (`ls_forbid_dependencies()`)
 
@@ -53,7 +54,8 @@ How it works:
   - macOS (Apple Clang, MoltenVK)
   - Ubuntu 24.04 (GCC 14 and Clang 19)
 - Once the runtime exists, CI also smoke-tests the Dist runtime headlessly
-- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux, which also fuzzes longer), and ThreadSanitizer as soon as the engine uses more than one thread
+- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux, which also fuzzes longer), and ThreadSanitizer (Clang on Linux, for the editor's MCP threads and everything threaded after them; it runs the `unit` and `integration` tiers except tests that render, since lavapipe's JIT-compiled threads are invisible to it)
+- The windowed runtime and editor each open a window and present frames on every platform (under Xvfb on Linux)
 - Rendering tests run on lavapipe on Windows and Linux (see [Reference Images](#reference-images)). The `lavapipe` job builds it for Linux once per Mesa version and caches it
 - On macOS, the rendering tests are the smoke check: they run on MoltenVK, and fail with a clear message if it doesn't load or provides no Vulkan device
 - When a rendering test fails, CI uploads `RenderOutput` (the rendered and difference images) as an artifact

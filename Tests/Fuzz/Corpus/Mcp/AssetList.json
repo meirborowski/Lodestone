@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 37, "method": "tools/call", "params": {"name": "asset_list", "arguments": {"type": "Scene"}}}

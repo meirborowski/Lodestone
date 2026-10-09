@@ -53,6 +53,8 @@ namespace Lodestone {
 		// An asset by its path relative to the asset directory
 		const AssetInfo* FindByPath(const std::filesystem::path& path) const;
 		size_t GetAssetCount() const { return m_Assets.size(); }
+		// Every asset, by path
+		std::vector<const AssetInfo*> GetAll() const;
 
 		const std::filesystem::path& GetAssetDirectory() const { return m_AssetDirectory; }
 		std::filesystem::path GetAbsolutePath(const AssetInfo& asset) const;

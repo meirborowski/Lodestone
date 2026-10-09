@@ -172,6 +172,26 @@ namespace Lodestone {
 		return KeyNamesByCode[code];
 	}
 
+	std::optional<Key> KeyFromName(std::string_view name)
+	{
+		for (uint32_t code = 0; code < KeyCodeCount; ++code)
+		{
+			if (!KeyNamesByCode[code].empty() && KeyNamesByCode[code] == name)
+				return static_cast<Key>(code);
+		}
+		return std::nullopt;
+	}
+
+	std::optional<MouseButton> MouseButtonFromName(std::string_view name)
+	{
+		for (uint32_t index = 0; index < MouseButtonCount; ++index)
+		{
+			if (MouseButtonNames[index] == name)
+				return static_cast<MouseButton>(index);
+		}
+		return std::nullopt;
+	}
+
 	std::string_view ToString(MouseButton button)
 	{
 		const auto index = std::to_underlying(button);

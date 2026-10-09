@@ -1,0 +1,7 @@
+{
+  "format": "Lodestone.Project",
+  "version": 1,
+  "name": "Pong",
+  "startupScene": "66666666-6666-4666-8666-666666666666",
+  "tickRate": 120
+}

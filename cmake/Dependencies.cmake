@@ -149,7 +149,26 @@ set(JSON_ImplicitConversions OFF CACHE BOOL "" FORCE)
 set(JSON_Install OFF CACHE BOOL "" FORCE)
 set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi entt nlohmann_json)
+# Dear ImGui (docking branch) - the editor UI (MIT). It has no CMake build of its own; the target is defined below
+ls_declare_dependency(imgui POPULATE_ONLY
+	URL https://github.com/ocornut/imgui/archive/refs/tags/v1.92.9b-docking.tar.gz
+	SHA256 90ded916bd57db2e0e171b6b098940a47c6f5042725dcdc67fb19940ca8bfdcc
+)
+
+# ImGuizmo - the editor's transform gizmo (MIT). No recent release, so pinned to a commit
+ls_declare_dependency(imguizmo POPULATE_ONLY
+	URL https://github.com/CedricGuillemet/ImGuizmo/archive/18cef5e031d8c6973d80284c67f60549fafd78c1.tar.gz
+	SHA256 6ad626f0687be12c2f3ba6542c0f1bdda9e71e395d0645e4cda37695354406d8
+)
+
+# cpp-httplib - the HTTP transport of the editor's MCP server (MIT). Header-only; only the header is used
+ls_declare_dependency(httplib POPULATE_ONLY
+	URL https://github.com/yhirose/cpp-httplib/archive/refs/tags/v0.59.0.tar.gz
+	SHA256 7c8cc7df044abb837d75f7c1e56333305acb40335c3788b8f5fbf5927e63e148
+)
+
+FetchContent_MakeAvailable(
+	spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi entt nlohmann_json imgui imguizmo httplib)
 
 # NVRHI's Vulkan backend calls into NVRHI's common library without declaring it. Linkers that resolve symbols in one
 # pass (GNU ld) need the common library after the backend on the command line, which this dependency guarantees
@@ -170,6 +189,40 @@ target_include_directories(stb SYSTEM PUBLIC "${stb_SOURCE_DIR}")
 target_compile_definitions(stb PUBLIC STBI_ONLY_PNG STBI_ONLY_JPEG STBI_NO_STDIO STBI_WRITE_NO_STDIO)
 
 include("${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake")
+
+# Dear ImGui with its GLFW platform backend. Lodestone renders it through NVRHI itself
+# (Lodestone/Graphics/ImGuiRenderer), so no renderer backend is compiled
+add_library(imgui STATIC EXCLUDE_FROM_ALL
+	"${imgui_SOURCE_DIR}/imgui.cpp"
+	"${imgui_SOURCE_DIR}/imgui_draw.cpp"
+	"${imgui_SOURCE_DIR}/imgui_tables.cpp"
+	"${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+	"${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp"
+	"${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp"
+)
+add_library(imgui::imgui ALIAS imgui)
+target_include_directories(imgui SYSTEM PUBLIC
+	"${imgui_SOURCE_DIR}" "${imgui_SOURCE_DIR}/backends" "${imgui_SOURCE_DIR}/misc/cpp")
+# Dear ImGui's asserts go through the engine's assert handler (see the configuration header), so it uses LodestoneCore
+target_include_directories(imgui PUBLIC "${PROJECT_SOURCE_DIR}/Source/Client/ThirdPartyConfig/imgui")
+target_compile_definitions(imgui PUBLIC
+	IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+	IMGUI_USER_CONFIG="LodestoneImGuiConfig.h"
+)
+target_link_libraries(imgui PUBLIC LodestoneCore PRIVATE glfw)
+
+add_library(imguizmo STATIC EXCLUDE_FROM_ALL "${imguizmo_SOURCE_DIR}/src/ImGuizmo.cpp")
+add_library(imguizmo::imguizmo ALIAS imguizmo)
+target_include_directories(imguizmo SYSTEM PUBLIC "${imguizmo_SOURCE_DIR}/src")
+target_link_libraries(imguizmo PUBLIC imgui)
+
+find_package(Threads REQUIRED)
+add_library(httplib INTERFACE)
+add_library(httplib::httplib ALIAS httplib)
+target_include_directories(httplib SYSTEM INTERFACE "${httplib_SOURCE_DIR}")
+target_link_libraries(httplib INTERFACE Threads::Threads $<$<PLATFORM_ID:Windows>:ws2_32>)
+# Plain HTTP on the loopback interface only: no TLS, compression or other optional features
+target_compile_definitions(httplib INTERFACE $<$<PLATFORM_ID:Windows>:_WIN32_WINNT=0x0A00>)
 
 # Lua is compiled as C++, so Lua errors unwind C++ stack frames with exceptions (running destructors) instead of
 # longjmp. See docs/Decisions/0003-lua-compiled-as-cpp.md

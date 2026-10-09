@@ -156,6 +156,16 @@ namespace Lodestone {
 		return asset != m_Assets.end() ? &asset->second : nullptr;
 	}
 
+	std::vector<const AssetInfo*> AssetRegistry::GetAll() const
+	{
+		std::vector<const AssetInfo*> assets;
+		assets.reserve(m_Assets.size());
+		for (const auto& [id, asset] : m_Assets)
+			assets.push_back(&asset);
+		std::ranges::sort(assets, {}, &AssetInfo::Path);
+		return assets;
+	}
+
 	const AssetInfo* AssetRegistry::FindByPath(const std::filesystem::path& path) const
 	{
 		const auto id = m_IdsByPath.find(PathToUtf8(path.lexically_normal()));

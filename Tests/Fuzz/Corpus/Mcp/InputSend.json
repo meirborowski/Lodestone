@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 32, "method": "tools/call", "params": {"name": "input_send", "arguments": {"hold": ["W", "Space"], "tap": ["E"], "mouseHold": ["Left"], "mouseTap": ["Right"], "ticks": 2}}}

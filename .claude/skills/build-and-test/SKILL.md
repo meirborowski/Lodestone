@@ -24,7 +24,7 @@ Every change gets built and tested (see `docs/Testing.md`). Run the steps below 
 ```sh
 cmake --workflow --preset debug
 ```
-This configures `build/debug`, builds it, and runs every test. The other presets are `release`, `dist` and, with GCC or Clang, `asan`. For a quicker loop: `cmake --build --preset debug` then `ctest --preset debug -L unit`.
+This configures `build/debug`, builds it, and runs every test. The other presets are `release`, `dist` and, with GCC or Clang, `asan` and `tsan` (ThreadSanitizer). For a quicker loop: `cmake --build --preset debug` then `ctest --preset debug -L unit`.
 
 Failed tests print their output. To run one doctest case directly: `build/debug/Tests/LodestoneCoreTests --test-case="<name>"`. A failed reference-image test writes the rendered image and a difference image to `build/<preset>/RenderOutput` - look at them. If the change is meant to alter rendering, follow the `update-reference-images` skill.
 

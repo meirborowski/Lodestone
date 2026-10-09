@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 34, "method": "tools/call", "params": {"name": "camera_set", "arguments": {"position": [0, 5, 5], "target": [0, 0, 0]}}}

@@ -111,6 +111,11 @@ jobs:
         with:
           compiler: ${{ matrix.toolchain.compiler }}
 
+      # The MCP end-to-end tests drive the editor from Python, as an agent would
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
       - uses: ./.github/actions/setup-graphics
         with:
           lavapipe-cache-key: ${{ needs.lavapipe.outputs.cache-key }}
@@ -157,28 +162,37 @@ jobs:
           New-ItemProperty -Path $drivers -Name $manifest -PropertyType DWord -Value 0 -Force | Out-Null
           Write-Output "Installed $manifest"
 
-      # Opens a window and presents frames: on lavapipe on Windows, under Xvfb with Ubuntu's lavapipe on Linux (the
+      # Open windows and present frames: on lavapipe on Windows, under Xvfb with Ubuntu's lavapipe on Linux (the
       # pinned build renders offscreen only), and on MoltenVK on macOS. --vulkan-driver makes sure it's lavapipe
-      # that renders
-      - name: Run the windowed runtime
+      # that renders. The editor, which Dist doesn't build, draws its whole UI and serves MCP on a free port
+      - name: Run the windowed runtime and editor
         timeout-minutes: 5
         shell: bash
         run: |
-          runtime="build/${{ matrix.preset }}/Source/Runtime/LodestoneRuntime"
-          case "$RUNNER_OS" in
-            Windows)
-              "$runtime.exe" --frames 60 --no-vsync \
-                --vulkan-driver "$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/vulkan_lvp.dll)"
-              ;;
-            Linux)
-              sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers
-              xvfb-run --auto-servernum "$runtime" --frames 60 --no-vsync \
-                --vulkan-driver /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
-              ;;
-            macOS)
-              "$runtime" --frames 60 --no-vsync
-              ;;
-          esac
+          apps=("build/${{ matrix.preset }}/Source/Runtime/LodestoneRuntime")
+          if [ "${{ matrix.preset }}" != "dist" ]; then
+            apps+=("build/${{ matrix.preset }}/Source/Editor/LodestoneEditor --mcp-port 0")
+          fi
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers > /dev/null
+          fi
+          for app in "${apps[@]}"; do
+            read -r -a command <<< "$app"
+            echo "Running ${command[*]}"
+            case "$RUNNER_OS" in
+              Windows)
+                "${command[0]}.exe" "${command[@]:1}" --frames 60 --no-vsync \
+                  --vulkan-driver "$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/vulkan_lvp.dll)"
+                ;;
+              Linux)
+                xvfb-run --auto-servernum "${command[@]}" --frames 60 --no-vsync \
+                  --vulkan-driver /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so
+                ;;
+              macOS)
+                "${command[@]}" --frames 60 --no-vsync
+                ;;
+            esac
+          done
 
       # Rendering tests write each image that doesn't match its reference, and the difference, to RenderOutput
       - name: Upload rendering test output
@@ -207,6 +221,11 @@ jobs:
       - uses: ./.github/actions/setup-toolchain
         with:
           compiler: clang
+
+      # The MCP end-to-end tests drive the editor from Python, as an agent would
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
 
       - uses: ./.github/actions/setup-graphics
         with:
@@ -251,6 +270,59 @@ jobs:
           path: build/asan/RenderOutput
           if-no-files-found: ignore
 
+  thread-sanitizer:
+    name: Ubuntu Clang 19 TSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/git-lfs-pull
+
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          compiler: clang
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/setup-graphics
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ubuntu-clang19-tsan
+          max-size: 500M
+
+      - name: Restore dependency archives
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/dependencies
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          restore-keys: dependencies-${{ runner.os }}-
+
+      # ThreadSanitizer's memory layout needs fewer address space randomization bits than the runner uses
+      - name: Reduce address space randomization for ThreadSanitizer
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: cmake --preset tsan
+
+      - name: Build
+        run: cmake --build --preset tsan
+
+      # The engine's own threads - the MCP transports, the main-thread dispatcher, logging from many threads. Tests
+      # that render aren't run here: they go through lavapipe, whose JIT-compiled shader threads ThreadSanitizer can't
+      # see, and they run under the other sanitizers and on every platform
+      - name: Test
+        run: ctest --preset tsan -L "unit|integration" -E "Agent smoke test"
+
   clang-tidy:
     name: clang-tidy
     runs-on: ubuntu-24.04
@@ -293,7 +365,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [format, lavapipe, build, sanitizers, clang-tidy]
+    needs: [format, lavapipe, build, sanitizers, thread-sanitizer, clang-tidy]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

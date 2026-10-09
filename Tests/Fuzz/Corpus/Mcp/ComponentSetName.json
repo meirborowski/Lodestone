@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 15, "method": "tools/call", "params": {"name": "component_set", "arguments": {"entity": "22222222-2222-4222-8222-222222222222", "component": "Name", "fields": {"Name": "Renamed \u00e9"}}}}

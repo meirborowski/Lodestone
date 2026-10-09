@@ -156,6 +156,11 @@ namespace Lodestone {
 		glfwSetWindowShouldClose(m_Handle, GLFW_TRUE);
 	}
 
+	void Window::CancelClose()
+	{
+		glfwSetWindowShouldClose(m_Handle, GLFW_FALSE);
+	}
+
 	void Window::SetTitle(std::string_view title)
 	{
 		const std::string terminated(title);

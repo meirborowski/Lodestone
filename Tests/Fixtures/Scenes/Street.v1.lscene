@@ -1,0 +1,52 @@
+{
+  "format": "Lodestone.Scene",
+  "version": 1,
+  "entities": [
+    {
+      "components": {
+        "ID": {
+          "ID": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        "Name": {
+          "Name": "Street"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        },
+        "Name": {
+          "Name": "LampPost"
+        },
+        "Transform": {
+          "Position": [-4.0, 1.5, 0.0],
+          "Scale": [0.2, 3.0, 0.2]
+        },
+        "Hierarchy": {
+          "Parent": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        },
+        "PrefabInstance": {
+          "Prefab": "77777777-7777-4777-8777-777777777777"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        },
+        "Name": {
+          "Name": "Light"
+        },
+        "Transform": {
+          "Position": [0.0, 0.55, 0.0]
+        },
+        "Hierarchy": {
+          "Parent": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        }
+      }
+    }
+  ]
+}

@@ -67,9 +67,11 @@ ls_add_test_executable(LodestoneCoreTests
 	SOURCES
 		Core/AssertTests.cpp
 		Core/AssetTests.cpp
+		Core/Base64Tests.cpp
 		Core/BaseTests.cpp
 		Core/CommandLineTests.cpp
 		Core/ComponentRegistryTests.cpp
+		Core/EntitySerializerTests.cpp
 		Core/EnvironmentTests.cpp
 		Core/ErrorTests.cpp
 		Core/FileFormatTests.cpp
@@ -79,6 +81,8 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/PrefabSerializerTests.cpp
+		Core/ProjectTests.cpp
 		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
 		Core/RunMainTests.cpp
@@ -114,7 +118,9 @@ ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
 	LABELS render
 	SOURCES
+		Render/DebugSceneRenderTests.cpp
 		Render/GraphicsDeviceTests.cpp
+		Render/ImGuiRenderTests.cpp
 		Render/RenderTestDevice.cpp
 		Render/RenderTestDevice.h
 		Render/TriangleRenderTests.cpp
@@ -133,6 +139,73 @@ else()
 		LABELS render
 		SKIP_REGULAR_EXPRESSION "Skipped:"
 	)
+endif()
+
+# The editor: commands, the editor context, the scene view's picking, the UI (without a GPU) and every MCP tool,
+# called in-process. Not built in Dist, like the editor
+if(TARGET LodestoneEditorLib)
+	ls_add_test_executable(LodestoneEditorTests
+		PREFIX Editor
+		LABELS unit
+		SOURCES
+			Editor/CommandHistoryTests.cpp
+			Editor/EditorContextTests.cpp
+			Editor/EditorSupportTests.cpp
+			Editor/EditorToolsTests.cpp
+			Editor/EditorUITests.cpp
+			Editor/EntityCommandsTests.cpp
+			Editor/McpServerTests.cpp
+			Editor/McpTransportTests.cpp
+			Editor/SceneViewTests.cpp
+		LIBRARIES
+			LodestoneEditorLib
+	)
+
+	# MCP over real connections: the HTTP transport on a loopback port, in-process; and the editor executable
+	# driven over stdio and HTTP by a separate client, as an agent would - including the agent smoke test that builds a
+	# scene with MCP tools alone (Milestone 4's acceptance test)
+	ls_add_test_executable(LodestoneEditorIntegrationTests
+		PREFIX Editor
+		LABELS integration
+		SOURCES
+			Editor/HttpTransportTests.cpp
+		LIBRARIES
+			LodestoneEditorLib
+			httplib
+	)
+
+	find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter)
+	foreach(transport IN ITEMS stdio http)
+		set(name "Editor.Agent smoke test over ${transport}")
+		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport})
+		if(LS_LAVAPIPE_DRIVER)
+			list(APPEND arguments --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
+		endif()
+		set(configurations "")
+		if(LS_MULTI_CONFIG)
+			set(configurations CONFIGURATIONS Debug Release)
+		endif()
+		add_test(NAME "${name}"
+			COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/Editor/McpAgentSmokeTest.py" ${arguments}
+			${configurations}
+		)
+		set_tests_properties("${name}" PROPERTIES LABELS integration TIMEOUT 300)
+	endforeach()
+
+	# MCP messages come from clients the editor doesn't control
+	ls_add_test_executable(LodestoneEditorFuzzTests
+		PREFIX Fuzz
+		LABELS fuzz
+		SOURCES
+			Fuzz/McpFuzzTests.cpp
+		LIBRARIES
+			LodestoneEditorLib
+	)
+
+	if(LS_MULTI_CONFIG)
+		set_target_properties(LodestoneEditorTests LodestoneEditorIntegrationTests LodestoneEditorFuzzTests PROPERTIES
+			EXCLUDE_FROM_ALL "$<CONFIG:Dist>")
+	endif()
 endif()
 
 # Fuzz tests for everything that parses untrusted input (see Common/Fuzzer.h and docs/Testing.md#tests)

@@ -46,6 +46,12 @@ namespace Lodestone {
 		std::vector<UUID> Children;
 	};
 
+	// On the root of a prefab instance: the prefab asset it was copied from (see PrefabSerializer)
+	struct PrefabInstanceComponent
+	{
+		UUID Prefab;
+	};
+
 	// The transform at the start of the latest simulation tick, which rendering interpolates from (see Simulation)
 	struct PreviousTransformComponent
 	{
