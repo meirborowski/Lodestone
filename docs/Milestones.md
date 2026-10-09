@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 2. Window, input and rendering backend
-- **In progress:** the `milestone-2-rendering-backend` branch, in a pull request. Everything is implemented and passes locally on Windows (Debug, Release and Dist; the windowed runtime runs on NVIDIA and on lavapipe). CI hasn't run it yet: the macOS (MoltenVK) and Linux builds, the lavapipe build job and the windowed runtime smoke step are unverified until it does
-- **Next:** get CI green on the pull request, then tick the remaining Milestone 2 items (device and swapchain on MoltenVK, the macOS smoke check, lavapipe on CI), squash-merge, and start Milestone 3
+- **Active milestone:** 3. ECS, scenes and assets
+- **In progress:** nothing merged yet. Milestone 2 is done: windows, input, the Vulkan/NVRHI backend, shaders, offscreen rendering and reference images run on every CI platform (the windowed runtime renders on lavapipe on Windows and Linux and on MoltenVK on macOS, in CI's smoke step; locally it was run on Windows only)
+- **Next:** Milestone 3
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -26,7 +26,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 
 ## Progress
 - [x] [1. Foundation](#1-foundation)
-- [ ] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
+- [x] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
 - [ ] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [ ] [4. Editor and AI control](#4-editor-and-ai-control)
 - [ ] [5. 3D renderer](#5-3d-renderer)
@@ -57,11 +57,11 @@ Keep this section current, so a new session can pick up where the last one stopp
 
 ### 2. Window, input and rendering backend
 - [x] GLFW window and device input (keyboard, mouse, gamepads)
-- [ ] nvrhi Vulkan device and swapchain - bring it up on MoltenVK first, since it's the backend most likely to cause trouble
+- [x] nvrhi Vulkan device and swapchain - bring it up on MoltenVK first, since it's the backend most likely to cause trouble
 - [x] Shader compilation (HLSL to SPIR-V with DXC, via ShaderMake)
 - [x] Offscreen/headless rendering
-- [ ] macOS CI smoke check: MoltenVK loads and a Vulkan device is found. Decide the macOS fallback for rendering tests (lavapipe, or skipped with a logged reason) and record it as a decision
-- [ ] lavapipe at a pinned Mesa version, on CI and locally, and the reference-image tooling (see [Reference Images](Testing.md#reference-images))
+- [x] macOS CI smoke check: MoltenVK loads and a Vulkan device is found. Decide the macOS fallback for rendering tests (lavapipe, or skipped with a logged reason) and record it as a decision
+- [x] lavapipe at a pinned Mesa version, on CI and locally, and the reference-image tooling (see [Reference Images](Testing.md#reference-images))
 - [x] First reference-image test
 
 **Acceptance:** an offscreen render matches its reference image on lavapipe on every CI platform that has a Vulkan driver; the windowed app runs locally on all three platforms.
