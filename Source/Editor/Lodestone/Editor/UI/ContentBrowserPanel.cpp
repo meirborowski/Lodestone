@@ -43,16 +43,17 @@ namespace Lodestone {
 		}
 
 		void OpenAsset(
-			EditorContext& context, const ConfirmDiscard& confirmDiscard, AssetType type, const std::string& path)
+			EditorContext& context, const UnsavedChangesGuard& confirmDiscard, AssetType type, const std::string& path)
 		{
 			if (type != AssetType::Scene && type != AssetType::Prefab)
 				return;
 			confirmDiscard(fmt::format("Opening {}", path),
-				[&context, type, path = std::string(path)]
+				[&context, type, ownedPath = std::string(path)]
 				{
-					auto opened = type == AssetType::Scene ? context.OpenScene(path) : context.OpenPrefab(path);
+					auto opened =
+						type == AssetType::Scene ? context.OpenScene(ownedPath) : context.OpenPrefab(ownedPath);
 					if (!opened)
-						ReportFailure(fmt::format("Opening {}", path), opened.error());
+						ReportFailure(fmt::format("Opening {}", ownedPath), opened.error());
 				});
 		}
 
@@ -74,7 +75,7 @@ namespace Lodestone {
 
 	}
 
-	void ContentBrowserPanel::Draw(EditorContext& context, const ConfirmDiscard& confirmDiscard, bool* open)
+	void ContentBrowserPanel::Draw(EditorContext& context, const UnsavedChangesGuard& confirmDiscard, bool* open)
 	{
 		if (!ImGui::Begin(Title, open))
 		{
@@ -173,7 +174,7 @@ namespace Lodestone {
 	}
 
 	void ContentBrowserPanel::DrawAsset(
-		EditorContext& context, const ConfirmDiscard& confirmDiscard, const AssetInfo& asset)
+		EditorContext& context, const UnsavedChangesGuard& confirmDiscard, const AssetInfo& asset)
 	{
 		const AssetType type = asset.Metadata.Type;
 		std::string path = asset.Path;

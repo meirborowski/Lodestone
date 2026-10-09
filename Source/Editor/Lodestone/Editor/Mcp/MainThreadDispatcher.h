@@ -42,15 +42,15 @@ namespace Lodestone {
 			// happen: the task owns it
 			// NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
 			if (!Post(
-					[promise = std::move(promise), function = std::move(function)]() mutable
+					[result = std::move(promise), work = std::move(function)]() mutable
 					{
 						try
 						{
-							promise->set_value(function());
+							result->set_value(work());
 						}
 						catch (...)
 						{
-							promise->set_exception(std::current_exception());
+							result->set_exception(std::current_exception());
 						}
 					}))
 				return std::nullopt;

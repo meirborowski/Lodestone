@@ -62,14 +62,22 @@ namespace Lodestone {
 
 			bool Has(std::string_view key) const
 			{
-				return m_Json->contains(std::string(key)) && !(*m_Json)[std::string(key)].is_null();
+				const std::string name(key);
+				return m_Json->contains(name) && !(*m_Json)[name].is_null();
+			}
+
+			// The argument's value; it must exist (see Has())
+			const Json::Value& Get(std::string_view key) const
+			{
+				const std::string name(key);
+				return (*m_Json)[name];
 			}
 
 			std::expected<std::string, Error> String(std::string_view key) const
 			{
 				if (!Has(key))
 					return std::unexpected(ArgumentError(fmt::format("'{}' is required", key)));
-				const Json::Value& value = (*m_Json)[std::string(key)];
+				const Json::Value& value = Get(key);
 				if (!value.is_string())
 					return std::unexpected(ArgumentError(fmt::format("'{}' must be a string", key)));
 				return value.get<std::string>();
@@ -106,7 +114,7 @@ namespace Lodestone {
 			{
 				if (!Has(key))
 					return fallback;
-				const Json::Value& value = (*m_Json)[std::string(key)];
+				const Json::Value& value = Get(key);
 				if (!value.is_number_integer() || value.get<int64_t>() < min || value.get<int64_t>() > max)
 					return std::unexpected(
 						ArgumentError(fmt::format("'{}' must be a whole number from {} to {}", key, min, max)));
@@ -127,7 +135,7 @@ namespace Lodestone {
 			{
 				if (!Has(key))
 					return fallback;
-				const Json::Value& value = (*m_Json)[std::string(key)];
+				const Json::Value& value = Get(key);
 				if (!value.is_boolean())
 					return std::unexpected(ArgumentError(fmt::format("'{}' must be true or false", key)));
 				return value.get<bool>();
@@ -137,7 +145,7 @@ namespace Lodestone {
 			{
 				if (!Has(key))
 					return Json::Value::object();
-				const Json::Value& value = (*m_Json)[std::string(key)];
+				const Json::Value& value = Get(key);
 				if (!value.is_object())
 					return std::unexpected(ArgumentError(fmt::format("'{}' must be an object", key)));
 				return value;
@@ -148,7 +156,7 @@ namespace Lodestone {
 				std::vector<std::string> strings;
 				if (!Has(key))
 					return strings;
-				const Json::Value& value = (*m_Json)[std::string(key)];
+				const Json::Value& value = Get(key);
 				if (!value.is_array())
 					return std::unexpected(ArgumentError(fmt::format("'{}' must be an array of strings", key)));
 				for (const Json::Value& element : value)
@@ -164,7 +172,7 @@ namespace Lodestone {
 			{
 				if (!Has(key))
 					return std::unexpected(ArgumentError(fmt::format("'{}' is required", key)));
-				auto value = Json::ToFieldValue((*m_Json)[std::string(key)], FieldType::Vec3, key);
+				auto value = Json::ToFieldValue(Get(key), FieldType::Vec3, key);
 				if (!value)
 					return std::unexpected(ArgumentError(value.error().GetMessageText()));
 				return std::get<glm::vec3>(*value);

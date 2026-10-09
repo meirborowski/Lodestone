@@ -60,7 +60,7 @@ namespace Lodestone {
 			OpenProject,
 			SaveAs,
 			CreatePrefab,
-			ConfirmDiscard,
+			UnsavedChanges,
 		};
 
 		void DrawDockSpace();
@@ -74,7 +74,7 @@ namespace Lodestone {
 		void DrawOpenProjectModal();
 		void DrawSaveAsModal();
 		void DrawCreatePrefabModal();
-		void DrawConfirmDiscardModal();
+		void DrawUnsavedChangesModal();
 		void OpenModal(Modal modal);
 
 		// Runs an action that replaces the document, asking first if that would lose unsaved changes

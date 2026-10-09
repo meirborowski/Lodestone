@@ -24,7 +24,7 @@ namespace Lodestone {
 		constexpr const char* OpenProjectTitle = "Open Project";
 		constexpr const char* SaveAsTitle = "Save As";
 		constexpr const char* CreatePrefabTitle = "Create Prefab";
-		constexpr const char* ConfirmDiscardTitle = "Unsaved Changes";
+		constexpr const char* UnsavedChangesTitle = "Unsaved Changes";
 		constexpr ImVec4 ErrorColor{1.0f, 0.4f, 0.4f, 1.0f};
 
 		bool IsEditing(const EditorContext& context)
@@ -362,7 +362,7 @@ namespace Lodestone {
 				m_PathInput =
 					fmt::format("Prefabs/{}.lprefab", GetEntityLabel(m_Context->GetScene(), m_Context->GetSelection()));
 				break;
-			case Modal::ConfirmDiscard:
+			case Modal::UnsavedChanges:
 			case Modal::None:
 				break;
 		}
@@ -388,8 +388,8 @@ namespace Lodestone {
 				case Modal::CreatePrefab:
 					ImGui::OpenPopup(CreatePrefabTitle);
 					break;
-				case Modal::ConfirmDiscard:
-					ImGui::OpenPopup(ConfirmDiscardTitle);
+				case Modal::UnsavedChanges:
+					ImGui::OpenPopup(UnsavedChangesTitle);
 					break;
 				case Modal::None:
 					break;
@@ -412,8 +412,8 @@ namespace Lodestone {
 			case Modal::CreatePrefab:
 				DrawCreatePrefabModal();
 				break;
-			case Modal::ConfirmDiscard:
-				DrawConfirmDiscardModal();
+			case Modal::UnsavedChanges:
+				DrawUnsavedChangesModal();
 				break;
 			case Modal::None:
 				break;
@@ -528,9 +528,9 @@ namespace Lodestone {
 		ImGui::EndPopup();
 	}
 
-	void EditorUI::DrawConfirmDiscardModal()
+	void EditorUI::DrawUnsavedChangesModal()
 	{
-		if (!ImGui::BeginPopupModal(ConfirmDiscardTitle, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		if (!ImGui::BeginPopupModal(UnsavedChangesTitle, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
 		{
 			m_OpenModal = Modal::None;
 			return;
@@ -579,7 +579,7 @@ namespace Lodestone {
 		}
 		m_DiscardAction = std::string(action);
 		m_AfterDiscard = std::move(run);
-		OpenModal(Modal::ConfirmDiscard);
+		OpenModal(Modal::UnsavedChanges);
 	}
 
 	void EditorUI::NewScene()

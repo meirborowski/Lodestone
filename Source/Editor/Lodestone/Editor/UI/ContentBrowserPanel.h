@@ -15,11 +15,11 @@ namespace Lodestone {
 	public:
 		static constexpr const char* Title = "Content Browser";
 
-		void Draw(EditorContext& context, const ConfirmDiscard& confirmDiscard, bool* open);
+		void Draw(EditorContext& context, const UnsavedChangesGuard& confirmDiscard, bool* open);
 
 	private:
 		void DrawToolbar(EditorContext& context);
-		void DrawAsset(EditorContext& context, const ConfirmDiscard& confirmDiscard, const AssetInfo& asset);
+		void DrawAsset(EditorContext& context, const UnsavedChangesGuard& confirmDiscard, const AssetInfo& asset);
 
 	private:
 		// Relative to the asset directory, with forward slashes; empty for the asset directory itself

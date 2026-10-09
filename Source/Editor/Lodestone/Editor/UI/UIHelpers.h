@@ -18,7 +18,7 @@ namespace Lodestone {
 	inline constexpr const char* AssetPayload = "LS_ASSET";
 
 	// Asks before an action that would lose unsaved changes to the document; runs it right away when there are none
-	using ConfirmDiscard = std::function<void(std::string_view action, std::function<void()> run)>;
+	using UnsavedChangesGuard = std::function<void(std::string_view action, std::function<void()> run)>;
 
 	// The UI has no caller to return errors to, so a failed action is logged, and the console shows it
 	void ReportFailure(std::string_view action, const Error& error);
