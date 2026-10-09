@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** none - Milestone 2 is next
-- **In progress:** nothing. Milestone 1 is done: CI is green on every platform and configuration, and the acceptance checks passed (a misformatted header failed the Format job, and an unused variable failed every build and clang-tidy, then both were reverted)
-- **Next:** start Milestone 2. Install the Vulkan SDK locally first (it's a build prerequisite from Milestone 2), add GLFW, nvrhi and ShaderMake with `ls_declare_dependency()`, and bring the Vulkan device up on MoltenVK first. `LodestoneClient` is still a placeholder (macOS `ranlib` warns that its archive has no symbols until it gets real code)
+- **Active milestone:** 3. ECS, scenes and assets
+- **In progress:** nothing merged yet. Milestone 2 is done: windows, input, the Vulkan/NVRHI backend, shaders, offscreen rendering and reference images run on every CI platform (the windowed runtime renders on lavapipe on Windows and Linux and on MoltenVK on macOS, in CI's smoke step; locally it was run on Windows only)
+- **Next:** Milestone 3
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -26,7 +26,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 
 ## Progress
 - [x] [1. Foundation](#1-foundation)
-- [ ] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
+- [x] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
 - [ ] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [ ] [4. Editor and AI control](#4-editor-and-ai-control)
 - [ ] [5. 3D renderer](#5-3d-renderer)
@@ -56,13 +56,13 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** every CI job is green on a pull request; a deliberately misformatted file and a deliberate compiler warning each fail CI (checked once, then reverted); Dist builds on every platform.
 
 ### 2. Window, input and rendering backend
-- [ ] GLFW window and device input (keyboard, mouse, gamepads)
-- [ ] nvrhi Vulkan device and swapchain - bring it up on MoltenVK first, since it's the backend most likely to cause trouble
-- [ ] Shader compilation (HLSL to SPIR-V with DXC, via ShaderMake)
-- [ ] Offscreen/headless rendering
-- [ ] macOS CI smoke check: MoltenVK loads and a Vulkan device is found. Decide the macOS fallback for rendering tests (lavapipe, or skipped with a logged reason) and record it as a decision
-- [ ] lavapipe at a pinned Mesa version, on CI and locally, and the reference-image tooling (see [Reference Images](Testing.md#reference-images))
-- [ ] First reference-image test
+- [x] GLFW window and device input (keyboard, mouse, gamepads)
+- [x] nvrhi Vulkan device and swapchain - bring it up on MoltenVK first, since it's the backend most likely to cause trouble
+- [x] Shader compilation (HLSL to SPIR-V with DXC, via ShaderMake)
+- [x] Offscreen/headless rendering
+- [x] macOS CI smoke check: MoltenVK loads and a Vulkan device is found. Decide the macOS fallback for rendering tests (lavapipe, or skipped with a logged reason) and record it as a decision
+- [x] lavapipe at a pinned Mesa version, on CI and locally, and the reference-image tooling (see [Reference Images](Testing.md#reference-images))
+- [x] First reference-image test
 
 **Acceptance:** an offscreen render matches its reference image on lavapipe on every CI platform that has a Vulkan driver; the windowed app runs locally on all three platforms.
 

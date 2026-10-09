@@ -18,3 +18,6 @@ Record every significant design decision here - especially ones made without ask
 - [0004 - MSVC: /std:c++latest until Build Tools 14.52 is stable](0004-msvc-cpp23-switch.md)
 - [0005 - Logging, asserts and fatal errors](0005-logging-and-asserts.md)
 - [0006 - Code style tooling: pinned clang-format and clang-tidy](0006-code-style-tooling.md)
+- [0007 - Rendering backend: NVRHI on Vulkan 1.3](0007-rendering-backend.md)
+- [0008 - Shader pipeline: HLSL to embedded SPIR-V with DXC and ShaderMake](0008-shader-pipeline.md)
+- [0009 - Reference images on lavapipe, and skipped on macOS](0009-lavapipe.md)

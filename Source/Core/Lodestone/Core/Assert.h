@@ -60,7 +60,7 @@ namespace Lodestone {
 	#define LS_INTERNAL_ASSERT(origin, condition, ...)                                                       \
 		do                                                                                                   \
 		{                                                                                                    \
-			if (!(condition)) [[unlikely]]                                                                   \
+			if (!static_cast<bool>(condition)) [[unlikely]]                                                  \
 				::Lodestone::Detail::HandleAssertionFailure(origin, #condition,                              \
 					::Lodestone::Detail::FormatAssertMessage(__VA_ARGS__), std::source_location::current()); \
 		} while (false)

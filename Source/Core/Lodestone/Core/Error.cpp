@@ -30,6 +30,8 @@ namespace Lodestone {
 				return "OutOfMemory";
 			case ErrorCode::ScriptError:
 				return "ScriptError";
+			case ErrorCode::DeviceError:
+				return "DeviceError";
 		}
 		// Only reachable when a value outside the enumeration is cast to ErrorCode
 		return "InvalidErrorCode";

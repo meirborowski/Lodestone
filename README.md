@@ -16,8 +16,13 @@ Lodestone is under construction, milestone by milestone - see [Milestones](docs/
   - **Windows** - Visual Studio 2026 (MSVC Build Tools 14.50+) with the "Desktop development with C++" workload
   - **macOS** - Xcode 16.3+
   - **Ubuntu 24.04+** - GCC 14 (`sudo apt install g++-14`) or Clang 19 (`sudo apt install clang-19`)
+- A graphics driver with Vulkan 1.3, to run the engine
+- **macOS** - the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) 1.4.363.0, for MoltenVK and the shader compiler. After installing it, run `sudo ./install_vulkan.py` in the SDK's directory
+- **Ubuntu** - GLFW's build dependencies and the Vulkan loader: `sudo apt install pkg-config libwayland-dev libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan1`
 
 Everything else is downloaded by CMake on the first configure.
+
+Rendering tests render on lavapipe, a software Vulkan driver, so they need no GPU. On Windows CMake downloads it; on Linux build it once with `tools/build-lavapipe.sh` (the script lists the packages it needs). Without it, the reference-image tests are skipped.
 
 ### Build and test
 ```sh

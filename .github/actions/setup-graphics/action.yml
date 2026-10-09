@@ -1,0 +1,79 @@
+name: Set up graphics
+description: >
+  Installs what Lodestone needs to build and render on a CI runner: the window system development files (Linux), a
+  Vulkan loader, the Vulkan SDK with MoltenVK and DXC (macOS), and the lavapipe build the lavapipe job cached (Linux).
+
+inputs:
+  lavapipe-cache-key:
+    description: "Cache key of the lavapipe build to restore (Linux). Leave empty to skip lavapipe"
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # GLFW compiles against X11 and Wayland; the Vulkan loader is loaded at runtime
+    - name: Install window system and Vulkan packages
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends pkg-config libwayland-dev libxkbcommon-dev libx11-dev \
+          libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan1
+
+    - name: Restore lavapipe
+      if: runner.os == 'Linux' && inputs.lavapipe-cache-key != ''
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .cache/lavapipe
+        key: ${{ inputs.lavapipe-cache-key }}
+        fail-on-cache-miss: true
+
+    # Runners have no GPU driver, so no Vulkan loader either. Lavapipe itself is downloaded by CMake
+    - name: Install the Vulkan loader
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        VULKAN_RUNTIME_URL: https://sdk.lunarg.com/sdk/download/1.4.363.0/windows/VulkanRT-X64-1.4.363.0-Components.zip
+        VULKAN_RUNTIME_SHA256: a25a927aa8b9f0371048f1861cf88ac3b9bc9b1fb332c42d897c8ab32695769a
+      run: |
+        $archive = Join-Path $env:RUNNER_TEMP 'VulkanRT.zip'
+        Invoke-WebRequest -Uri $env:VULKAN_RUNTIME_URL -OutFile $archive
+        $hash = (Get-FileHash -Path $archive -Algorithm SHA256).Hash
+        if ($hash -ne $env:VULKAN_RUNTIME_SHA256) { throw "The Vulkan runtime archive's SHA-256 is $hash, not $env:VULKAN_RUNTIME_SHA256" }
+        $directory = Join-Path $env:RUNNER_TEMP 'VulkanRT'
+        Expand-Archive -Path $archive -DestinationPath $directory
+        $loader = Get-ChildItem -Path $directory -Recurse -Filter 'vulkan-1.dll' | Where-Object { $_.Directory.Name -eq 'x64' } | Select-Object -First 1
+        if (-not $loader) { throw "The Vulkan runtime archive has no x64\vulkan-1.dll" }
+        Write-Output "Vulkan loader: $($loader.FullName)"
+        $loader.DirectoryName >> $env:GITHUB_PATH
+
+    - name: Restore the Vulkan SDK installer
+      if: runner.os == 'macOS'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .cache/vulkan-sdk
+        key: vulkan-sdk-macos-1.4.363.0
+
+    # The SDK provides DXC (which has no macOS release), MoltenVK and the Vulkan loader. It's installed system-wide,
+    # as the SDK documents, so programs find the loader and MoltenVK without environment variables
+    - name: Install the Vulkan SDK
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        VULKAN_SDK_VERSION: 1.4.363.0
+        VULKAN_SDK_SHA256: 163431e0203c8215286a17cf393643ce6b951f77d1b4f74ab30821a1f0beb09b
+      run: |
+        archive=".cache/vulkan-sdk/vulkansdk-macos-${VULKAN_SDK_VERSION}.zip"
+        if [ ! -f "$archive" ]; then
+          mkdir -p .cache/vulkan-sdk
+          curl --fail --location --silent --show-error --output "$archive" \
+            "https://sdk.lunarg.com/sdk/download/${VULKAN_SDK_VERSION}/mac/vulkansdk-macos-${VULKAN_SDK_VERSION}.zip"
+        fi
+        echo "${VULKAN_SDK_SHA256}  ${archive}" | shasum -a 256 --check
+        installer="$RUNNER_TEMP/vulkan-sdk-installer"
+        unzip -q "$archive" -d "$installer"
+        root="$HOME/VulkanSDK/${VULKAN_SDK_VERSION}"
+        "$installer/vulkansdk-macOS-${VULKAN_SDK_VERSION}.app/Contents/MacOS/vulkansdk-macOS-${VULKAN_SDK_VERSION}" \
+          --root "$root" --accept-licenses --default-answer --confirm-command install
+        (cd "$root" && sudo python3 install_vulkan.py --force-install > /dev/null)
+        echo "VULKAN_SDK=$root/macOS" >> "$GITHUB_ENV"

@@ -8,10 +8,16 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Core/Assert.cpp
 	Lodestone/Core/Assert.h
 	Lodestone/Core/Base.h
+	Lodestone/Core/CommandLine.cpp
+	Lodestone/Core/CommandLine.h
 	Lodestone/Core/Debugger.cpp
 	Lodestone/Core/Debugger.h
+	Lodestone/Core/Environment.cpp
+	Lodestone/Core/Environment.h
 	Lodestone/Core/Error.cpp
 	Lodestone/Core/Error.h
+	Lodestone/Core/Image.cpp
+	Lodestone/Core/Image.h
 	Lodestone/Core/Log.cpp
 	Lodestone/Core/Log.h
 	Lodestone/Core/RunMain.cpp
@@ -34,6 +40,9 @@ target_compile_definitions(LodestoneCore PUBLIC
 	$<$<CONFIG:Dist>:LS_CONFIG_DIST>
 )
 
-target_link_libraries(LodestoneCore PUBLIC spdlog::spdlog)
+target_link_libraries(LodestoneCore
+	PUBLIC spdlog::spdlog glm::glm
+	PRIVATE stb::stb
+)
 
 ls_configure_target(LodestoneCore)

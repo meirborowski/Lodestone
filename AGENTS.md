@@ -18,7 +18,7 @@ The documents in `docs/` describe the target design of the engine. Build it mile
 - Keep a THIRD_PARTY_LICENSES.md listing every dependency and its license. Only use permissively licensed dependencies (e.g. MIT, BSD, zlib, Apache 2.0, public domain/CC0)
 
 ## Building and Testing
-Prerequisites: CMake 3.28+, Ninja, Git LFS, Python 3.12+, and a C++23 compiler - MSVC from Visual Studio 2026 (Windows), Xcode 16.3+ (macOS), or GCC 14+ / Clang 19+ (Ubuntu 24.04+). See [Tech Stack & Build](docs/TechStack.md#build-prerequisites).
+Prerequisites: CMake 3.28+, Ninja, Git LFS, Python 3.12+, and a C++23 compiler - MSVC from Visual Studio 2026 (Windows), Xcode 16.3+ (macOS), or GCC 14+ / Clang 19+ (Ubuntu 24.04+). macOS also needs the Vulkan SDK (for DXC and MoltenVK), and Ubuntu the window system development files and the Vulkan loader. See [Tech Stack & Build](docs/TechStack.md#build-prerequisites).
 
 ```sh
 cmake --workflow --preset debug     # configure, build and run every test (also: release, dist)
@@ -28,9 +28,11 @@ ctest --preset debug -L unit        # and run a test tier (unit, render, integra
 ```
 
 - Windows: run these from a Developer PowerShell for VS 2026 (or after `vcvars64.bat`), so Ninja finds MSVC. If another compiler is on the `PATH`, set `CC=cl` and `CXX=cl` before the first configure
-- Ubuntu: GCC 13 is the default and too old - configure with `CC=gcc-14 CXX=g++-14` or `CC=clang-19 CXX=clang++-19`
+- Ubuntu: GCC 13 is the default and too old - configure with `CC=gcc-14 CXX=g++-14` or `CC=clang-19 CXX=clang++-19`. Install GLFW's build dependencies and the Vulkan loader first: `sudo apt install pkg-config libwayland-dev libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan1`
+- macOS: install the Vulkan SDK, then run `sudo ./install_vulkan.py` in its directory, so DXC, the Vulkan loader and MoltenVK are found
+- Rendering tests render on lavapipe at a pinned Mesa version, never the GPU. Windows downloads it automatically; on Linux, build it once with `tools/build-lavapipe.sh` and reconfigure. Without lavapipe, reference-image tests are skipped with a message; macOS always skips them (see [Reference Images](docs/Testing.md#reference-images))
 - Sanitizers (GCC and Clang only): `cmake --workflow --preset asan` builds and tests with AddressSanitizer and UndefinedBehaviorSanitizer
-- Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`
+- Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`, and lavapipe in `.cache/lavapipe`
 
 Code style tools, pinned to one LLVM version (install once, ideally in a virtual environment: `pip install -r tools/requirements.txt`):
 
@@ -45,28 +47,32 @@ Before every pull request: format, clang-tidy, and every test tier in Debug, Rel
 | Path | Contents |
 |---|---|
 | `Source/Core` | `LodestoneCore` - ECS, scenes, assets and the simulation. Never links GLFW, nvrhi or miniaudio |
-| `Source/Client` | `LodestoneClient` - window, device input, renderer and audio |
+| `Source/Client` | `LodestoneClient` - window and device input (`Lodestone/Platform`, `Lodestone/Input`), the graphics device, swapchain and renderer (`Lodestone/Graphics`), shaders (`Shaders`), and audio |
 | `Source/Editor` | `LodestoneEditor` - editor UI, MCP server, headless mode. Not built in Dist |
 | `Source/Runtime` | `LodestoneRuntime` - the player for exported games |
 | `Source/Server` | `LodestoneServer` - the headless dedicated server |
-| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`), and shared helpers in `Tests/Common` |
-| `cmake` | Build configurations, compiler settings, dependencies, and `ls_configure_target()` |
-| `tools` | Formatting and clang-tidy scripts, and the pinned tool versions |
+| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Render` is `LodestoneRenderTests`), shared helpers in `Tests/Common`, and reference images in `Tests/ReferenceImages` |
+| `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, and `ls_configure_target()` |
+| `tools` | Formatting and clang-tidy scripts, the pinned tool versions, and the pinned lavapipe version and its Linux build script |
 | `docs` | Design docs, milestones and decisions |
 | `.github` | CI workflow and its composite actions |
 
 Headers live next to their sources and are included by their path below the target's source directory: `#include "Lodestone/Core/Log.h"`. Every target that compiles Lodestone code calls `ls_configure_target()`, which turns on warnings as errors.
 
-Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through.
+Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through. Also there: `Image.h` (RGBA8 images, PNG/JPEG loading and PNG saving), `CommandLine.h` and `Environment.h`.
+
+Rendering in `Source/Client/Lodestone/Graphics`: `GraphicsDevice` (the Vulkan device wrapped in NVRHI; one at a time, headless or for windows), `Swapchain`, and `ReadTexture()` for reading rendered images back. Shaders are HLSL in `Source/Client/Shaders`, listed in `Shaders.cfg` and `ls_add_shaders()`, and compiled at build time into headers the code includes (see [Decision 0008](docs/Decisions/0008-shader-pipeline.md)).
 
 ## Skills
 Workflows that repeat have skills in `.claude/skills/`:
 - `build-and-test` - building, testing, formatting and clang-tidy on any platform
 - `ship-change` - branch, review, pull request, CI and squash-merge
 - `add-dependency` - adding a pinned third-party dependency
+- `update-reference-images` - adding a reference-image test, or deliberately updating reference images
 
 ## Git
 - Work on a branch, push it to the [GitHub repo](https://github.com/meirborowski/Lodestone), and squash-merge it into main through a pull request once CI passes - never push directly to main
+- main keeps a linear history: squash merging is the only merge method the repository allows, and branch protection requires it
 - IMPORTANT: before every commit, review the full diff (in Claude Code, run `/code-review`), and make sure all changes comply with the code style, meet production-grade quality standards, and have been properly tested, with unit tests that pass where necessary
 - CI must stay green - a failing build gets fixed before any other work
 
