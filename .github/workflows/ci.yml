@@ -237,7 +237,10 @@ jobs:
       - name: Build
         run: cmake --build --preset asan
 
+      # Fuzz tests run longer here, where the sanitizers turn memory errors into failures
       - name: Test
+        env:
+          LS_FUZZ_SECONDS: "30"
         run: ctest --preset asan
 
       - name: Upload rendering test output

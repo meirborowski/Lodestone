@@ -1,0 +1,11 @@
+{
+  "format": "Lodestone.AssetMetadata",
+  "version": 1,
+  "id": "c5b4c1f2-4f0e-4c53-9d6e-0d6a1e2b3c4d",
+  "type": "Model",
+  "importSettings": {
+    "scale": 0.01,
+    "materials": ["Body", "Glass"],
+    "nested": {"flag": false, "count": 3}
+  }
+}

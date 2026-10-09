@@ -18,8 +18,8 @@ target_sources(LodestoneClient PRIVATE
 	Lodestone/Graphics/VulkanLibrary.h
 	Lodestone/Input/DeviceInput.cpp
 	Lodestone/Input/DeviceInput.h
-	Lodestone/Input/InputCodes.cpp
-	Lodestone/Input/InputCodes.h
+	Lodestone/Input/InputCommandBuilder.cpp
+	Lodestone/Input/InputCommandBuilder.h
 	Lodestone/Platform/Window.cpp
 	Lodestone/Platform/Window.h
 )

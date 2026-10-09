@@ -14,14 +14,17 @@ Tests carry CTest labels, so the right set runs at the right time:
 - `unit` - fast, with no GPU or network; run on every change
 - `render` - rendering tests, including reference-image tests. They render on lavapipe, so they need no GPU
 - `integration` - MCP end-to-end, networking over loopback, and export
-- `fuzz` - fuzz tests, run for a fixed time budget
+- `fuzz` - fuzz tests, run for a fixed time budget (`LS_FUZZ_SECONDS` per fuzz test, 5 by default)
 
 Run the `unit` tier on every change, and every tier before opening a pull request. CI runs every tier.
 
 - Each test executable is added with `ls_add_test_executable()` in `Tests/CMakeLists.txt`, which registers every doctest test case with CTest under the executable's tier label
 - Run a tier with `ctest --preset debug -L unit`, or every tier with `ctest --preset debug`
 - Tests are built and run in every configuration, Dist included. Tests of behaviour that differs in Dist (asserts, developer logging) check the Dist behaviour there
-- Shared test helpers live in `Tests/Common` (`LodestoneTestSupport`): capturing log output, temporary directories, and reference-image comparison
+- Shared test helpers live in `Tests/Common` (`LodestoneTestSupport`): capturing log output, temporary directories, reference-image comparison, the fuzzer, and `DescribeError()` for assertion messages about `std::expected` results
+- Files that tests load - documents in older format versions, scenes, asset metadata - live in `Tests/Fixtures`. Every version of a file format keeps a fixture, and every migration is tested against the fixture of the version it upgrades from
+- Fuzz tests (`LodestoneFuzzTests`) feed a loader its corpus in `Tests/Fuzz/Corpus/<format>`, then mutations of it, for the time budget. Each run prints its seed; `LS_FUZZ_SEED=<seed>` replays it. Anything that loads must also save and load again unchanged (see [Decision 0013](Decisions/0013-fuzz-testing.md))
+- The configure step checks the layering: `LodestoneCore`, its tests and the server fail to configure if they link GLFW, nvrhi or `LodestoneClient` (`ls_forbid_dependencies()`)
 
 ## Test Integrity
 Never delete, skip or weaken a test, loosen a tolerance, or regenerate a reference image just to get a build green. If a test really is wrong, fix it and explain why in the commit message.
@@ -50,7 +53,7 @@ How it works:
   - macOS (Apple Clang, MoltenVK)
   - Ubuntu 24.04 (GCC 14 and Clang 19)
 - Once the runtime exists, CI also smoke-tests the Dist runtime headlessly
-- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux), and ThreadSanitizer as soon as the engine uses more than one thread
+- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux, which also fuzzes longer), and ThreadSanitizer as soon as the engine uses more than one thread
 - Rendering tests run on lavapipe on Windows and Linux (see [Reference Images](#reference-images)). The `lavapipe` job builds it for Linux once per Mesa version and caches it
 - On macOS, the rendering tests are the smoke check: they run on MoltenVK, and fail with a clear message if it doesn't load or provides no Vulkan device
 - When a rendering test fails, CI uploads `RenderOutput` (the rendered and difference images) as an artifact

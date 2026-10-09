@@ -4,6 +4,8 @@
 # Checks that are turned off, and why:
 #   bugprone-easily-swappable-parameters          flags nearly every function with two parameters of one type (x, y)
 #   bugprone-invalid-enum-default-initialization  flags zero-initialized Vulkan structs, whose API defines zero as valid
+#   clang-analyzer-optin.core.EnumCastOutOfRange  flags every combination of flag enum values (EnumFlags.h), including
+#                                                 the standard library's
 #   misc-include-cleaner                          doesn't understand umbrella headers such as spdlog's bundled fmt
 #   misc-misplaced-const                          Vulkan handles are pointer typedefs: `const VkDevice` is meant to be a
 #                                                 const handle, as misc-const-correctness asks
@@ -33,6 +35,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -bugprone-invalid-enum-default-initialization,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   concurrency-*,
   cppcoreguidelines-missing-std-forward,
   cppcoreguidelines-prefer-member-initializer,
@@ -113,7 +116,7 @@ CheckOptions:
   # Macros: UPPER_SNAKE_CASE with an LS_ prefix. Third-party configuration macros keep their own names
   readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
   readability-identifier-naming.MacroDefinitionPrefix: LS_
-  readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(DOCTEST|SOL|SPDLOG|FMT|GLM|JPH|IMGUI|NOMINMAX|WIN32)_?.*$'
+  readability-identifier-naming.MacroDefinitionIgnoredRegexp: '^(DOCTEST|SOL|SPDLOG|FMT|GLM|JPH|IMGUI|NOMINMAX|WIN32|ENTT|JSON)_?.*$'
   # Allow the C++ standard's spelling where an interface requires it (format_as, begin/end, ...)
   readability-identifier-naming.FunctionIgnoredRegexp: '^(format_as|begin|end|swap|hash)$'
   readability-identifier-naming.MethodIgnoredRegexp: '^(begin|end|swap|size|empty|data)$'

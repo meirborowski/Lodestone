@@ -44,3 +44,12 @@ if(LS_BUILD_TESTS)
 	enable_testing()
 	add_subdirectory(Tests)
 endif()
+
+# The simulation runs without a window, GPU or audio device, so dedicated servers and headless tests can run it
+# anywhere (see docs/Architecture.md#targets-and-layering)
+set(LS_CLIENT_ONLY_TARGETS LodestoneClient glfw nvrhi nvrhi_vk)
+ls_forbid_dependencies(LodestoneCore ${LS_CLIENT_ONLY_TARGETS})
+ls_forbid_dependencies(LodestoneServer ${LS_CLIENT_ONLY_TARGETS})
+if(LS_BUILD_TESTS)
+	ls_forbid_dependencies(LodestoneCoreTests ${LS_CLIENT_ONLY_TARGETS})
+endif()

@@ -28,9 +28,10 @@ The layering is enforced by CMake target dependencies, so the linker - not disci
 - Physics steps once per tick. The network sends snapshots every Nth tick (see [Networking](Features/Networking.md))
 - Device input is sampled into a per-tick input command for each player. The simulation reads only input commands, never devices - the same path serves local play, client input on the server, prediction replays and input sent through MCP
 - The simulation state (components, plus physics through Jolt's state recording) can be saved and restored, so clients can roll back and re-simulate ticks for prediction (see [Prediction](Features/Networking.md#prediction))
+- How ticks, input commands, interpolation and snapshots work: [Decision 0012](Decisions/0012-simulation-and-rollback.md)
 
 ## Components and Reflection
-- Each component and its fields are registered once in a reflection registry: names, types, defaults, valid ranges, and flags such as whether a field replicates. Whether the registry builds on `entt::meta` or is a small custom one is decided in Milestone 3, and recorded as a decision
+- Each component and its fields are registered once in a reflection registry: names, types, defaults, valid ranges, and flags such as whether a field replicates. It's a small custom registry (`ComponentRegistry`), not `entt::meta` - see [Decision 0010](Decisions/0010-component-reflection.md)
 - Serialization, the inspector, MCP tools, script bindings and network replication are all driven by the registry, so a new component gets them from its registration. A component can add custom handling where the generic path isn't enough
 
 ## Asset System
@@ -44,6 +45,7 @@ The layering is enforced by CMake target dependencies, so the linker - not disci
 - Every file the engine writes - scenes, prefabs, the project file and asset metadata - has a `version` field
 - Loading an older version runs migrations one version at a time. Each migration has a test against a fixture file in the old format
 - A file newer than the engine supports fails to load with a clear error - never a partial load
+- The formats themselves - scenes (`.lscene`), asset metadata (`.meta`) - and how loading validates them: [Decision 0011](Decisions/0011-file-formats.md)
 
 ## Repository Layout
 - Sample game projects, including the [Milestone 13](Milestones.md#13-validation) games, live in `Samples/` in this repository. They double as test fixtures

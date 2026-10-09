@@ -17,8 +17,8 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 Keep this section current, so a new session can pick up where the last one stopped.
 
 - **Active milestone:** 3. ECS, scenes and assets
-- **In progress:** nothing merged yet. Milestone 2 is done: windows, input, the Vulkan/NVRHI backend, shaders, offscreen rendering and reference images run on every CI platform (the windowed runtime renders on lavapipe on Windows and Linux and on MoltenVK on macOS, in CI's smoke step; locally it was run on Windows only)
-- **Next:** Milestone 3
+- **In progress:** the `milestone-3-ecs-scenes-assets` branch, in a pull request: every item is implemented and passes locally on Windows (Debug, Release and Dist, clang-tidy). Waiting for CI on every platform, then merge
+- **Next:** Milestone 4 (editor and AI control). It will run the simulation in play mode and edit scenes through the reflection registry; the runtime doesn't use scenes or the simulation yet
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -67,15 +67,15 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** an offscreen render matches its reference image on lavapipe on every CI platform that has a Vulkan driver; the windowed app runs locally on all three platforms.
 
 ### 3. ECS, scenes and assets
-- [ ] EnTT and core components (ID, name, transform, hierarchy)
-- [ ] Component reflection registry - serialization uses it now; the inspector, MCP, scripting and replication use it later (see [Components and Reflection](Architecture.md#components-and-reflection))
-- [ ] Fixed-tick simulation loop, independent of the frame rate, with render interpolation (see [Simulation](Architecture.md#simulation))
-- [ ] Per-tick input commands - the simulation reads only input commands, never devices
-- [ ] Save and restore of simulation state, for client-side prediction rollback
-- [ ] Scene save/load with round-trip tests
-- [ ] Versioned file formats with step-by-step migrations (see [File Formats](Architecture.md#file-formats))
-- [ ] Asset registry and UUIDs
-- [ ] Fuzz tests for the scene and asset metadata loaders
+- [x] EnTT and core components (ID, name, transform, hierarchy)
+- [x] Component reflection registry - serialization uses it now; the inspector, MCP, scripting and replication use it later (see [Components and Reflection](Architecture.md#components-and-reflection))
+- [x] Fixed-tick simulation loop, independent of the frame rate, with render interpolation (see [Simulation](Architecture.md#simulation))
+- [x] Per-tick input commands - the simulation reads only input commands, never devices
+- [x] Save and restore of simulation state, for client-side prediction rollback
+- [x] Scene save/load with round-trip tests
+- [x] Versioned file formats with step-by-step migrations (see [File Formats](Architecture.md#file-formats))
+- [x] Asset registry and UUIDs
+- [x] Fuzz tests for the scene and asset metadata loaders
 
 **Acceptance:** `LodestoneCore` builds, and its tests run, without GLFW, nvrhi or miniaudio; a headless test runs the simulation for many ticks from injected input commands; restoring a saved state and re-simulating the same input commands reproduces the same state.
 
