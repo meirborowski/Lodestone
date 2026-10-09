@@ -5,9 +5,10 @@
 #
 # Usage: tools/build-lavapipe.sh [install directory]
 #
-# Needs: curl, Python 3 with venv, Ninja, pkg-config, glslang 12.2+, and the development files of libdrm, zlib and
-# LLVM at the pinned LLVM version, e.g.
-#   sudo apt install curl python3-venv ninja-build pkg-config glslang-tools libdrm-dev zlib1g-dev llvm-19-dev
+# Needs: curl, Python 3 with venv, Ninja, pkg-config, glslang 12.2+, and the development files of libdrm, zlib, and
+# LLVM and Polly at the pinned LLVM version (LLVM is linked statically, which needs Polly), e.g.
+#   sudo apt install curl python3-venv ninja-build pkg-config glslang-tools libdrm-dev zlib1g-dev llvm-19-dev \
+#     libpolly-19-dev
 set -euo pipefail
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -66,6 +67,7 @@ meson setup "${work_dir}/build" "${work_dir}/mesa-${MESA_VERSION}" \
 	-Dlibunwind=disabled \
 	-Dlmsensors=disabled \
 	-Dzstd=disabled \
+	-Dspirv-tools=disabled \
 	-Dxmlconfig=disabled \
 	-Dvideo-codecs=
 

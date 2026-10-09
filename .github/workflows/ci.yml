@@ -66,7 +66,7 @@ jobs:
           sudo apt-get update
           source tools/lavapipe.env
           sudo apt-get install -y --no-install-recommends curl python3-venv ninja-build pkg-config glslang-tools \
-            libdrm-dev zlib1g-dev "llvm-${LLVM_VERSION}-dev"
+            libdrm-dev zlib1g-dev "llvm-${LLVM_VERSION}-dev" "libpolly-${LLVM_VERSION}-dev"
 
       - name: Build lavapipe
         if: steps.cache.outputs.cache-hit != 'true'
