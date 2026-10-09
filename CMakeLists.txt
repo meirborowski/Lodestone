@@ -19,6 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(LS_BUILD_TESTS "Build the Lodestone tests" ON)
 option(LS_ENABLE_SANITIZERS "Build everything with AddressSanitizer and UndefinedBehaviorSanitizer (GCC and Clang)" OFF)
+option(LS_ENABLE_THREAD_SANITIZER "Build everything with ThreadSanitizer (GCC and Clang)" OFF)
 
 include(BuildConfigurations)
 include(CompilerSettings)

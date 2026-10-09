@@ -65,22 +65,33 @@ namespace Lodestone {
 		return image;
 	}
 
+	std::expected<std::vector<uint8_t>, Error> Image::EncodePng() const
+	{
+		if (IsEmpty())
+			return std::unexpected(Error(ErrorCode::InvalidArgument, "An empty image can't be encoded"));
+
+		std::vector<uint8_t> encoded;
+		const int strideInBytes = static_cast<int>(m_Width * ChannelCount);
+		if (stbi_write_png_to_func(&AppendToVector, &encoded, static_cast<int>(m_Width), static_cast<int>(m_Height),
+				static_cast<int>(ChannelCount), m_Pixels.data(), strideInBytes) == 0)
+			return std::unexpected(Error(ErrorCode::IoError, "Encoding the image as PNG failed"));
+		return encoded;
+	}
+
 	std::expected<void, Error> Image::SavePng(const std::filesystem::path& path) const
 	{
 		if (IsEmpty())
 			return std::unexpected(
 				Error(ErrorCode::InvalidArgument, fmt::format("Can't save the empty image {}", path)));
 
-		std::vector<uint8_t> encoded;
-		const int strideInBytes = static_cast<int>(m_Width * ChannelCount);
-		if (stbi_write_png_to_func(&AppendToVector, &encoded, static_cast<int>(m_Width), static_cast<int>(m_Height),
-				static_cast<int>(ChannelCount), m_Pixels.data(), strideInBytes) == 0)
-			return std::unexpected(Error(ErrorCode::IoError, fmt::format("Can't encode image {} as PNG", path)));
+		const auto encoded = EncodePng();
+		if (!encoded)
+			return std::unexpected(encoded.error().WithContext(fmt::format("Saving image {}", path)));
 
 		std::ofstream file(path, std::ios::binary | std::ios::trunc);
 		if (!file)
 			return std::unexpected(Error(ErrorCode::IoError, fmt::format("Can't create image file {}", path)));
-		file.write(reinterpret_cast<const char*>(encoded.data()), static_cast<std::streamsize>(encoded.size()));
+		file.write(reinterpret_cast<const char*>(encoded->data()), static_cast<std::streamsize>(encoded->size()));
 		file.close();
 		if (!file)
 			return std::unexpected(Error(ErrorCode::IoError, fmt::format("Can't write image file {}", path)));

@@ -1,0 +1,1 @@
+{"jsonrpc": "2.0", "id": 36, "method": "tools/call", "params": {"name": "log_read", "arguments": {"after": 0, "level": "warn", "max": 10}}}

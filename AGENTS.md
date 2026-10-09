@@ -31,7 +31,7 @@ ctest --preset debug -L unit        # and run a test tier (unit, render, integra
 - Ubuntu: GCC 13 is the default and too old - configure with `CC=gcc-14 CXX=g++-14` or `CC=clang-19 CXX=clang++-19`. Install GLFW's build dependencies and the Vulkan loader first: `sudo apt install pkg-config libwayland-dev libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan1`
 - macOS: install the Vulkan SDK, then run `sudo ./install_vulkan.py` in its directory, so DXC, the Vulkan loader and MoltenVK are found
 - Rendering tests render on lavapipe at a pinned Mesa version, never the GPU. Windows downloads it automatically; on Linux, build it once with `tools/build-lavapipe.sh` and reconfigure. Without lavapipe, reference-image tests are skipped with a message; macOS always skips them (see [Reference Images](docs/Testing.md#reference-images))
-- Sanitizers (GCC and Clang only): `cmake --workflow --preset asan` builds and tests with AddressSanitizer and UndefinedBehaviorSanitizer
+- Sanitizers (GCC and Clang only): `cmake --workflow --preset asan` builds and tests with AddressSanitizer and UndefinedBehaviorSanitizer, and `--preset tsan` with ThreadSanitizer
 - Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`, and lavapipe in `.cache/lavapipe`
 
 Code style tools, pinned to one LLVM version (install once, ideally in a virtual environment: `pip install -r tools/requirements.txt`):
@@ -48,10 +48,10 @@ Before every pull request: format, clang-tidy, and every test tier in Debug, Rel
 |---|---|
 | `Source/Core` | `LodestoneCore` - ECS and scenes (`Lodestone/Scene`), component reflection (`Lodestone/Reflection`), the simulation (`Lodestone/Simulation`), input codes and commands (`Lodestone/Input`), assets (`Lodestone/Asset`) and file formats (`Lodestone/Serialization`). Never links GLFW, nvrhi or miniaudio - the configure step checks |
 | `Source/Client` | `LodestoneClient` - window and device input (`Lodestone/Platform`, `Lodestone/Input`), the graphics device, swapchain and renderer (`Lodestone/Graphics`), shaders (`Shaders`), and audio |
-| `Source/Editor` | `LodestoneEditor` - editor UI, MCP server, headless mode. Not built in Dist |
+| `Source/Editor` | `LodestoneEditorLib` and the `LodestoneEditor` executable - the editor context, commands and undo (`Lodestone/Editor`, `Lodestone/Editor/Commands`), the UI panels (`Lodestone/Editor/UI`), and the MCP server, its tools and transports (`Lodestone/Editor/Mcp`). Not built in Dist |
 | `Source/Runtime` | `LodestoneRuntime` - the player for exported games |
 | `Source/Server` | `LodestoneServer` - the headless dedicated server |
-| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Render` is `LodestoneRenderTests`, `Tests/Fuzz` is `LodestoneFuzzTests` with its corpus), shared helpers in `Tests/Common`, files tests load in `Tests/Fixtures`, and reference images in `Tests/ReferenceImages` |
+| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Render` is `LodestoneRenderTests`, `Tests/Editor` is `LodestoneEditorTests` and `LodestoneEditorIntegrationTests` plus the Python agent smoke test, `Tests/Fuzz` is `LodestoneFuzzTests` with its corpus), shared helpers in `Tests/Common`, files tests load in `Tests/Fixtures`, and reference images in `Tests/ReferenceImages` |
 | `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, `ls_configure_target()` and the layering check `ls_forbid_dependencies()` |
 | `tools` | Formatting and clang-tidy scripts, the pinned tool versions, and the pinned lavapipe version and its Linux build script |
 | `docs` | Design docs, milestones and decisions |
@@ -63,7 +63,12 @@ Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, pl
 
 Scenes and the simulation in `Source/Core/Lodestone`: `Scene/Scene.h` (entities with UUIDs, the hierarchy, snapshots), `Scene/Entity.h` (the entity handle), `Scene/Components.h` (the core components), `Scene/SceneSerializer.h` (`.lscene` files), `Reflection/ComponentRegistry.h` (the reflection registry), `Simulation/Simulation.h` (fixed ticks, systems, interpolation, save and restore), `Input/InputCommand.h`, `Asset/AssetRegistry.h` and `Serialization/FileFormat.h` (versioned documents and migrations). See Decisions [0010](docs/Decisions/0010-component-reflection.md), [0011](docs/Decisions/0011-file-formats.md) and [0012](docs/Decisions/0012-simulation-and-rollback.md).
 
-Rendering in `Source/Client/Lodestone/Graphics`: `GraphicsDevice` (the Vulkan device wrapped in NVRHI; one at a time, headless or for windows), `Swapchain`, and `ReadTexture()` for reading rendered images back. Shaders are HLSL in `Source/Client/Shaders`, listed in `Shaders.cfg` and `ls_add_shaders()`, and compiled at build time into headers the code includes (see [Decision 0008](docs/Decisions/0008-shader-pipeline.md)).
+The editor in `Source/Editor/Lodestone/Editor`: `EditorContext` (the project, the open document, selection, undo history and play mode, shared by the UI and MCP), `Commands/` (every edit is a command, so it undoes - see [Decision 0015](docs/Decisions/0015-editor-commands.md)), `SceneView` (the viewport and screenshots), `UI/` (the Dear ImGui panels), and `Mcp/` (`McpServer`, the tools in `EditorTools.cpp`, and the stdio and HTTP transports - see [Decision 0016](docs/Decisions/0016-mcp-server.md)). Prefabs are in Core: `Scene/PrefabSerializer.h` and `Scene/EntitySerializer.h` (entity trees as data), and projects in `Project/Project.h`.
+
+Rendering in `Source/Client/Lodestone/Graphics`: `GraphicsDevice` (the Vulkan device wrapped in NVRHI; one at a time, headless or for windows), `Swapchain`, `RenderTarget` (offscreen color and depth), `ReadTexture()` for reading rendered images back, `ImGuiRenderer` (Dear ImGui through NVRHI) and `DebugSceneRenderer` (the editor's view until the scene renderer). Dear ImGui's asserts go through the engine's (`Source/Client/ThirdPartyConfig/imgui`). Shaders are HLSL in `Source/Client/Shaders`, listed in `Shaders.cfg` and `ls_add_shaders()`, and compiled at build time into headers the code includes (see [Decision 0008](docs/Decisions/0008-shader-pipeline.md)).
+
+## Driving the Editor Through MCP
+`.mcp.json` gives Claude Code two servers: `lodestone-editor`, the editor that's running (HTTP on port 7850), and `lodestone-headless`, a headless editor it starts itself over stdio from `build/debug` (build the `debug` preset first). Start with `project_info`, then `project_create` or `project_open`; `component_types` lists every component's fields. See [AI Control](docs/AIControl.md) for the tools and options.
 
 ## Skills
 Workflows that repeat have skills in `.claude/skills/`:
@@ -72,6 +77,7 @@ Workflows that repeat have skills in `.claude/skills/`:
 - `add-dependency` - adding a pinned third-party dependency
 - `update-reference-images` - adding a reference-image test, or deliberately updating reference images
 - `add-component` - adding a component, with its reflection registration and tests
+- `add-mcp-tool` - adding an MCP tool for an editor feature, with its tests
 
 ## Adding a Component
 Components are plain structs with public PascalCase fields and default member initializers. Registering one in the reflection registry is what gives it serialization now, and the inspector, MCP tools, script bindings and replication as they arrive (see [Decision 0010](docs/Decisions/0010-component-reflection.md)):

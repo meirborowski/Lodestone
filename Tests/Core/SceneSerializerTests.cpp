@@ -190,6 +190,27 @@ namespace Lodestone {
 		CHECK(scene.GetRootEntities().size() == 2);
 	}
 
+	TEST_CASE("Scenes with prefab instances load, and keep the prefab each came from")
+	{
+		const auto loaded =
+			SceneSerializer::Load(std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Scenes" / "Street.v1.lscene");
+		REQUIRE_MESSAGE(loaded.has_value(), Testing::DescribeError(loaded));
+		Scene& scene = **loaded;
+
+		const Entity lampPost = scene.FindEntity(UUID(0xbbbbbbbb'bbbb'4bbbull, 0x8bbb'bbbbbbbbbbbbull));
+		REQUIRE(lampPost.IsValid());
+		REQUIRE(lampPost.Has<PrefabInstanceComponent>());
+		CHECK(lampPost.Get<PrefabInstanceComponent>().Prefab == UUID(0x77777777'7777'4777ull, 0x8777'777777777777ull));
+		CHECK_FALSE(
+			scene.FindEntity(UUID(0xcccccccc'cccc'4cccull, 0x8ccc'ccccccccccccull)).Has<PrefabInstanceComponent>());
+
+		// Saved and loaded again, unchanged
+		const std::string saved = SceneSerializer::SerializeToText(scene);
+		const auto reloaded = SceneSerializer::DeserializeFromText(saved);
+		REQUIRE(reloaded.has_value());
+		CHECK(SceneSerializer::SerializeToText(**reloaded) == saved);
+	}
+
 	TEST_CASE("Loading rejects invalid scenes with a message saying what's wrong")
 	{
 		SUBCASE("An unknown component")

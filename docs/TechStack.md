@@ -40,7 +40,7 @@ When adding a dependency, add it to THIRD_PARTY_LICENSES.md. Only permissively l
 ## Build Prerequisites
 - CMake 3.28+ and Ninja
 - Git LFS
-- Python 3.12+, for the formatting and clang-tidy scripts in `tools/`
+- Python 3.12+, for the formatting and clang-tidy scripts in `tools/`, and for the MCP end-to-end tests, which drive the editor from Python as an agent would (the configure step requires it when the editor is built)
 - clang-format and clang-tidy, at the LLVM version CI pins: `pip install -r tools/requirements.txt` (see [Enforcement](CodeStyle.md#enforcement))
 - A graphics driver with Vulkan 1.3, to run the engine. Rendering tests don't need one: they render on lavapipe (see [Reference Images](Testing.md#reference-images))
 - macOS: the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) 1.4.363.0, for DXC (which has no macOS release), MoltenVK and the Vulkan loader. After installing it, run `sudo ./install_vulkan.py` in the SDK's directory to install it system-wide, so programs find the loader and MoltenVK
@@ -58,4 +58,4 @@ Everything else is fetched by CMake: the libraries, DXC on Windows and Linux, Sh
 - **Release** - optimized, with debug information, asserts, logging and the editor
 - **Dist** - fully optimized (with link-time optimization), no editor code, no asserts or developer logging. Used for exported games. CI builds it from Milestone 1 onward, so code that differs in Dist can't rot unnoticed
 
-Each configuration has a CMake preset (`debug`, `release`, `dist`) that builds into `build/<preset>`, plus `asan` for a Debug build with AddressSanitizer and UndefinedBehaviorSanitizer. Code sees the configuration as one of `LS_CONFIG_DEBUG`, `LS_CONFIG_RELEASE` and `LS_CONFIG_DIST`.
+Each configuration has a CMake preset (`debug`, `release`, `dist`) that builds into `build/<preset>`, plus `asan` for a Debug build with AddressSanitizer and UndefinedBehaviorSanitizer, and `tsan` for a Debug build with ThreadSanitizer (GCC and Clang only). Code sees the configuration as one of `LS_CONFIG_DEBUG`, `LS_CONFIG_RELEASE` and `LS_CONFIG_DIST`.

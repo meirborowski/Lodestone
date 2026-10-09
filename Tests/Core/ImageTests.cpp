@@ -53,6 +53,31 @@ namespace Lodestone {
 		CHECK(*loaded == image);
 	}
 
+	TEST_CASE("An image encoded as PNG in memory decodes back unchanged")
+	{
+		Image image(5, 2);
+		image.SetPixel(0, 0, {.R = 255, .G = 0, .B = 0, .A = 255});
+		image.SetPixel(4, 1, {.R = 1, .G = 2, .B = 3, .A = 4});
+
+		const auto encoded = image.EncodePng();
+		REQUIRE(encoded.has_value());
+		// The PNG signature
+		REQUIRE(encoded->size() > 8);
+		CHECK((*encoded)[0] == 0x89);
+		CHECK((*encoded)[1] == 'P');
+		const auto decoded = Image::Decode(*encoded);
+
+		REQUIRE(decoded.has_value());
+		CHECK(*decoded == image);
+	}
+
+	TEST_CASE("Encoding an empty image as PNG fails")
+	{
+		const auto encoded = Image().EncodePng();
+		REQUIRE_FALSE(encoded.has_value());
+		CHECK(encoded.error().GetCode() == ErrorCode::InvalidArgument);
+	}
+
 	TEST_CASE("Loading a missing image fails with FileNotFound")
 	{
 		const Testing::TemporaryDirectory directory("ImageMissing");

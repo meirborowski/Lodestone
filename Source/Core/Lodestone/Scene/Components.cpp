@@ -41,6 +41,12 @@ namespace Lodestone {
 				{.Description = "The parent entity, or nil for a root entity",
 					.Flags = FieldFlags::ReadOnly | FieldFlags::Replicated});
 
+		registry
+			.Register<PrefabInstanceComponent>(
+				"PrefabInstance", "Marks the root of a prefab instance with the prefab it was copied from")
+			.Field("Prefab", &PrefabInstanceComponent::Prefab,
+				{.Description = "The prefab asset's UUID", .Flags = FieldFlags::ReadOnly});
+
 		registry.Register<PreviousTransformComponent>("PreviousTransform",
 			"The transform at the start of the latest simulation tick, for interpolation", ComponentFlags::Internal);
 	}

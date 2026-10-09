@@ -51,6 +51,16 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "LS_ENABLE_SANITIZERS": "ON"
       }
+    },
+    {
+      "name": "tsan",
+      "displayName": "Debug with ThreadSanitizer",
+      "description": "Debug build with ThreadSanitizer (GCC and Clang)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LS_ENABLE_THREAD_SANITIZER": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -69,6 +79,10 @@
     {
       "name": "asan",
       "configurePreset": "asan"
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan"
     }
   ],
   "testPresets": [
@@ -105,6 +119,14 @@
       "environment": {
         "ASAN_OPTIONS": "detect_leaks=1:strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1",
         "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "tsan",
+      "inherits": "base",
+      "configurePreset": "tsan",
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1"
       }
     }
   ],
@@ -174,6 +196,23 @@
         {
           "type": "test",
           "name": "asan"
+        }
+      ]
+    },
+    {
+      "name": "tsan",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "tsan"
+        },
+        {
+          "type": "build",
+          "name": "tsan"
+        },
+        {
+          "type": "test",
+          "name": "tsan"
         }
       ]
     }

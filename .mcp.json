@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "lodestone-editor": {
+      "type": "http",
+      "url": "http://127.0.0.1:7850/mcp"
+    },
+    "lodestone-headless": {
+      "type": "stdio",
+      "command": "build/debug/Source/Editor/LodestoneEditor",
+      "args": ["--headless", "--mcp-stdio"]
+    }
+  }
+}

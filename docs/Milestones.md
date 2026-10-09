@@ -17,8 +17,8 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 Keep this section current, so a new session can pick up where the last one stopped.
 
 - **Active milestone:** 4. Editor and AI control
-- **In progress:** nothing yet. Milestone 3 is done: EnTT, reflection, scenes, the simulation with input commands and rollback, the asset registry and fuzz tests pass on every CI platform
-- **Next:** Milestone 4. The plan: an editor library and executable (not built in Dist); a command system with undo/redo shared by the UI and MCP; an editor context (project, scene, selection, history, play mode); prefabs and duplicate/undo-delete built on serialized entity subtrees; a simple debug scene renderer for the viewport and screenshots until Milestone 5's renderer; Dear ImGui (docking) on NVRHI with ImGuizmo; an MCP server over stdio and localhost HTTP with Host/Origin checks; headless mode; and tests for every tool and both transports
+- **In progress:** Milestone 4 is complete and in review (pull request from `milestone-4-editor`): the editor library and executable (windowed and `--headless`, `--mcp-stdio`), the editor context with commands, undo and play mode, prefabs, the Dear ImGui UI with the gizmo and a debug scene view, the MCP server over stdio and HTTP with 38 tools, `.mcp.json`, and the agent smoke test, which passes over both transports. A ThreadSanitizer CI job joins the sanitizers now that the editor runs threads. Once CI is green on every platform and it's merged, tick Milestone 4 in Progress
+- **Next:** Milestone 5, the 3D renderer: it replaces `DebugSceneRenderer` behind `SceneView` (viewport, screenshots and picking keep their interfaces - see [Decision 0017](Decisions/0017-editor-ui.md)), and adds MCP tools for its editor-facing features (materials, lights, environment, post-processing)
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -80,15 +80,15 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** `LodestoneCore` builds, and its tests run, without GLFW, nvrhi or miniaudio; a headless test runs the simulation for many ticks from injected input commands; restoring a saved state and re-simulating the same input commands reproduces the same state.
 
 ### 4. Editor and AI control
-- [ ] Docked editor layout: viewport, scene hierarchy, inspector, content browser, console
-- [ ] Gizmo
-- [ ] Command system with undo/redo, shared by the editor UI and MCP
-- [ ] Play mode
-- [ ] Prefabs
-- [ ] MCP server with both [transports](AIControl.md#transports) and the [security checks](AIControl.md#security), and `.mcp.json`
-- [ ] Generic, reflection-driven component tools, plus tools for entities, scenes, prefabs, play mode, input, screenshots and logs (see [Tools](AIControl.md#tools))
-- [ ] Headless mode
-- [ ] MCP tests: in-process tests for every tool, and end-to-end tests over both transports
+- [x] Docked editor layout: viewport, scene hierarchy, inspector, content browser, console
+- [x] Gizmo
+- [x] Command system with undo/redo, shared by the editor UI and MCP
+- [x] Play mode
+- [x] Prefabs
+- [x] MCP server with both [transports](AIControl.md#transports) and the [security checks](AIControl.md#security), and `.mcp.json`
+- [x] Generic, reflection-driven component tools, plus tools for entities, scenes, prefabs, play mode, input, screenshots and logs (see [Tools](AIControl.md#tools))
+- [x] Headless mode
+- [x] MCP tests: in-process tests for every tool, and end-to-end tests over both transports
 
 **Acceptance:** an automated agent smoke test builds a scene using only MCP tools - create entities, set components, instance a prefab, save, reload, screenshot - and checks the result.
 

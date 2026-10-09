@@ -25,3 +25,7 @@ Record every significant design decision here - especially ones made without ask
 - [0011 - Scene and asset file formats](0011-file-formats.md)
 - [0012 - Simulation, input commands and rollback](0012-simulation-and-rollback.md)
 - [0013 - Fuzz testing with a built-in mutation fuzzer](0013-fuzz-testing.md)
+- [0014 - Prefabs: saved entity trees, instanced as independent copies](0014-prefabs.md)
+- [0015 - Editor commands, undo and play mode](0015-editor-commands.md)
+- [0016 - The editor's MCP server](0016-mcp-server.md)
+- [0017 - Editor UI: Dear ImGui on NVRHI, and a debug scene view](0017-editor-ui.md)

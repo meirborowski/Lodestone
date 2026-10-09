@@ -53,6 +53,8 @@ namespace Lodestone {
 
 		bool ShouldClose() const;
 		void RequestClose();
+		// Keeps the window open after the user asked to close it, e.g. to ask about unsaved changes first
+		void CancelClose();
 		void SetTitle(std::string_view title);
 
 		// Size of the drawable area, in pixels. Zero while the window is minimized

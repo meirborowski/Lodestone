@@ -12,6 +12,8 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Core/Assert.cpp
 	Lodestone/Core/Assert.h
 	Lodestone/Core/Base.h
+	Lodestone/Core/Base64.cpp
+	Lodestone/Core/Base64.h
 	Lodestone/Core/CommandLine.cpp
 	Lodestone/Core/CommandLine.h
 	Lodestone/Core/Debugger.cpp
@@ -36,6 +38,8 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Input/InputCodes.cpp
 	Lodestone/Input/InputCodes.h
 	Lodestone/Input/InputCommand.h
+	Lodestone/Project/Project.cpp
+	Lodestone/Project/Project.h
 	Lodestone/Reflection/ComponentRegistry.cpp
 	Lodestone/Reflection/ComponentRegistry.h
 	Lodestone/Reflection/FieldValue.cpp
@@ -44,6 +48,10 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Scene/Components.cpp
 	Lodestone/Scene/Components.h
 	Lodestone/Scene/Entity.h
+	Lodestone/Scene/EntitySerializer.cpp
+	Lodestone/Scene/EntitySerializer.h
+	Lodestone/Scene/PrefabSerializer.cpp
+	Lodestone/Scene/PrefabSerializer.h
 	Lodestone/Scene/Scene.cpp
 	Lodestone/Scene/Scene.h
 	Lodestone/Scene/SceneSerializer.cpp

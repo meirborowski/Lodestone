@@ -18,6 +18,9 @@ When adding a dependency, add it here with its full license text (see [Tech Stac
 | [NVRHI](https://github.com/NVIDIA-RTX/NVRHI) | main @ 6b96fb0 | MIT | Rendering hardware interface | Yes |
 | [EnTT](https://github.com/skypjack/entt) | 4.0.0 | MIT | Entity component system | Yes |
 | [nlohmann/json](https://github.com/nlohmann/json) | 3.12.0 | MIT | Scene, project and asset metadata files | Yes |
+| [Dear ImGui](https://github.com/ocornut/imgui) (docking branch, with its ProggyClean and ProggyForever fonts and its copies of stb_truetype, stb_rect_pack and stb_textedit) | 1.92.9b | MIT (the stb copies dual-licensed with public domain) | The editor's UI | No |
+| [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo) | master @ 18cef5e | MIT | The editor's transform gizmo | No |
+| [cpp-httplib](https://github.com/yhirose/cpp-httplib) | 0.59.0 | MIT | The editor's MCP server over HTTP | No |
 | [doctest](https://github.com/doctest/doctest) | 2.5.3 | MIT | Unit tests | No |
 
 ## spdlog
@@ -272,6 +275,94 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2013-2025 Niels Lohmann
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Dear ImGui
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2014-2026 Omar Cornut
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+Dear ImGui embeds these fonts:
+
+```
+ProggyClean.ttf: MIT License / Copyright (c) 2004, 2005 Tristan Grimmer
+ProggyForever: MIT License / Copyright (c) 2026 Disco Hello, Copyright (c) 2019, 2023 Tristan Grimmer
+
+Both under the MIT License text above. Dear ImGui's copies of stb_truetype, stb_rect_pack and stb_textedit are
+under the stb license (see stb above).
+```
+
+## ImGuizmo
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2016 Cedric Guillemet
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## cpp-httplib
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2017 yhirose
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
