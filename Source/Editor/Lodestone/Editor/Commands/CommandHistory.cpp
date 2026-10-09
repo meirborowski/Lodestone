@@ -3,6 +3,7 @@
 #include "Lodestone/Core/Assert.h"
 #include "Lodestone/Core/Log.h"
 
+#include <ranges>
 #include <utility>
 
 namespace Lodestone {
@@ -89,8 +90,8 @@ namespace Lodestone {
 	{
 		std::vector<std::string> names;
 		names.reserve(m_Undo.size());
-		for (auto entry = m_Undo.rbegin(); entry != m_Undo.rend(); ++entry)
-			names.push_back(entry->Action->GetName());
+		for (const Entry& entry : std::views::reverse(m_Undo))
+			names.push_back(entry.Action->GetName());
 		return names;
 	}
 

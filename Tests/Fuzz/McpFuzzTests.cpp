@@ -68,8 +68,8 @@ namespace Lodestone {
 		REQUIRE(context.CreateProject(directory.GetPath() / "Game", "Fuzz").has_value());
 		// Entities with the UUIDs the corpus uses
 		Scene& scene = context.GetScene();
-		const auto parent = scene.CreateEntityWithId(*UUID::Parse("11111111-1111-4111-8111-111111111111"), "Parent");
-		const auto child = scene.CreateEntityWithId(*UUID::Parse("22222222-2222-4222-8222-222222222222"), "Child");
+		const auto parent = scene.CreateEntityWithId(UUID(0x11111111'1111'4111ull, 0x8111'111111111111ull), "Parent");
+		const auto child = scene.CreateEntityWithId(UUID(0x22222222'2222'4222ull, 0x8222'222222222222ull), "Child");
 		REQUIRE((parent.has_value() && child.has_value()));
 		REQUIRE(scene.SetParent(*child, *parent).has_value());
 

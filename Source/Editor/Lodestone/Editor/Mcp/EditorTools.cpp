@@ -233,8 +233,8 @@ namespace Lodestone {
 				json["parent"] = IdOrNull(hierarchy.Parent);
 				json["depth"] = depth;
 				entities.push_back(std::move(json));
-				for (auto child = hierarchy.Children.rbegin(); child != hierarchy.Children.rend(); ++child)
-					pending.emplace_back(*child, depth + 1);
+				for (const UUID child : std::views::reverse(hierarchy.Children))
+					pending.emplace_back(child, depth + 1);
 			}
 			return entities;
 		}

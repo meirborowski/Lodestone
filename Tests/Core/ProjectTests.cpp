@@ -75,7 +75,7 @@ namespace Lodestone {
 
 		REQUIRE_MESSAGE(settings.has_value(), Testing::DescribeError(settings));
 		CHECK(settings->Name == "Pong");
-		CHECK(settings->StartupScene == *UUID::Parse("66666666-6666-4666-8666-666666666666"));
+		CHECK(settings->StartupScene == UUID(0x66666666'6666'4666ull, 0x8666'666666666666ull));
 		CHECK(settings->TickRate == 120);
 	}
 

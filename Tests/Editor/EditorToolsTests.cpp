@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -29,6 +30,13 @@ namespace Lodestone {
 			"prefab_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start", "play_stop", "play_pause",
 			"play_step", "play_status", "input_send", "viewport_screenshot", "camera_set", "camera_frame", "log_read",
 			"asset_list", "asset_import", "asset_rescan", "editor_quit"};
+
+		UUID ToId(const std::string& text)
+		{
+			const std::optional<UUID> id = UUID::Parse(text);
+			REQUIRE_MESSAGE(id.has_value(), text);
+			return id.value_or(UUID());
+		}
 
 		std::vector<uint8_t> DecodeBase64(std::string_view text)
 		{
@@ -116,7 +124,7 @@ namespace Lodestone {
 				return Ok("entity_create", arguments)["id"].get<std::string>();
 			}
 
-			Entity Get(const std::string& id) { return Context.GetScene().FindEntity(*UUID::Parse(id)); }
+			Entity Get(const std::string& id) { return Context.GetScene().FindEntity(ToId(id)); }
 
 			std::string GetProjectDirectory() const { return PathToUtf8(Directory.GetPath() / "Game"); }
 			std::filesystem::path GetAssetDirectory() const { return Directory.GetPath() / "Game" / "Assets"; }
@@ -386,7 +394,7 @@ namespace Lodestone {
 		const std::string b = fixture.CreateEntity("B");
 
 		fixture.Ok("entity_set_parent", {{"entity", b}, {"parent", a}});
-		CHECK(fixture.Get(b).Get<HierarchyComponent>().Parent == *UUID::Parse(a));
+		CHECK(fixture.Get(b).Get<HierarchyComponent>().Parent == ToId(a));
 		fixture.Fails("entity_set_parent", {{"entity", a}, {"parent", b}});
 		fixture.Ok("entity_set_parent", {{"entity", b}, {"parent", nullptr}, {"index", 0}});
 		CHECK(GetHierarchyNames(fixture.Ok("scene_hierarchy")) == std::vector<std::string>{"B", "A"});
@@ -438,9 +446,9 @@ namespace Lodestone {
 		const std::string id = fixture.CreateEntity("Pick me");
 
 		fixture.Ok("selection_set", {{"entity", id}});
-		CHECK(fixture.Context.GetSelection() == *UUID::Parse(id));
+		CHECK(fixture.Context.GetSelection() == ToId(id));
 		fixture.Fails("selection_set", {{"entity", UUID::Generate().ToString()}});
-		CHECK(fixture.Context.GetSelection() == *UUID::Parse(id));
+		CHECK(fixture.Context.GetSelection() == ToId(id));
 		fixture.Ok("selection_set", {{"entity", nullptr}});
 		CHECK(fixture.Context.GetSelection().IsNil());
 	}

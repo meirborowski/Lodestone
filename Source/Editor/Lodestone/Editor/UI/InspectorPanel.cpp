@@ -7,10 +7,10 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <imgui.h>
+#include <imgui_stdlib.h>
 
 #include <algorithm>
 #include <cfloat>
-#include <imgui_stdlib.h>
 #include <limits>
 
 namespace Lodestone {

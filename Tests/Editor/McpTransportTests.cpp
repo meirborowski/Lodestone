@@ -65,7 +65,7 @@ namespace Lodestone {
 		worker.join();
 
 		REQUIRE(ranOn.has_value());
-		CHECK(*ranOn == mainThread);
+		CHECK(ranOn == mainThread);
 	}
 
 	TEST_CASE("The dispatcher runs work in the order it was posted")

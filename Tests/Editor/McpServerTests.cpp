@@ -41,7 +41,7 @@ namespace Lodestone {
 					{"jsonrpc", "2.0"}, {"id", id}, {"method", method}, {"params", std::move(params)}};
 				const auto response = Server.HandleMessage(message, Session);
 				REQUIRE(response.has_value());
-				return *response;
+				return response.value_or(Json::Value());
 			}
 
 			void Initialize()
@@ -220,7 +220,7 @@ namespace Lodestone {
 			fixture.Server.HandleText(R"({"jsonrpc": "2.0", "id": "abc", "method": "ping"})", fixture.Session);
 
 		REQUIRE(response.has_value());
-		const auto json = Json::Parse(*response);
+		const auto json = Json::Parse(response.value_or(std::string()));
 		REQUIRE(json.has_value());
 		CHECK((*json)["id"] == "abc");
 	}
@@ -232,7 +232,7 @@ namespace Lodestone {
 		const auto response = fixture.Server.HandleText("{not json", fixture.Session);
 
 		REQUIRE(response.has_value());
-		const auto json = Json::Parse(*response);
+		const auto json = Json::Parse(response.value_or(std::string()));
 		REQUIRE(json.has_value());
 		CHECK((*json)["error"]["code"] == -32700);
 		CHECK((*json)["id"].is_null());

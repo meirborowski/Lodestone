@@ -210,6 +210,8 @@ target_compile_definitions(imgui PUBLIC
 	IMGUI_USER_CONFIG="LodestoneImGuiConfig.h"
 )
 target_link_libraries(imgui PUBLIC LodestoneCore PRIVATE glfw)
+# The GLFW backend mustn't include the OpenGL headers, as Lodestone renders with Vulkan
+target_compile_definitions(imgui PRIVATE GLFW_INCLUDE_NONE)
 
 add_library(imguizmo STATIC EXCLUDE_FROM_ALL "${imguizmo_SOURCE_DIR}/src/ImGuizmo.cpp")
 add_library(imguizmo::imguizmo ALIAS imguizmo)

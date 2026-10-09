@@ -5,12 +5,14 @@
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Editor/UI/UIHelpers.h"
 
+#include <imgui_internal.h>
+#include <imgui_stdlib.h>
 #include <ImGuizmo.h>
 #include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
-#include <imgui_internal.h>
-#include <imgui_stdlib.h>
+#include <optional>
+#include <string>
 #include <utility>
 
 namespace Lodestone {
@@ -450,7 +452,8 @@ namespace Lodestone {
 			m_OpenModal = Modal::None;
 			return;
 		}
-		ImGui::Text("The directory with the project's %s", Project::FileName);
+		ImGui::Text("The directory with the project's %.*s", static_cast<int>(Project::FileName.size()),
+			Project::FileName.data());
 		ImGui::SetNextItemWidth(ImGui::GetFontSize() * 30.0f);
 		if (ImGui::IsWindowAppearing())
 			ImGui::SetKeyboardFocusHere();
@@ -591,13 +594,15 @@ namespace Lodestone {
 
 	void EditorUI::Save()
 	{
-		if (!m_Context->GetDocumentPath())
+		const std::optional<std::string>& documentPath = m_Context->GetDocumentPath();
+		if (!documentPath)
 		{
 			OpenModal(Modal::SaveAs);
 			return;
 		}
+		const std::string path = *documentPath;
 		if (auto saved = m_Context->SaveDocument(); saved)
-			LS_CORE_INFO("Saved {}", *m_Context->GetDocumentPath());
+			LS_CORE_INFO("Saved {}", path);
 		else
 			ReportFailure("Saving", saved.error());
 	}

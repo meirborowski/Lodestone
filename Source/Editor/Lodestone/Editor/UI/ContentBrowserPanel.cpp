@@ -3,12 +3,12 @@
 #include "Lodestone/Core/FileSystem.h"
 
 #include <imgui.h>
+#include <imgui_stdlib.h>
 #include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
-#include <imgui_stdlib.h>
 #include <string_view>
 #include <system_error>
 #include <vector>

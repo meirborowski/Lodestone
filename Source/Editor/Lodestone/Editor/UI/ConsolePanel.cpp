@@ -1,11 +1,11 @@
 #include "Lodestone/Editor/UI/ConsolePanel.h"
 
 #include <imgui.h>
+#include <imgui_stdlib.h>
 
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <imgui_stdlib.h>
 #include <string_view>
 #include <vector>
 
