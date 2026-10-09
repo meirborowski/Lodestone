@@ -2,7 +2,7 @@
 #   unit        - fast, no GPU or network; run on every change
 #   render      - rendering tests, including reference-image tests
 #   integration - MCP end-to-end, networking over loopback, and export
-#   fuzz        - fuzz tests, run for a fixed time budget
+#   fuzz        - fuzz tests, run for a fixed time budget (LS_FUZZ_SECONDS)
 #
 # Each test executable links only what it tests: LodestoneCore tests run without a window, GPU or audio device.
 
@@ -12,6 +12,9 @@ add_library(LodestoneTestSupport STATIC
 	Common/LogCapture.h
 	Common/LogLevelScope.cpp
 	Common/LogLevelScope.h
+	Common/DescribeError.h
+	Common/Fuzzer.cpp
+	Common/Fuzzer.h
 	Common/LogShutdownScope.cpp
 	Common/LogShutdownScope.h
 	Common/ReferenceImage.cpp
@@ -26,10 +29,13 @@ target_compile_definitions(LodestoneTestSupport
 		# doctest includes the standard headers instead of forward-declaring std types, which MSVC's library rejects
 		# when values such as std::string_view are printed in assertion messages
 		DOCTEST_CONFIG_USE_STD_HEADERS
+		# Files that tests load: documents in older format versions, scenes and asset metadata
+		LS_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
 	PRIVATE
 		# Reference images are stored with Git LFS; failed comparisons are written to the build tree, which CI uploads
 		LS_REFERENCE_IMAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ReferenceImages"
 		LS_RENDER_OUTPUT_DIR="${PROJECT_BINARY_DIR}/RenderOutput"
+		LS_FUZZ_CORPUS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fuzz/Corpus"
 )
 ls_configure_target(LodestoneTestSupport)
 
@@ -60,15 +66,26 @@ ls_add_test_executable(LodestoneCoreTests
 	LABELS unit
 	SOURCES
 		Core/AssertTests.cpp
+		Core/AssetTests.cpp
 		Core/BaseTests.cpp
 		Core/CommandLineTests.cpp
+		Core/ComponentRegistryTests.cpp
 		Core/EnvironmentTests.cpp
 		Core/ErrorTests.cpp
+		Core/FileFormatTests.cpp
+		Core/FileSystemTests.cpp
 		Core/ImageTests.cpp
+		Core/InputCodesTests.cpp
+		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
 		Core/RunMainTests.cpp
+		Core/SceneSerializerTests.cpp
+		Core/SceneTests.cpp
+		Core/SimulationTests.cpp
+		Core/UUIDTests.cpp
 		Scripting/LuaSmokeTests.cpp
 	LIBRARIES
 		Lodestone::Lua
@@ -80,7 +97,7 @@ ls_add_test_executable(LodestoneClientTests
 	LABELS unit
 	SOURCES
 		Client/DeviceInputTests.cpp
-		Client/InputCodesTests.cpp
+		Client/InputCommandBuilderTests.cpp
 	LIBRARIES
 		LodestoneClient
 )
@@ -117,6 +134,14 @@ else()
 		SKIP_REGULAR_EXPRESSION "Skipped:"
 	)
 endif()
+
+# Fuzz tests for everything that parses untrusted input (see Common/Fuzzer.h and docs/Testing.md#tests)
+ls_add_test_executable(LodestoneFuzzTests
+	PREFIX Fuzz
+	LABELS fuzz
+	SOURCES
+		Fuzz/LoaderFuzzTests.cpp
+)
 
 # The default assert handler ends the process, so it's tested from a separate executable
 add_executable(LodestoneAssertAbortTest Core/AssertAbortTestMain.cpp)

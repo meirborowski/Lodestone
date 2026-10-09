@@ -45,11 +45,18 @@ namespace Lodestone {
 		bool IsKeyDown(Key key) const;
 		bool WasKeyPressed(Key key) const;
 		bool WasKeyReleased(Key key) const;
+		// Every key at once, indexed by key code
+		const std::bitset<KeyCodeCount>& GetKeysDown() const { return m_KeysDown; }
+		const std::bitset<KeyCodeCount>& GetKeysPressed() const { return m_KeysPressed; }
+		const std::bitset<KeyCodeCount>& GetKeysReleased() const { return m_KeysReleased; }
 
 		// Mouse. Positions are in window coordinates, from the top-left corner
 		bool IsMouseButtonDown(MouseButton button) const;
 		bool WasMouseButtonPressed(MouseButton button) const;
 		bool WasMouseButtonReleased(MouseButton button) const;
+		const std::bitset<MouseButtonCount>& GetMouseButtonsDown() const { return m_MouseButtonsDown; }
+		const std::bitset<MouseButtonCount>& GetMouseButtonsPressed() const { return m_MouseButtonsPressed; }
+		const std::bitset<MouseButtonCount>& GetMouseButtonsReleased() const { return m_MouseButtonsReleased; }
 		glm::vec2 GetMousePosition() const { return m_MousePosition; }
 		glm::vec2 GetMouseDelta() const { return m_MouseDelta; }
 		glm::vec2 GetScrollDelta() const { return m_ScrollDelta; }

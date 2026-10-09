@@ -5,6 +5,10 @@ add_library(LodestoneCore STATIC)
 add_library(Lodestone::Core ALIAS LodestoneCore)
 
 target_sources(LodestoneCore PRIVATE
+	Lodestone/Asset/AssetMetadata.cpp
+	Lodestone/Asset/AssetMetadata.h
+	Lodestone/Asset/AssetRegistry.cpp
+	Lodestone/Asset/AssetRegistry.h
 	Lodestone/Core/Assert.cpp
 	Lodestone/Core/Assert.h
 	Lodestone/Core/Base.h
@@ -12,16 +16,45 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Core/CommandLine.h
 	Lodestone/Core/Debugger.cpp
 	Lodestone/Core/Debugger.h
+	Lodestone/Core/EnumFlags.h
 	Lodestone/Core/Environment.cpp
 	Lodestone/Core/Environment.h
 	Lodestone/Core/Error.cpp
 	Lodestone/Core/Error.h
+	Lodestone/Core/FileSystem.cpp
+	Lodestone/Core/FileSystem.h
 	Lodestone/Core/Image.cpp
 	Lodestone/Core/Image.h
 	Lodestone/Core/Log.cpp
 	Lodestone/Core/Log.h
+	Lodestone/Core/RandomGenerator.cpp
+	Lodestone/Core/RandomGenerator.h
 	Lodestone/Core/RunMain.cpp
 	Lodestone/Core/RunMain.h
+	Lodestone/Core/UUID.cpp
+	Lodestone/Core/UUID.h
+	Lodestone/Input/InputCodes.cpp
+	Lodestone/Input/InputCodes.h
+	Lodestone/Input/InputCommand.h
+	Lodestone/Reflection/ComponentRegistry.cpp
+	Lodestone/Reflection/ComponentRegistry.h
+	Lodestone/Reflection/FieldValue.cpp
+	Lodestone/Reflection/FieldValue.h
+	Lodestone/Reflection/SnapshotArchive.h
+	Lodestone/Scene/Components.cpp
+	Lodestone/Scene/Components.h
+	Lodestone/Scene/Entity.h
+	Lodestone/Scene/Scene.cpp
+	Lodestone/Scene/Scene.h
+	Lodestone/Scene/SceneSerializer.cpp
+	Lodestone/Scene/SceneSerializer.h
+	Lodestone/Serialization/FileFormat.cpp
+	Lodestone/Serialization/FileFormat.h
+	Lodestone/Serialization/Json.cpp
+	Lodestone/Serialization/Json.h
+	Lodestone/Simulation/Simulation.cpp
+	Lodestone/Simulation/Simulation.h
+	ThirdPartyConfig/entt/ext/config.h
 )
 
 set(LS_CORE_GENERATED_DIR "${PROJECT_BINARY_DIR}/Generated/Core")
@@ -31,6 +64,8 @@ target_sources(LodestoneCore PRIVATE "${LS_CORE_GENERATED_DIR}/Lodestone/Core/Ve
 target_include_directories(LodestoneCore PUBLIC
 	"${CMAKE_CURRENT_SOURCE_DIR}"
 	"${LS_CORE_GENERATED_DIR}"
+	# Configuration headers that third-party libraries include when they exist, such as <entt/ext/config.h>
+	"${CMAKE_CURRENT_SOURCE_DIR}/ThirdPartyConfig"
 )
 
 # Exactly one build configuration define, for everything that links LodestoneCore (see Lodestone/Core/Base.h)
@@ -41,7 +76,7 @@ target_compile_definitions(LodestoneCore PUBLIC
 )
 
 target_link_libraries(LodestoneCore
-	PUBLIC spdlog::spdlog glm::glm
+	PUBLIC spdlog::spdlog glm::glm EnTT::EnTT nlohmann_json::nlohmann_json
 	PRIVATE stb::stb
 )
 

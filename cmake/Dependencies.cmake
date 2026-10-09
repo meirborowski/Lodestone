@@ -133,7 +133,23 @@ set(NVRHI_INSTALL OFF CACHE BOOL "" FORCE)
 # Use the Vulkan-Headers declared above rather than fetching another copy
 set(NVRHI_FETCH_VULKAN_HEADERS OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi)
+# EnTT - the entity component system (MIT)
+ls_declare_dependency(entt
+	URL https://github.com/skypjack/entt/archive/refs/tags/v4.0.0.tar.gz
+	SHA256 32a2ff2c72cb047dfd57306006ef238820b70da7c6ce4e7e8a507ac63365212e
+)
+
+# nlohmann/json - scene, prefab, project and asset metadata files (MIT). Implicit conversions are off, so reading a
+# value always states the type it expects
+ls_declare_dependency(nlohmann_json
+	URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
+	SHA256 42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+)
+set(JSON_ImplicitConversions OFF CACHE BOOL "" FORCE)
+set(JSON_Install OFF CACHE BOOL "" FORCE)
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi entt nlohmann_json)
 
 # NVRHI's Vulkan backend calls into NVRHI's common library without declaring it. Linkers that resolve symbols in one
 # pass (GNU ld) need the common library after the backend on the command line, which this dependency guarantees

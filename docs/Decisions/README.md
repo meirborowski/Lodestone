@@ -21,3 +21,7 @@ Record every significant design decision here - especially ones made without ask
 - [0007 - Rendering backend: NVRHI on Vulkan 1.3](0007-rendering-backend.md)
 - [0008 - Shader pipeline: HLSL to embedded SPIR-V with DXC and ShaderMake](0008-shader-pipeline.md)
 - [0009 - Reference images on lavapipe, and skipped on macOS](0009-lavapipe.md)
+- [0010 - Component reflection: a small custom registry](0010-component-reflection.md)
+- [0011 - Scene and asset file formats](0011-file-formats.md)
+- [0012 - Simulation, input commands and rollback](0012-simulation-and-rollback.md)
+- [0013 - Fuzz testing with a built-in mutation fuzzer](0013-fuzz-testing.md)

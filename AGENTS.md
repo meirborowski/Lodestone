@@ -46,20 +46,22 @@ Before every pull request: format, clang-tidy, and every test tier in Debug, Rel
 ## Project Layout
 | Path | Contents |
 |---|---|
-| `Source/Core` | `LodestoneCore` - ECS, scenes, assets and the simulation. Never links GLFW, nvrhi or miniaudio |
+| `Source/Core` | `LodestoneCore` - ECS and scenes (`Lodestone/Scene`), component reflection (`Lodestone/Reflection`), the simulation (`Lodestone/Simulation`), input codes and commands (`Lodestone/Input`), assets (`Lodestone/Asset`) and file formats (`Lodestone/Serialization`). Never links GLFW, nvrhi or miniaudio - the configure step checks |
 | `Source/Client` | `LodestoneClient` - window and device input (`Lodestone/Platform`, `Lodestone/Input`), the graphics device, swapchain and renderer (`Lodestone/Graphics`), shaders (`Shaders`), and audio |
 | `Source/Editor` | `LodestoneEditor` - editor UI, MCP server, headless mode. Not built in Dist |
 | `Source/Runtime` | `LodestoneRuntime` - the player for exported games |
 | `Source/Server` | `LodestoneServer` - the headless dedicated server |
-| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Render` is `LodestoneRenderTests`), shared helpers in `Tests/Common`, and reference images in `Tests/ReferenceImages` |
-| `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, and `ls_configure_target()` |
+| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Render` is `LodestoneRenderTests`, `Tests/Fuzz` is `LodestoneFuzzTests` with its corpus), shared helpers in `Tests/Common`, files tests load in `Tests/Fixtures`, and reference images in `Tests/ReferenceImages` |
+| `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, `ls_configure_target()` and the layering check `ls_forbid_dependencies()` |
 | `tools` | Formatting and clang-tidy scripts, the pinned tool versions, and the pinned lavapipe version and its Linux build script |
 | `docs` | Design docs, milestones and decisions |
 | `.github` | CI workflow and its composite actions |
 
 Headers live next to their sources and are included by their path below the target's source directory: `#include "Lodestone/Core/Log.h"`. Every target that compiles Lodestone code calls `ls_configure_target()`, which turns on warnings as errors.
 
-Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through. Also there: `Image.h` (RGBA8 images, PNG/JPEG loading and PNG saving), `CommandLine.h` and `Environment.h`.
+Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through. Also there: `UUID.h`, `FileSystem.h` (bounded reads, atomic writes, UTF-8 paths), `RandomGenerator.h`, `EnumFlags.h`, `Image.h` (RGBA8 images, PNG/JPEG loading and PNG saving), `CommandLine.h` and `Environment.h`.
+
+Scenes and the simulation in `Source/Core/Lodestone`: `Scene/Scene.h` (entities with UUIDs, the hierarchy, snapshots), `Scene/Entity.h` (the entity handle), `Scene/Components.h` (the core components), `Scene/SceneSerializer.h` (`.lscene` files), `Reflection/ComponentRegistry.h` (the reflection registry), `Simulation/Simulation.h` (fixed ticks, systems, interpolation, save and restore), `Input/InputCommand.h`, `Asset/AssetRegistry.h` and `Serialization/FileFormat.h` (versioned documents and migrations). See Decisions [0010](docs/Decisions/0010-component-reflection.md), [0011](docs/Decisions/0011-file-formats.md) and [0012](docs/Decisions/0012-simulation-and-rollback.md).
 
 Rendering in `Source/Client/Lodestone/Graphics`: `GraphicsDevice` (the Vulkan device wrapped in NVRHI; one at a time, headless or for windows), `Swapchain`, and `ReadTexture()` for reading rendered images back. Shaders are HLSL in `Source/Client/Shaders`, listed in `Shaders.cfg` and `ls_add_shaders()`, and compiled at build time into headers the code includes (see [Decision 0008](docs/Decisions/0008-shader-pipeline.md)).
 
@@ -69,6 +71,28 @@ Workflows that repeat have skills in `.claude/skills/`:
 - `ship-change` - branch, review, pull request, CI and squash-merge
 - `add-dependency` - adding a pinned third-party dependency
 - `update-reference-images` - adding a reference-image test, or deliberately updating reference images
+- `add-component` - adding a component, with its reflection registration and tests
+
+## Adding a Component
+Components are plain structs with public PascalCase fields and default member initializers. Registering one in the reflection registry is what gives it serialization now, and the inspector, MCP tools, script bindings and replication as they arrive (see [Decision 0010](docs/Decisions/0010-component-reflection.md)):
+
+```cpp
+struct LightComponent
+{
+	glm::vec3 Color{1.0f};
+	float Intensity = 1.0f;
+};
+
+registry.Register<LightComponent>("Light", "A point light")
+	.Field("Color", &LightComponent::Color, {.Description = "Linear RGB", .Min = 0.0, .Max = 1.0})
+	.Field("Intensity", &LightComponent::Intensity, {.Description = "In candela", .Min = 0.0});
+```
+
+- Register it where its module registers its components (the core components are in `RegisterCoreComponents()`), before any scene uses it. The name is permanent: files, MCP and scripts use it
+- Fields must be of the reflected types (`FieldType`: bool, int, uint, float, vectors, quaternions, strings, UUIDs); give limits and a description, and flag `Replicated` fields that clients need and `ReadOnly` ones only the engine may change
+- State that's part of the simulation but not of files goes in an `Internal` component. Every piece of simulation state must be in a registered component, or rollback won't restore it
+- Add custom handling only where the generic path isn't enough (the scene loader applies `Hierarchy` through `Scene::SetParent`)
+- Test the registration, a save/load round trip, and anything custom. The `add-component` skill has the checklist
 
 ## Git
 - Work on a branch, push it to the [GitHub repo](https://github.com/meirborowski/Lodestone), and squash-merge it into main through a pull request once CI passes - never push directly to main

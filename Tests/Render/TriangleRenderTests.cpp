@@ -1,3 +1,4 @@
+#include "Common/DescribeError.h"
 #include "Common/ReferenceImage.h"
 #include "Lodestone/Graphics/GraphicsDevice.h"
 #include "Lodestone/Graphics/TextureReadback.h"
@@ -49,7 +50,7 @@ namespace Lodestone {
 			const nvrhi::FramebufferHandle framebuffer =
 				nvrhiDevice->createFramebuffer(nvrhi::FramebufferDesc().addColorAttachment(target));
 			const auto renderer = TriangleRenderer::Create(nvrhiDevice, framebuffer->getFramebufferInfo());
-			REQUIRE_MESSAGE(renderer.has_value(), fmt::format("{}", renderer.error()));
+			REQUIRE_MESSAGE(renderer.has_value(), Testing::DescribeError(renderer));
 
 			const nvrhi::CommandListHandle commandList = nvrhiDevice->createCommandList();
 			commandList->open();
@@ -58,7 +59,7 @@ namespace Lodestone {
 			nvrhiDevice->executeCommandList(commandList);
 
 			auto image = ReadTexture(nvrhiDevice, target);
-			REQUIRE_MESSAGE(image.has_value(), fmt::format("{}", image.error()));
+			REQUIRE_MESSAGE(image.has_value(), Testing::DescribeError(image));
 			REQUIRE(image->GetWidth() == ImageSize);
 			REQUIRE(image->GetHeight() == ImageSize);
 			return std::move(*image);
@@ -69,7 +70,7 @@ namespace Lodestone {
 	TEST_CASE("The triangle renders offscreen and matches its reference image" * doctest::test_suite("ReferenceImages"))
 	{
 		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
-		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
+		REQUIRE_MESSAGE(device.has_value(), Testing::DescribeError(device));
 
 		const Image image = RenderTriangle(**device);
 
@@ -82,7 +83,7 @@ namespace Lodestone {
 	TEST_CASE("The triangle renders offscreen")
 	{
 		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
-		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
+		REQUIRE_MESSAGE(device.has_value(), Testing::DescribeError(device));
 
 		const Image image = RenderTriangle(**device);
 
@@ -110,7 +111,7 @@ namespace Lodestone {
 	TEST_CASE("Reading back an unsupported format fails")
 	{
 		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
-		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
+		REQUIRE_MESSAGE(device.has_value(), Testing::DescribeError(device));
 		nvrhi::IDevice* nvrhiDevice = (*device)->GetNvrhiDevice();
 
 		nvrhi::TextureDesc desc;

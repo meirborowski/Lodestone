@@ -1,5 +1,6 @@
 #include "Lodestone/Graphics/GraphicsDevice.h"
 
+#include "Common/DescribeError.h"
 #include "Render/RenderTestDevice.h"
 
 #include <doctest/doctest.h>
@@ -13,7 +14,7 @@ namespace Lodestone {
 	{
 		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 
-		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
+		REQUIRE_MESSAGE(device.has_value(), Testing::DescribeError(device));
 		CHECK((*device)->GetNvrhiDevice() != nullptr);
 		CHECK_FALSE((*device)->CanPresent());
 		CHECK_FALSE((*device)->GetInfo().Name.empty());
@@ -26,7 +27,7 @@ namespace Lodestone {
 	{
 		const auto device = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 
-		REQUIRE_MESSAGE(device.has_value(), fmt::format("{}", device.error()));
+		REQUIRE_MESSAGE(device.has_value(), Testing::DescribeError(device));
 		CHECK((*device)->GetInfo().Type == GpuType::Cpu);
 		CHECK((*device)->GetInfo().Name.starts_with("llvmpipe"));
 	}
@@ -35,7 +36,7 @@ namespace Lodestone {
 	TEST_CASE("Only one graphics device exists at a time")
 	{
 		const auto first = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
-		REQUIRE_MESSAGE(first.has_value(), fmt::format("{}", first.error()));
+		REQUIRE_MESSAGE(first.has_value(), Testing::DescribeError(first));
 
 		const auto second = GraphicsDevice::Create(Testing::MakeRenderTestDeviceConfig());
 
