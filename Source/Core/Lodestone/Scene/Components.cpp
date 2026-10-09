@@ -1,6 +1,7 @@
 #include "Lodestone/Scene/Components.h"
 
 #include "Lodestone/Reflection/ComponentRegistry.h"
+#include "Lodestone/Scene/RenderComponents.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -58,6 +59,7 @@ namespace Lodestone {
 		{
 			auto* registry = new ComponentRegistry();
 			RegisterCoreComponents(*registry);
+			RegisterRenderComponents(*registry);
 			return registry;
 		}();
 		return *s_Registry;

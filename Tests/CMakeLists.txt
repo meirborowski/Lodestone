@@ -69,6 +69,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/AssetTests.cpp
 		Core/Base64Tests.cpp
 		Core/BaseTests.cpp
+		Core/BoundingBoxTests.cpp
 		Core/CommandLineTests.cpp
 		Core/ComponentRegistryTests.cpp
 		Core/EntitySerializerTests.cpp
@@ -76,15 +77,18 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/ErrorTests.cpp
 		Core/FileFormatTests.cpp
 		Core/FileSystemTests.cpp
+		Core/HdrImageTests.cpp
 		Core/ImageTests.cpp
 		Core/InputCodesTests.cpp
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/ModelImporterTests.cpp
 		Core/PrefabSerializerTests.cpp
 		Core/ProjectTests.cpp
 		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
+		Core/RenderComponentsTests.cpp
 		Core/RunMainTests.cpp
 		Core/SceneSerializerTests.cpp
 		Core/SceneTests.cpp

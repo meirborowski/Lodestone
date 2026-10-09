@@ -25,6 +25,9 @@ namespace Lodestone {
 	class Image
 	{
 	public:
+		// The most pixels an image may have, so a hostile file can't exhaust memory: 64 megapixels (256 MB)
+		static constexpr uint64_t MaxPixelCount = 8192ull * 8192ull;
+
 		Image() = default;
 		// An image of the given size with every pixel zero (transparent black)
 		Image(uint32_t width, uint32_t height);

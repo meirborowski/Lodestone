@@ -1,6 +1,7 @@
 #include "Lodestone/Core/Image.h"
 
 #include "Lodestone/Core/Assert.h"
+#include "Lodestone/Core/FileSystem.h"
 
 #include <spdlog/fmt/std.h>
 #include <stb_image.h>
@@ -8,7 +9,6 @@
 
 #include <cstring>
 #include <fstream>
-#include <iterator>
 #include <limits>
 
 namespace Lodestone {
@@ -33,15 +33,10 @@ namespace Lodestone {
 
 	std::expected<Image, Error> Image::Load(const std::filesystem::path& path)
 	{
-		std::ifstream file(path, std::ios::binary);
-		if (!file)
-			return std::unexpected(Error(ErrorCode::FileNotFound, fmt::format("Can't open image {}", path)));
-
-		const std::vector<uint8_t> encoded{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-		if (file.bad())
-			return std::unexpected(Error(ErrorCode::IoError, fmt::format("Can't read image {}", path)));
-
-		return Decode(encoded).transform_error(
+		const auto encoded = ReadBinaryFile(path);
+		if (!encoded)
+			return std::unexpected(encoded.error().WithContext(fmt::format("Loading image {}", path)));
+		return Decode(*encoded).transform_error(
 			[&path](const Error& error) { return error.WithContext(fmt::format("Loading image {}", path)); });
 	}
 
@@ -50,11 +45,19 @@ namespace Lodestone {
 		if (encoded.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
 			return std::unexpected(Error(ErrorCode::Unsupported, "The encoded image is larger than 2 GB"));
 
+		// The size is checked before decoding, so a header that claims a huge image allocates nothing
 		int width = 0;
 		int height = 0;
 		int channelsInFile = 0;
-		stbi_uc* pixels = stbi_load_from_memory(encoded.data(), static_cast<int>(encoded.size()), &width, &height,
-			&channelsInFile, static_cast<int>(ChannelCount));
+		const auto size = static_cast<int>(encoded.size());
+		if (stbi_info_from_memory(encoded.data(), size, &width, &height, &channelsInFile) == 0)
+			return std::unexpected(
+				Error(ErrorCode::ParseError, fmt::format("Can't decode the image: {}", stbi_failure_reason())));
+		if (width <= 0 || height <= 0 || static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > MaxPixelCount)
+			return std::unexpected(Error(ErrorCode::Unsupported,
+				fmt::format("A {}x{} image is larger than the {} pixels supported", width, height, MaxPixelCount)));
+		stbi_uc* pixels = stbi_load_from_memory(
+			encoded.data(), size, &width, &height, &channelsInFile, static_cast<int>(ChannelCount));
 		if (pixels == nullptr)
 			return std::unexpected(
 				Error(ErrorCode::ParseError, fmt::format("Can't decode the image: {}", stbi_failure_reason())));

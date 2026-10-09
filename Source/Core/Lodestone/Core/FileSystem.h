@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Lodestone {
 
@@ -17,6 +18,9 @@ namespace Lodestone {
 	// Reads a whole file into memory. Fails with FileNotFound if it doesn't exist, InvalidArgument if it's larger than
 	// maxSize, and IoError if it can't be read
 	[[nodiscard]] std::expected<std::string, Error> ReadFile(
+		const std::filesystem::path& path, uint64_t maxSize = DefaultMaxFileSize);
+	// ReadFile() for binary files: images, models
+	[[nodiscard]] std::expected<std::vector<uint8_t>, Error> ReadBinaryFile(
 		const std::filesystem::path& path, uint64_t maxSize = DefaultMaxFileSize);
 
 	// A path as UTF-8 text, with forward slashes, the same on every platform - for files, logs and maps keyed by path.

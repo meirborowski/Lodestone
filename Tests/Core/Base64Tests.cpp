@@ -41,4 +41,31 @@ namespace Lodestone {
 		CHECK(EncodeBase64(bytes) == "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
 	}
 
+	TEST_CASE("Base64 decoding reverses encoding, with or without padding")
+	{
+		for (const std::string_view text : {"", "f", "fo", "foo", "foob", "fooba", "foobar"})
+		{
+			CAPTURE(text);
+			const std::vector<uint8_t> bytes(text.begin(), text.end());
+			const std::string encoded = EncodeBase64(bytes);
+			const auto decoded = DecodeBase64(encoded);
+			REQUIRE(decoded.has_value());
+			CHECK(*decoded == bytes);
+			// Unpadded
+			std::string unpadded = encoded;
+			while (!unpadded.empty() && unpadded.back() == '=')
+				unpadded.pop_back();
+			CHECK(DecodeBase64(unpadded) == decoded);
+		}
+	}
+
+	TEST_CASE("Text that isn't Base64 fails to decode")
+	{
+		CHECK_FALSE(DecodeBase64("Zm9v!").has_value());
+		CHECK_FALSE(DecodeBase64("Zm 9v").has_value());
+		// One character can't encode a byte
+		CHECK_FALSE(DecodeBase64("Zm9vY").has_value());
+		CHECK_FALSE(DecodeBase64("Zg===").has_value());
+	}
+
 }
