@@ -37,18 +37,65 @@ jobs:
       - name: Check formatting
         run: python tools/format.py
 
+  # Builds lavapipe for the Linux jobs' rendering tests, once per change to its pinned version or build script, and
+  # caches it. Every other run only checks that the cache exists
+  lavapipe:
+    name: lavapipe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      cache-key: ${{ steps.key.outputs.cache-key }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compute the cache key
+        id: key
+        run: echo "cache-key=lavapipe-ubuntu-24.04-${{ hashFiles('tools/lavapipe.env', 'tools/build-lavapipe.sh') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Look up the cached build
+        id: cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/lavapipe
+          key: ${{ steps.key.outputs.cache-key }}
+          lookup-only: true
+
+      - name: Install build dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          source tools/lavapipe.env
+          sudo apt-get install -y --no-install-recommends curl python3-venv ninja-build pkg-config glslang-tools \
+            libdrm-dev zlib1g-dev "llvm-${LLVM_VERSION}-dev"
+
+      - name: Build lavapipe
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          tools/build-lavapipe.sh
+          ldd .cache/lavapipe/*/lib/libvulkan_lvp.so
+
+      - name: Save the build
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/lavapipe
+          key: ${{ steps.key.outputs.cache-key }}
+
   build:
     name: ${{ matrix.toolchain.name }} ${{ matrix.preset }}
+    needs: lavapipe
     runs-on: ${{ matrix.toolchain.os }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         toolchain:
-          - { name: Windows MSVC, id: windows-msvc, os: windows-2025-vs2026, compiler: msvc }
-          - { name: macOS Apple Clang, id: macos-appleclang, os: macos-15, compiler: appleclang }
-          - { name: Ubuntu GCC 14, id: ubuntu-gcc14, os: ubuntu-24.04, compiler: gcc }
-          - { name: Ubuntu Clang 19, id: ubuntu-clang19, os: ubuntu-24.04, compiler: clang }
+          # lavapipe is required wherever it's available; macOS has none, so reference-image tests are skipped there
+          # (see docs/Decisions/0009-lavapipe.md)
+          - { name: Windows MSVC, id: windows-msvc, os: windows-2025-vs2026, compiler: msvc, lavapipe: "ON" }
+          - { name: macOS Apple Clang, id: macos-appleclang, os: macos-15, compiler: appleclang, lavapipe: "OFF" }
+          - { name: Ubuntu GCC 14, id: ubuntu-gcc14, os: ubuntu-24.04, compiler: gcc, lavapipe: "ON" }
+          - { name: Ubuntu Clang 19, id: ubuntu-clang19, os: ubuntu-24.04, compiler: clang, lavapipe: "ON" }
         preset: [debug, release, dist]
     env:
       CMAKE_C_COMPILER_LAUNCHER: ccache
@@ -64,31 +111,73 @@ jobs:
         with:
           compiler: ${{ matrix.toolchain.compiler }}
 
+      - uses: ./.github/actions/setup-graphics
+        with:
+          lavapipe-cache-key: ${{ needs.lavapipe.outputs.cache-key }}
+
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
           key: ${{ matrix.toolchain.id }}-${{ matrix.preset }}
           max-size: 500M
 
+      # Per OS, since each one downloads different archives (DXC, lavapipe)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
-          restore-keys: dependencies-
-          enableCrossOsArchive: true
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          restore-keys: dependencies-${{ runner.os }}-
 
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }}
+        run: cmake --preset ${{ matrix.preset }} -DLS_REQUIRE_LAVAPIPE=${{ matrix.toolchain.lavapipe }}
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
+      # On macOS, the rendering tests are the MoltenVK smoke check: MoltenVK loads and provides a Vulkan device. The
+      # Vulkan SDK also installs Mesa's KosmicKrisp driver, so MoltenVK is selected explicitly
+      - name: Select MoltenVK
+        if: runner.os == 'macOS'
+        run: echo "VK_DRIVER_FILES=/usr/local/share/vulkan/icd.d/MoltenVK_icd.json" >> "$GITHUB_ENV"
+
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+      # Opens a window and presents frames: on lavapipe on Windows, under Xvfb with Ubuntu's lavapipe on Linux (the
+      # pinned build renders offscreen only), and on MoltenVK on macOS
+      - name: Run the windowed runtime
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          runtime="build/${{ matrix.preset }}/Source/Runtime/LodestoneRuntime"
+          case "$RUNNER_OS" in
+            Windows)
+              VK_DRIVER_FILES="$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/lvp_icd.x86_64.json)" \
+                "$runtime.exe" --frames 60 --no-vsync
+              ;;
+            Linux)
+              sudo apt-get install -y --no-install-recommends xvfb mesa-vulkan-drivers
+              VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json xvfb-run --auto-servernum \
+                "$runtime" --frames 60 --no-vsync
+              ;;
+            macOS)
+              "$runtime" --frames 60 --no-vsync
+              ;;
+          esac
+
+      # Rendering tests write each image that doesn't match its reference, and the difference, to RenderOutput
+      - name: Upload rendering test output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: render-output-${{ matrix.toolchain.id }}-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/RenderOutput
+          if-no-files-found: ignore
+
   sanitizers:
     name: Ubuntu Clang 19 ASan+UBSan
+    needs: lavapipe
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -105,19 +194,23 @@ jobs:
         with:
           compiler: clang
 
+      - uses: ./.github/actions/setup-graphics
+        with:
+          lavapipe-cache-key: ${{ needs.lavapipe.outputs.cache-key }}
+
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
         with:
           key: ubuntu-clang19-asan
           max-size: 500M
 
+      # Per OS, since each one downloads different archives (DXC, lavapipe)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
-          restore-keys: dependencies-
-          enableCrossOsArchive: true
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          restore-keys: dependencies-${{ runner.os }}-
 
       # The runner's address space layout randomization uses more bits than AddressSanitizer's shadow memory layout
       # allows, which makes instrumented programs crash at startup
@@ -125,13 +218,21 @@ jobs:
         run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Configure
-        run: cmake --preset asan
+        run: cmake --preset asan -DLS_REQUIRE_LAVAPIPE=ON
 
       - name: Build
         run: cmake --build --preset asan
 
       - name: Test
         run: ctest --preset asan
+
+      - name: Upload rendering test output
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: render-output-asan
+          path: build/asan/RenderOutput
+          if-no-files-found: ignore
 
   clang-tidy:
     name: clang-tidy
@@ -144,6 +245,8 @@ jobs:
         with:
           compiler: clang
 
+      - uses: ./.github/actions/setup-graphics
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -151,17 +254,21 @@ jobs:
       - name: Install the pinned clang-tidy
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
+      # Per OS, since each one downloads different archives (DXC, lavapipe)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ hashFiles('cmake/Dependencies.cmake') }}
-          restore-keys: dependencies-
-          enableCrossOsArchive: true
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          restore-keys: dependencies-${{ runner.os }}-
 
-      # clang-tidy only needs the compilation database and the fetched dependencies, so the tree isn't built
+      # clang-tidy needs the compilation database, the fetched dependencies and the generated shader headers, so only
+      # the shaders are built
       - name: Configure
         run: cmake --preset debug
+
+      - name: Compile shaders
+        run: cmake --build --preset debug --target LodestoneClientShaders
 
       - name: Run clang-tidy
         run: python tools/tidy.py --build-dir build/debug
@@ -169,7 +276,7 @@ jobs:
   ci-passed:
     name: CI passed
     if: always()
-    needs: [format, build, sanitizers, clang-tidy]
+    needs: [format, lavapipe, build, sanitizers, clang-tidy]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

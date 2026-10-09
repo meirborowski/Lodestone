@@ -23,6 +23,8 @@ namespace Lodestone {
 		Unsupported,
 		OutOfMemory,
 		ScriptError,
+		// A graphics, audio or input device failed, or doesn't support what the engine needs
+		DeviceError,
 	};
 
 	[[nodiscard]] std::string_view ToString(ErrorCode code);

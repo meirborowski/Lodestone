@@ -11,23 +11,36 @@ set(LS_DEPENDENCY_CACHE_DIR "${PROJECT_SOURCE_DIR}/.cache/dependencies" CACHE PA
 # Don't contact the network to update content that's already been populated
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
-# ls_declare_dependency(<name> URL <url> SHA256 <hash>)
+# ls_declare_dependency(<name> URL <url> SHA256 <hash> [POPULATE_ONLY])
 #
-# Declares a dependency downloaded from an archive. The dependency's include directories are SYSTEM, so its
-# headers don't trigger Lodestone's warnings, and its targets are excluded from the default build target unless
-# something Lodestone builds needs them.
+# Declares a dependency downloaded from an archive (.tar.gz, .tar.xz, .zip or .7z). The dependency's include
+# directories are SYSTEM, so its headers don't trigger Lodestone's warnings, and its targets are excluded from the
+# default build target unless something Lodestone builds needs them. With POPULATE_ONLY, the archive is only
+# extracted - its own CMake project, if any, isn't added to the build.
 function(ls_declare_dependency name)
-	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "URL;SHA256" "")
+	cmake_parse_arguments(PARSE_ARGV 1 ARG "POPULATE_ONLY" "URL;SHA256" "")
 	if(NOT ARG_URL OR NOT ARG_SHA256)
 		message(FATAL_ERROR "ls_declare_dependency(${name}) needs both URL and SHA256")
 	endif()
+	if(NOT ARG_URL MATCHES "\\.(tar\\.gz|tar\\.xz|zip|7z)$")
+		message(FATAL_ERROR "ls_declare_dependency(${name}): unsupported archive type in ${ARG_URL}")
+	endif()
+	set(extension "${CMAKE_MATCH_1}")
+
+	set(populateOnly "")
+	if(ARG_POPULATE_ONLY)
+		# FetchContent_MakeAvailable() only adds a subdirectory that has a CMakeLists.txt
+		set(populateOnly SOURCE_SUBDIR "lodestone-populate-only")
+	endif()
+
 	FetchContent_Declare(${name}
 		URL "${ARG_URL}"
 		URL_HASH SHA256=${ARG_SHA256}
 		DOWNLOAD_DIR "${LS_DEPENDENCY_CACHE_DIR}"
 		# The hash is part of the file name, so switching between versions never re-downloads an archive
-		DOWNLOAD_NAME "${name}-${ARG_SHA256}.tar.gz"
+		DOWNLOAD_NAME "${name}-${ARG_SHA256}.${extension}"
 		DOWNLOAD_EXTRACT_TIMESTAMP OFF
+		${populateOnly}
 		SYSTEM
 		EXCLUDE_FROM_ALL
 	)
@@ -70,7 +83,71 @@ ls_declare_dependency(sol2
 set(SOL2_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(SOL2_SYSTEM_INCLUDE ON CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(spdlog doctest lua sol2)
+# glm - math (MIT)
+ls_declare_dependency(glm
+	URL https://github.com/g-truc/glm/archive/refs/tags/1.0.3.tar.gz
+	SHA256 6775e47231a446fd086d660ecc18bcd076531cfedd912fbd66e576b118607001
+)
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLM_BUILD_LIBRARY OFF CACHE BOOL "" FORCE)
+set(GLM_BUILD_INSTALL OFF CACHE BOOL "" FORCE)
+
+# stb - image loading and writing (MIT or public domain). No releases, so pinned to a commit. stb has no CMake build;
+# the target is defined below
+ls_declare_dependency(stb
+	URL https://github.com/nothings/stb/archive/2c980bb59875b0d32144a71867fbdebb2f77cd20.tar.gz
+	SHA256 9a955b1b49a4410088a2e0ee2a9c057c3c907d0c1d75454144cb980aca0ba515
+)
+
+# GLFW - windows and device input (zlib)
+ls_declare_dependency(glfw
+	URL https://github.com/glfw/glfw/releases/download/3.5.1/glfw-3.5.1.zip
+	SHA256 ea79bc5feffc254c87291980c2d0bce9acebb68c4983b79f961dcd2cb8a611a0
+)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+
+# Vulkan-Headers - the Vulkan API headers, including vulkan.hpp (Apache 2.0 or MIT). Matches the pinned Vulkan SDK
+ls_declare_dependency(vulkan_headers
+	URL https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-1.4.363.0.tar.gz
+	SHA256 4a078be12bef21cfebc09d878b77a63cff9d68f899254a0b00d0e37ef73e7f7e
+)
+set(VULKAN_HEADERS_ENABLE_MODULE OFF CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(VULKAN_HEADERS_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+
+# NVRHI - rendering hardware interface over Vulkan (MIT). No releases, so pinned to a commit. Lodestone renders with
+# Vulkan on every platform, so the Direct3D backends are off
+ls_declare_dependency(nvrhi
+	URL https://github.com/NVIDIA-RTX/NVRHI/archive/6b96fb03e07539f08327aea76c56d55f1de9d906.tar.gz
+	SHA256 f46c733ccc555fc457aaa3df510ee7df0ca089f5d1129d92903029e4fb67c560
+)
+set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX12 OFF CACHE BOOL "" FORCE)
+set(NVRHI_WITH_VALIDATION ON CACHE BOOL "" FORCE)
+set(NVRHI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(NVRHI_INSTALL OFF CACHE BOOL "" FORCE)
+# Use the Vulkan-Headers declared above rather than fetching another copy
+set(NVRHI_FETCH_VULKAN_HEADERS OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi)
+
+# stb's single-file libraries, compiled once in a translation unit of their own, so third-party code is never built
+# with Lodestone's warnings or checked by clang-tidy. Only the decoders Lodestone uses are compiled, and stb never
+# touches files itself: Lodestone reads and writes them, so paths behave the same on every platform
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/stb/StbImplementation.cpp" CONTENT [[
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+]])
+add_library(stb STATIC EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/stb/StbImplementation.cpp")
+add_library(stb::stb ALIAS stb)
+target_include_directories(stb SYSTEM PUBLIC "${stb_SOURCE_DIR}")
+target_compile_definitions(stb PUBLIC STBI_ONLY_PNG STBI_ONLY_JPEG STBI_NO_STDIO STBI_WRITE_NO_STDIO)
 
 include("${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake")
 

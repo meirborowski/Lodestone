@@ -22,7 +22,7 @@
 ## Enforcement
 Tools enforce this style, so it doesn't depend on anyone remembering it:
 - `.clang-format` encodes the formatting rules, and CI fails on unformatted code. clang-format and clang-tidy are pinned to a single LLVM version in `tools/requirements.txt` - different versions format differently. Install them with `pip install -r tools/requirements.txt`
-- `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks, with every warning an error
+- `.clang-tidy` enforces the naming rules (`readability-identifier-naming`) and bug-prone checks, with every warning an error. Checks that conflict with this style or misfire on C APIs are turned off, each with its reason in `.clang-tidy`
 - Check formatting with `python tools/format.py` (fix it with `--fix`), and run clang-tidy with `python tools/tidy.py` on a configured build tree. CI runs the same scripts
 - Engine code builds with warnings as errors (`/W4 /WX` on MSVC; `-Wall -Wextra -Wpedantic -Werror -Wshadow -Wnon-virtual-dtor -Woverloaded-virtual` on GCC and Clang). Third-party code is excluded: its headers are included as system headers, and the flags aren't applied to its targets
 - Designated initializers may leave out members that have default member initializers, so options structs are filled in with only the fields that matter: `Log::Init({.Console = LogConsole::None})`. GCC's and Clang's warnings about that are off

@@ -1,10 +1,37 @@
 # Enforces the naming rules in docs/CodeStyle.md and catches common bugs. Pinned to the clang-tidy version in
 # tools/requirements.txt. Keep this file and the doc in agreement.
+#
+# Checks that are turned off, and why:
+#   bugprone-easily-swappable-parameters          flags nearly every function with two parameters of one type (x, y)
+#   bugprone-invalid-enum-default-initialization  flags zero-initialized Vulkan structs, whose API defines zero as valid
+#   misc-include-cleaner                          doesn't understand umbrella headers such as spdlog's bundled fmt
+#   misc-misplaced-const                          Vulkan handles are pointer typedefs: `const VkDevice` is meant to be a
+#                                                 const handle, as misc-const-correctness asks
+#   misc-no-recursion                             recursion is the clearest way to walk trees such as scene hierarchies
+#   misc-non-private-member-variables-in-classes  plain structs (components, configs) have public members by design
+#   modernize-use-trailing-return-type            the style uses leading return types
+#   modernize-use-nodiscard                       [[nodiscard]] marks results that must be checked, not every getter
+#   modernize-avoid-c-arrays                      C APIs and generated data (embedded shaders) use C arrays
+#   modernize-macro-to-enum                       configuration macros must stay macros, for #if
+#   performance-enum-size                         enums keep the default underlying type unless their size matters
+#   portability-avoid-pragma-once                 the style uses #pragma once
+#   readability-braces-around-statements          the style allows single-statement bodies without braces
+#   readability-convert-member-functions-to-static  flags members that don't use state yet, which is an API choice
+#   readability-else-after-return                 an else after a return can read better
+#   readability-function-cognitive-complexity     complexity is judged in review
+#   readability-identifier-length                 short names (x, y, i) are fine where they're conventional
+#   readability-implicit-bool-conversion          `if (pointer)` and `if (expected)` are idiomatic
+#   readability-magic-numbers                     constants in math and tests read better inline
+#   readability-math-missing-parentheses          standard operator precedence in math doesn't need parentheses
+#   readability-redundant-access-specifiers       the style repeats `private:` to separate functions from members
+#   readability-uppercase-literal-suffix          the style writes 1.0f
+#   readability-use-concise-preprocessor-directives  the style writes #if defined(X) throughout
 ---
 Checks: >
   -*,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
+  -bugprone-invalid-enum-default-initialization,
   clang-analyzer-*,
   concurrency-*,
   cppcoreguidelines-missing-std-forward,
@@ -15,6 +42,7 @@ Checks: >
   cppcoreguidelines-virtual-class-destructor,
   misc-*,
   -misc-include-cleaner,
+  -misc-misplaced-const,
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   modernize-*,

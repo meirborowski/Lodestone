@@ -93,6 +93,7 @@ namespace Lodestone {
 		CHECK(ToString(ErrorCode::Unsupported) == "Unsupported");
 		CHECK(ToString(ErrorCode::OutOfMemory) == "OutOfMemory");
 		CHECK(ToString(ErrorCode::ScriptError) == "ScriptError");
+		CHECK(ToString(ErrorCode::DeviceError) == "DeviceError");
 	}
 
 	TEST_CASE("Errors and error codes can be formatted for logging")

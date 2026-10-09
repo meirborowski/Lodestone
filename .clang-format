@@ -93,7 +93,7 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex: '^"Lodestone/'
     Priority: 2
-  - Regex: '^<(doctest|fmt|sol|spdlog|lua|GLFW|nvrhi|glm|entt|imgui|ImGuizmo|Jolt|miniaudio|enet|cgltf|stb|nlohmann|httplib|efsw|nfd)[/.>]'
+  - Regex: '^<(doctest|fmt|sol|spdlog|lua|GLFW|nvrhi|glm|vulkan|ShaderMake|entt|imgui|ImGuizmo|Jolt|miniaudio|enet|cgltf|stb_[a-z_]+|nlohmann|httplib|efsw|nfd)[/.>]'
     Priority: 3
   - Regex: '^<sys/|^<unistd\.h>|^<Windows\.h>'
     Priority: 5
