@@ -15,8 +15,6 @@ namespace Lodestone {
 
 		// Just short of straight up or down, where the view's up direction becomes undefined
 		constexpr float MaxPitch = 1.55f;
-		constexpr float NearPlane = 0.05f;
-		constexpr float FarPlane = 5000.0f;
 		constexpr glm::vec3 WorldUp{0.0f, 1.0f, 0.0f};
 
 	}

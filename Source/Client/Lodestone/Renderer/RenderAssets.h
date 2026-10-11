@@ -47,6 +47,8 @@ namespace Lodestone {
 
 		// The model asset on the GPU, loaded if it isn't yet; null if it can't be
 		const GpuModel* GetModel(UUID id, nvrhi::ICommandList* commandList);
+		// The model asset if it's loaded already; null otherwise
+		const GpuModel* FindModel(UUID id) const;
 		// The environment asset on the GPU, loaded if it isn't yet; the default environment for the nil UUID, or if
 		// it can't be loaded
 		const EnvironmentMap* GetEnvironment(UUID id, nvrhi::ICommandList* commandList);

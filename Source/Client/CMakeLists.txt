@@ -5,8 +5,6 @@ add_library(LodestoneClient STATIC)
 add_library(Lodestone::Client ALIAS LodestoneClient)
 
 target_sources(LodestoneClient PRIVATE
-	Lodestone/Graphics/DebugSceneRenderer.cpp
-	Lodestone/Graphics/DebugSceneRenderer.h
 	Lodestone/Graphics/GraphicsDevice.cpp
 	Lodestone/Graphics/GraphicsDevice.h
 	Lodestone/Graphics/ImGuiRenderer.cpp
@@ -39,6 +37,8 @@ target_sources(LodestoneClient PRIVATE
 	Lodestone/Renderer/GpuModel.h
 	Lodestone/Renderer/ImageBasedLighting.cpp
 	Lodestone/Renderer/ImageBasedLighting.h
+	Lodestone/Renderer/LineRenderer.cpp
+	Lodestone/Renderer/LineRenderer.h
 	Lodestone/Renderer/MipChain.cpp
 	Lodestone/Renderer/MipChain.h
 	Lodestone/Renderer/RenderAssets.cpp
@@ -64,26 +64,24 @@ ls_add_shaders(LodestoneClient
 	SOURCES
 		Shaders/AmbientOcclusion.hlsl
 		Shaders/Common.hlsli
-		Shaders/DebugCube.hlsl
-		Shaders/DebugGrid.hlsl
 		Shaders/Environment.hlsl
 		Shaders/EnvironmentMapping.hlsli
 		Shaders/Fullscreen.hlsl
 		Shaders/Fullscreen.hlsli
 		Shaders/ImGui.hlsl
 		Shaders/Lighting.hlsli
+		Shaders/Lines.hlsl
 		Shaders/Mesh.hlsl
 		Shaders/Sky.hlsl
 		Shaders/Tonemap.hlsl
 		Shaders/Triangle.hlsl
 	OUTPUTS
 		AmbientOcclusion_PSOcclusion.spirv.h AmbientOcclusion_PSBlur.spirv.h
-		DebugCube_VSMain.spirv.h DebugCube_PSMain.spirv.h
-		DebugGrid_VSMain.spirv.h DebugGrid_PSMain.spirv.h
 		Environment_CSEquirectangularToCube.spirv.h Environment_CSDownsampleCube.spirv.h
 		Environment_CSPrefilter.spirv.h
 		Fullscreen_VSMain.spirv.h
 		ImGui_VSMain.spirv.h ImGui_PSMain.spirv.h
+		Lines_VSMain.spirv.h Lines_PSMain.spirv.h
 		Mesh_VSMain.spirv.h Mesh_VSShadow.spirv.h Mesh_PSShadowMasked.spirv.h
 		Mesh_PSPrepass.spirv.h Mesh_PSPrepassMasked.spirv.h
 		Mesh_PSForward.spirv.h Mesh_PSForwardMasked.spirv.h Mesh_PSForwardBlended.spirv.h

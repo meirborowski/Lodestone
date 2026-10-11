@@ -12,6 +12,9 @@ namespace Lodestone {
 	public:
 		static constexpr float MinDistance = 0.1f;
 		static constexpr float MaxDistance = 10000.0f;
+		// What the camera sees, in meters from it
+		static constexpr float NearPlane = 0.05f;
+		static constexpr float FarPlane = 5000.0f;
 
 		glm::vec3 GetTarget() const { return m_Target; }
 		float GetDistance() const { return m_Distance; }

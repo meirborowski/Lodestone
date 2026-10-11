@@ -58,6 +58,8 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Scene/Entity.h
 	Lodestone/Scene/EntitySerializer.cpp
 	Lodestone/Scene/EntitySerializer.h
+	Lodestone/Scene/ModelEntities.cpp
+	Lodestone/Scene/ModelEntities.h
 	Lodestone/Scene/PrefabSerializer.cpp
 	Lodestone/Scene/PrefabSerializer.h
 	Lodestone/Scene/RenderComponents.cpp

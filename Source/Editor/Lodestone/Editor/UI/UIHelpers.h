@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Lodestone/Asset/AssetMetadata.h"
 #include "Lodestone/Core/Base.h"
 #include "Lodestone/Core/Error.h"
 #include "Lodestone/Core/UUID.h"
@@ -34,5 +35,7 @@ namespace Lodestone {
 	std::optional<UUID> AcceptEntityDrop();
 	// The path of an asset dropped on the last item, if any
 	std::optional<std::string> AcceptAssetDrop();
+	// Whether assets of a type can be instanced into a scene: prefabs and models
+	bool IsInstantiable(std::optional<AssetType> type);
 
 }

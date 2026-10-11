@@ -164,6 +164,8 @@ namespace Lodestone {
 				return m_View->Capture(context, size);
 			}
 
+			// The latest screenshot's render stats
+			std::optional<RenderStats> GetStats() const { return m_View ? m_View->GetStats() : std::nullopt; }
 			uint32_t GetValidationErrorCount() const { return m_Device ? m_Device->GetValidationErrorCount() : 0; }
 
 		private:
@@ -200,6 +202,7 @@ namespace Lodestone {
 			EditorToolHost host;
 			host.Capture = [&capture, &context](uint32_t width, uint32_t height)
 			{ return capture.Capture(context, glm::uvec2(width, height)); };
+			host.GetRenderStats = [&capture] { return capture.GetStats(); };
 			if (!options.McpStdio)
 				host.RequestQuit = [&quit] { quit = true; };
 			RegisterEditorTools(server, context, std::move(host));
@@ -303,6 +306,7 @@ namespace Lodestone {
 			EditorToolHost host;
 			host.Capture = [&sceneView, &context](uint32_t width, uint32_t height)
 			{ return (*sceneView)->Capture(context, glm::uvec2(width, height)); };
+			host.GetRenderStats = [&sceneView] { return (*sceneView)->GetStats(); };
 			host.RequestQuit = [&quit] { quit = true; };
 			RegisterEditorTools(server, context, std::move(host));
 			auto http = StartHttp(options, server, dispatcher);
@@ -335,13 +339,17 @@ namespace Lodestone {
 				return std::unexpected(imguiRenderer.error());
 
 			EditorUIHost uiHost;
-			uiHost.PrepareViewport = [&sceneView, &imguiRenderer](glm::uvec2 size) -> std::expected<ImTextureID, Error>
+			uiHost.Viewport.PrepareImage = [&sceneView, &imguiRenderer](
+											   glm::uvec2 size) -> std::expected<ImTextureID, Error>
 			{
 				const auto texture = (*sceneView)->PrepareViewport(size);
 				if (!texture)
 					return std::unexpected(texture.error());
 				return (*imguiRenderer)->GetTextureId(*texture);
 			};
+			uiHost.Viewport.PickEntity = [&sceneView, &context](glm::uvec2 size, glm::vec2 point)
+			{ return (*sceneView)->PickEntity(context, size, point); };
+			uiHost.Viewport.GetStats = [&sceneView] { return (*sceneView)->GetStats(); };
 			uiHost.McpUrl = *http ? (*http)->GetUrl() : std::string();
 			EditorUI ui(context, std::move(uiHost));
 

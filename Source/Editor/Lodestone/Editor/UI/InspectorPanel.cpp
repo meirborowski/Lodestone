@@ -1,5 +1,6 @@
 #include "Lodestone/Editor/UI/InspectorPanel.h"
 
+#include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Core/Log.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Editor/UI/UIHelpers.h"
@@ -123,7 +124,7 @@ namespace Lodestone {
 					ImGui::SetNextItemWidth(-FLT_MIN);
 					ImGui::BeginDisabled(!editing || field.IsReadOnly());
 					FieldValue value = field.Get(component);
-					const bool changed = DrawField(id, type, field, value);
+					const bool changed = DrawField(context, id, type, field, value);
 					const bool finished = ImGui::IsItemDeactivatedAfterEdit();
 					ImGui::EndDisabled();
 
@@ -147,7 +148,8 @@ namespace Lodestone {
 		ImGui::PopID();
 	}
 
-	bool InspectorPanel::DrawField(UUID id, const ComponentType& type, const FieldInfo& field, FieldValue& value)
+	bool InspectorPanel::DrawField(
+		const EditorContext& context, UUID id, const ComponentType& type, const FieldInfo& field, FieldValue& value)
 	{
 		const std::string label = "##" + field.GetName();
 		switch (field.GetType())
@@ -197,10 +199,25 @@ namespace Lodestone {
 			case FieldType::String:
 				return ImGui::InputText(label.c_str(), &std::get<std::string>(value));
 			case FieldType::UUID: {
-				// Edited as text, applied once it's a whole UUID (or empty, for nil)
+				// Edited as text, applied once it's a whole UUID (or empty, for nil). An asset dragged from the content
+				// browser and dropped on it sets it to the asset's UUID
 				const UUID current = std::get<UUID>(value);
+				const AssetRegistry* assets = context.GetAssets();
 				std::string text = current.IsNil() ? std::string() : current.ToString();
-				if (!ImGui::InputTextWithHint(label.c_str(), "nil", &text, ImGuiInputTextFlags_EnterReturnsTrue))
+				const bool entered =
+					ImGui::InputTextWithHint(label.c_str(), "nil", &text, ImGuiInputTextFlags_EnterReturnsTrue);
+				if (const auto dropped = AcceptAssetDrop(); dropped && assets != nullptr)
+				{
+					if (const AssetInfo* asset = assets->FindByPath(PathFromUtf8(*dropped)))
+					{
+						value = asset->Metadata.Id;
+						return asset->Metadata.Id != current;
+					}
+				}
+				// Which asset it names, if it names one
+				if (const AssetInfo* asset = assets != nullptr ? assets->Find(current) : nullptr)
+					ImGui::TextDisabled("%s", asset->Path.c_str());
+				if (!entered)
 					return false;
 				if (text.empty())
 				{

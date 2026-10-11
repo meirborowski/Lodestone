@@ -24,7 +24,8 @@ namespace Lodestone {
 	private:
 		void DrawComponent(EditorContext& context, UUID id, const ComponentType& type, bool editing);
 		// Draws a field's widget. Returns whether the value changed
-		bool DrawField(UUID id, const ComponentType& type, const FieldInfo& field, FieldValue& value);
+		bool DrawField(const EditorContext& context, UUID id, const ComponentType& type, const FieldInfo& field,
+			FieldValue& value);
 		void DrawAddComponent(EditorContext& context, UUID id);
 
 	private:

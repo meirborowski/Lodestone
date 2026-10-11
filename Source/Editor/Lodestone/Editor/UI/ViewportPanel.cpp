@@ -1,5 +1,6 @@
 #include "Lodestone/Editor/UI/ViewportPanel.h"
 
+#include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Editor/SceneView.h"
 #include "Lodestone/Editor/UI/UIHelpers.h"
@@ -16,6 +17,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <string>
 
 namespace Lodestone {
 
@@ -67,7 +70,7 @@ namespace Lodestone {
 
 	}
 
-	void ViewportPanel::Draw(EditorContext& context, const PrepareImage& prepareImage, float frameSeconds, bool* open)
+	void ViewportPanel::Draw(EditorContext& context, const Host& host, float frameSeconds, bool* open)
 	{
 		m_Visible = false;
 		m_Focused = false;
@@ -88,7 +91,7 @@ namespace Lodestone {
 			return;
 		}
 		const glm::vec2 size(std::floor(available.x), std::floor(available.y));
-		const auto texture = prepareImage(glm::uvec2(size));
+		const auto texture = host.PrepareImage(glm::uvec2(size));
 		if (!texture)
 		{
 			ImGui::TextWrapped("The viewport can't render: %s", texture.error().ToString().c_str());
@@ -105,9 +108,10 @@ namespace Lodestone {
 
 		if (IsEditing(context))
 		{
-			if (const auto asset = AcceptAssetDrop())
+			if (const auto asset = AcceptAssetDrop();
+				asset && IsInstantiable(GetAssetTypeForFile(PathFromUtf8(*asset))))
 			{
-				if (const auto instance = context.InstantiatePrefab(*asset); instance)
+				if (const auto instance = context.InstantiateAsset(*asset); instance)
 					context.Select(*instance);
 				else
 					ReportFailure("Instancing " + *asset, instance.error());
@@ -124,12 +128,13 @@ namespace Lodestone {
 			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGuizmo::IsOver() && !m_UsingGizmo)
 			{
 				const ImVec2 mouse = ImGui::GetMousePos();
-				context.Select(
-					SceneView::PickEntity(context, glm::uvec2(size), glm::vec2(mouse.x, mouse.y) - position));
+				const glm::vec2 point = glm::vec2(mouse.x, mouse.y) - position;
+				context.Select(host.PickEntity ? host.PickEntity(glm::uvec2(size), point)
+											   : SceneView::PickEntity(context, glm::uvec2(size), point, {}));
 			}
 		}
 		if (m_ShowStats)
-			DrawStats(context, position, frameSeconds);
+			DrawStats(context, host, position, frameSeconds);
 		ImGui::End();
 	}
 
@@ -263,16 +268,35 @@ namespace Lodestone {
 		m_UsingGizmo = active;
 	}
 
-	void ViewportPanel::DrawStats(const EditorContext& context, glm::vec2 position, float frameSeconds)
+	void ViewportPanel::DrawStats(
+		const EditorContext& context, const Host& host, glm::vec2 position, float frameSeconds)
 	{
 		m_SmoothedFrameSeconds = m_SmoothedFrameSeconds == 0.0f
 			? frameSeconds
 			: m_SmoothedFrameSeconds + (frameSeconds - m_SmoothedFrameSeconds) * FrameTimeSmoothing;
 		const float fps = m_SmoothedFrameSeconds > 0.0f ? 1.0f / m_SmoothedFrameSeconds : 0.0f;
-		const size_t entities = context.GetScene().GetEntityCount();
-		// The grid, then a cube per entity
-		const std::string text = fmt::format("{:.2f} ms ({:.0f} FPS)\n{} entities\n{} draw calls\n{}",
-			m_SmoothedFrameSeconds * 1000.0f, fps, entities, entities + 1, ToString(context.GetPlayState()));
+		std::string text = fmt::format("{:.2f} ms ({:.0f} FPS)\n", m_SmoothedFrameSeconds * 1000.0f, fps);
+		if (const std::optional<RenderStats> stats = host.GetStats ? host.GetStats() : std::nullopt)
+		{
+			const std::optional<double> gpu = stats->GetGpuTime();
+			text += gpu ? fmt::format("Renderer: CPU {:.2f} ms, GPU {:.2f} ms\n", stats->CpuTime, *gpu)
+						: fmt::format("Renderer: CPU {:.2f} ms\n", stats->CpuTime);
+			if (stats->GpuPassTimes)
+			{
+				// The GPU's time for each pass, four to a line
+				for (size_t pass = 0; pass < RenderPassCount; ++pass)
+				{
+					text += fmt::format("{}{} {:.2f}", pass % 4 == 0 ? "  " : "   ",
+						ToString(static_cast<RenderPass>(pass)), (*stats->GpuPassTimes)[pass]);
+					if (pass % 4 == 3 || pass + 1 == RenderPassCount)
+						text += '\n';
+				}
+			}
+			text += fmt::format("{} draw calls, {} triangles\n{} of {} meshes visible, {} lights\n", stats->DrawCalls,
+				stats->Triangles, stats->VisibleMeshes, stats->Meshes,
+				stats->DirectionalLights + stats->PunctualLights);
+		}
+		text += fmt::format("{} entities, {}", context.GetScene().GetEntityCount(), ToString(context.GetPlayState()));
 
 		ImDrawList* drawList = ImGui::GetWindowDrawList();
 		const ImVec2 padding(8.0f, 6.0f);

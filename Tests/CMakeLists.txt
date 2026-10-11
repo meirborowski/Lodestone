@@ -83,6 +83,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/ModelEntitiesTests.cpp
 		Core/ModelImporterTests.cpp
 		Core/PrefabSerializerTests.cpp
 		Core/ProjectTests.cpp
@@ -126,9 +127,9 @@ ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
 	LABELS render
 	SOURCES
-		Render/DebugSceneRenderTests.cpp
 		Render/GraphicsDeviceTests.cpp
 		Render/ImGuiRenderTests.cpp
+		Render/LineRendererTests.cpp
 		Render/RenderTestDevice.cpp
 		Render/RenderTestDevice.h
 		Render/SceneRendererTests.cpp
@@ -186,7 +187,8 @@ if(TARGET LodestoneEditorLib)
 	find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter)
 	foreach(transport IN ITEMS stdio http)
 		set(name "Editor.Agent smoke test over ${transport}")
-		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport})
+		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport}
+			--model "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Models/Primitives.glb")
 		if(LS_LAVAPIPE_DRIVER)
 			list(APPEND arguments --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
 		endif()

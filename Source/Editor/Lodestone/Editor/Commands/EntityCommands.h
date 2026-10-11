@@ -3,6 +3,7 @@
 #include "Lodestone/Core/UUID.h"
 #include "Lodestone/Editor/Commands/Command.h"
 #include "Lodestone/Reflection/FieldValue.h"
+#include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Serialization/Json.h"
 
 #include <cstddef>
@@ -83,29 +84,68 @@ namespace Lodestone {
 		UUID m_CopyId;
 	};
 
+	// Copies entities into the scene under a parent (or as root entities): the first time with new UUIDs, and with the
+	// same ones whenever it's redone. Undo removes them
+	class InstantiateEntitiesCommand : public Command
+	{
+	public:
+		[[nodiscard]] std::expected<void, Error> Execute(Scene& scene) final;
+		[[nodiscard]] std::expected<void, Error> Undo(Scene& scene) final;
+
+		// The copy's root, after the command has run
+		UUID GetInstanceId() const { return m_InstanceId; }
+
+	protected:
+		InstantiateEntitiesCommand(UUID parent, std::optional<size_t> index);
+
+		// Creates the entities the first time the command runs, under parent at index among its children, and returns
+		// their root
+		[[nodiscard]] virtual std::expected<Entity, Error> InstantiateFirst(
+			Scene& scene, Entity parent, std::optional<size_t> index) = 0;
+
+	private:
+		UUID m_Parent;
+		std::optional<size_t> m_Index;
+		// The instance, saved the first time the command runs, so redoing it recreates the same UUIDs
+		Json::Value m_Instance;
+		UUID m_InstanceId;
+	};
+
 	// Instances a prefab's entities (see PrefabSerializer) under a parent (or as a root entity)
-	class InstantiatePrefabCommand final : public Command
+	class InstantiatePrefabCommand final : public InstantiateEntitiesCommand
 	{
 	public:
 		InstantiatePrefabCommand(Json::Value prefab, UUID prefabAsset, std::string prefabName, UUID parent = {},
 			std::optional<size_t> index = std::nullopt);
 
 		std::string GetName() const override;
-		[[nodiscard]] std::expected<void, Error> Execute(Scene& scene) override;
-		[[nodiscard]] std::expected<void, Error> Undo(Scene& scene) override;
 
-		// The instance's root, after the command has run
-		UUID GetInstanceId() const { return m_InstanceId; }
+	private:
+		[[nodiscard]] std::expected<Entity, Error> InstantiateFirst(
+			Scene& scene, Entity parent, std::optional<size_t> index) override;
 
 	private:
 		Json::Value m_Prefab;
 		UUID m_PrefabAsset;
 		std::string m_PrefabName;
-		UUID m_Parent;
-		std::optional<size_t> m_Index;
-		// The instance, saved the first time the command runs, so redoing it recreates the same UUIDs
-		Json::Value m_Instance;
-		UUID m_InstanceId;
+	};
+
+	// Instances a model's entities (see BuildModelEntities()) under a parent (or as a root entity)
+	class InstantiateModelCommand final : public InstantiateEntitiesCommand
+	{
+	public:
+		InstantiateModelCommand(
+			Json::Value entities, std::string modelName, UUID parent = {}, std::optional<size_t> index = std::nullopt);
+
+		std::string GetName() const override;
+
+	private:
+		[[nodiscard]] std::expected<Entity, Error> InstantiateFirst(
+			Scene& scene, Entity parent, std::optional<size_t> index) override;
+
+	private:
+		Json::Value m_Entities;
+		std::string m_ModelName;
 	};
 
 	// Moves an entity under a new parent (or to the root, with the nil UUID) at a position among its siblings

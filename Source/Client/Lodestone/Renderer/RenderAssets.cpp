@@ -87,6 +87,12 @@ namespace Lodestone {
 		return entry.Asset.get();
 	}
 
+	const GpuModel* RenderAssets::FindModel(UUID id) const
+	{
+		const auto found = m_Models.find(id);
+		return found != m_Models.end() ? found->second.Asset.get() : nullptr;
+	}
+
 	const EnvironmentMap* RenderAssets::GetEnvironment(UUID id, nvrhi::ICommandList* commandList)
 	{
 		if (id.IsNil())
