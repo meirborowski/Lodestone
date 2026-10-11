@@ -4,9 +4,6 @@
 #include "Lodestone/Core/Log.h"
 #include "Lodestone/Scene/Entity.h"
 
-#include <glm/common.hpp>
-#include <glm/gtc/quaternion.hpp>
-
 #include <algorithm>
 #include <cmath>
 
@@ -88,12 +85,7 @@ namespace Lodestone {
 		if (previous == nullptr)
 			return current;
 
-		const float factor = GetInterpolationFactor();
-		TransformComponent interpolated;
-		interpolated.Position = glm::mix(previous->Transform.Position, current.Position, factor);
-		interpolated.Rotation = glm::slerp(previous->Transform.Rotation, current.Rotation, factor);
-		interpolated.Scale = glm::mix(previous->Transform.Scale, current.Scale, factor);
-		return interpolated;
+		return InterpolateTransform(previous->Transform, current, GetInterpolationFactor());
 	}
 
 	SimulationState Simulation::SaveState() const

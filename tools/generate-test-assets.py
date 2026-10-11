@@ -203,19 +203,22 @@ def leaf_mask(size):
     return rows
 
 
+def equirectangular_direction(azimuth, elevation):
+    """The direction at an azimuth and elevation (radians), as the engine maps equirectangular images: azimuth 0 (the
+    image's center column) looks toward -Z, and it turns toward +X (see Source/Client/Shaders/EnvironmentMapping.hlsli)."""
+    return (math.cos(elevation) * math.sin(azimuth), math.sin(elevation), -math.cos(elevation) * math.cos(azimuth))
+
+
 def sky(width, height, sun_elevation=35.0, sun_azimuth=45.0):
     """An equirectangular sky: a blue gradient, a bright horizon, dim ground, and a small bright sun."""
-    sun = (math.cos(math.radians(sun_elevation)) * math.sin(math.radians(sun_azimuth)),
-           math.sin(math.radians(sun_elevation)),
-           math.cos(math.radians(sun_elevation)) * math.cos(math.radians(sun_azimuth)))
+    sun = equirectangular_direction(math.radians(sun_azimuth), math.radians(sun_elevation))
     rows = []
     for y in range(height):
         elevation = math.pi / 2 - (y + 0.5) / height * math.pi
         row = []
         for x in range(width):
             azimuth = (x + 0.5) / width * 2 * math.pi - math.pi
-            direction = (math.cos(elevation) * math.sin(azimuth), math.sin(elevation),
-                         math.cos(elevation) * math.cos(azimuth))
+            direction = equirectangular_direction(azimuth, elevation)
             if elevation >= 0:
                 t = elevation / (math.pi / 2)
                 color = tuple((1 - t) * horizon + t * zenith for horizon, zenith in zip((1.1, 1.05, 1.0),
@@ -355,6 +358,33 @@ def quad(size=1.0):
     return positions, [(0, 0, 1)] * 4, [(0, 1), (1, 1), (1, 0), (0, 0)], [0, 1, 2, 0, 2, 3]
 
 
+def plane(size=1.0):
+    """A square on the XZ plane, facing up."""
+    half = size / 2
+    positions = [(-half, 0, half), (half, 0, half), (half, 0, -half), (-half, 0, -half)]
+    return positions, [(0, 1, 0)] * 4, [(0, 1), (1, 1), (1, 0), (0, 0)], [0, 1, 2, 0, 2, 3]
+
+
+def primitives():
+    """Shapes for building test scenes: a plane facing up, a cube and a sphere, each 1 meter across, each with its own
+    material, in one binary file."""
+    gltf = Gltf()
+    materials = [
+        gltf.add("materials", {"name": "Ground", "pbrMetallicRoughness": {
+            "baseColorFactor": [0.75, 0.75, 0.75, 1.0], "metallicFactor": 0, "roughnessFactor": 0.9}}),
+        gltf.add("materials", {"name": "White", "pbrMetallicRoughness": {
+            "baseColorFactor": [0.8, 0.8, 0.8, 1.0], "metallicFactor": 0, "roughnessFactor": 0.5}}),
+        gltf.add("materials", {"name": "Polished", "pbrMetallicRoughness": {
+            "baseColorFactor": [0.8, 0.15, 0.1, 1.0], "metallicFactor": 0, "roughnessFactor": 0.3}})]
+    nodes = []
+    for index, (name, shape) in enumerate((("Plane", plane()), ("Cube", cube()), ("Sphere", sphere()))):
+        mesh = gltf.add("meshes", {"name": name, "primitives": [gltf.mesh_primitive(*shape, materials[index])]})
+        nodes.append(gltf.add("nodes", {"name": name, "mesh": mesh, "translation": [index * 1.5, 0, 0]}))
+    gltf.add("scenes", {"nodes": nodes})
+    gltf.document["scene"] = 0
+    gltf.write_glb(MODELS / "Primitives.glb")
+
+
 def textured_cube():
     """A cube with base color (JPEG), metallic-roughness and normal textures in files beside it, and no tangents."""
     gltf = Gltf()
@@ -460,6 +490,7 @@ def main():
     material_spheres()
     hierarchy()
     alpha_modes()
+    primitives()
     (ENVIRONMENTS / "Sky.hdr").write_bytes(encode_hdr(128, 64, sky(128, 64)))
     (ENVIRONMENTS / "Uniform.hdr").write_bytes(encode_hdr(16, 8, [[(1.0, 1.0, 1.0)] * 16 for _ in range(8)]))
 

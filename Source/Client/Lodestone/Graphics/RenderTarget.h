@@ -11,7 +11,8 @@
 namespace Lodestone {
 
 	// An offscreen image to render into: an 8-bit RGBA color texture and a depth texture, with a framebuffer for them.
-	// The color texture can also be sampled - to show it in the editor - and read back
+	// Both can also be sampled - the color to show it in the editor, the depth for screen-space effects - and the color
+	// read back
 	class RenderTarget
 	{
 	private:

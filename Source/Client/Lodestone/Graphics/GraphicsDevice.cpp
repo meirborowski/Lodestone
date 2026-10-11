@@ -198,6 +198,7 @@ namespace Lodestone {
 			VkPhysicalDeviceProperties Properties{};
 			VkPhysicalDeviceFeatures CoreFeatures{};
 			uint32_t GraphicsQueueFamily = 0;
+			uint32_t TimestampValidBits = 0;
 			bool HasPortabilitySubset = false;
 			bool HasBufferDeviceAddress = false;
 			bool HasMaintenance4 = false;
@@ -256,6 +257,7 @@ namespace Lodestone {
 				if (presenting && !config.SupportsPresentation(instance, handle, family))
 					continue;
 				candidate.GraphicsQueueFamily = family;
+				candidate.TimestampValidBits = families[family].timestampValidBits;
 				return candidate;
 			}
 			return std::unexpected(
@@ -573,6 +575,11 @@ namespace Lodestone {
 		m_Info.ApiVersion = properties.properties.apiVersion;
 		m_Info.DriverName = static_cast<const char*>(driver.driverName);
 		m_Info.DriverInfo = static_cast<const char*>(driver.driverInfo);
+		const VkPhysicalDeviceLimits& limits = properties.properties.limits;
+		m_Info.MaxSamplerAnisotropy =
+			best->CoreFeatures.samplerAnisotropy == VK_TRUE ? std::max(limits.maxSamplerAnisotropy, 1.0f) : 1.0f;
+		// NVRHI reads 32 bits of each timestamp, and measures the difference of two, which wraps correctly
+		m_Info.SupportsTimerQueries = best->TimestampValidBits >= 32 && limits.timestampPeriod > 0.0f;
 		return {};
 	}
 

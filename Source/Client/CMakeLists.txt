@@ -13,6 +13,7 @@ target_sources(LodestoneClient PRIVATE
 	Lodestone/Graphics/ImGuiRenderer.h
 	Lodestone/Graphics/RenderTarget.cpp
 	Lodestone/Graphics/RenderTarget.h
+	Lodestone/Graphics/ShaderModule.h
 	Lodestone/Graphics/Swapchain.cpp
 	Lodestone/Graphics/Swapchain.h
 	Lodestone/Graphics/TextureReadback.cpp
@@ -30,20 +31,64 @@ target_sources(LodestoneClient PRIVATE
 	Lodestone/Platform/ImGuiPlatform.h
 	Lodestone/Platform/Window.cpp
 	Lodestone/Platform/Window.h
+	Lodestone/Renderer/EnvironmentMap.cpp
+	Lodestone/Renderer/EnvironmentMap.h
+	Lodestone/Renderer/Frustum.cpp
+	Lodestone/Renderer/Frustum.h
+	Lodestone/Renderer/GpuModel.cpp
+	Lodestone/Renderer/GpuModel.h
+	Lodestone/Renderer/ImageBasedLighting.cpp
+	Lodestone/Renderer/ImageBasedLighting.h
+	Lodestone/Renderer/MipChain.cpp
+	Lodestone/Renderer/MipChain.h
+	Lodestone/Renderer/RenderAssets.cpp
+	Lodestone/Renderer/RenderAssets.h
+	Lodestone/Renderer/RenderResources.cpp
+	Lodestone/Renderer/RenderResources.h
+	Lodestone/Renderer/RenderStats.cpp
+	Lodestone/Renderer/RenderStats.h
+	Lodestone/Renderer/RenderWorld.cpp
+	Lodestone/Renderer/RenderWorld.h
+	Lodestone/Renderer/SceneRenderer.cpp
+	Lodestone/Renderer/SceneRenderer.h
+	Lodestone/Renderer/SceneRenderTarget.cpp
+	Lodestone/Renderer/SceneRenderTarget.h
+	Lodestone/Renderer/ShaderTypes.h
+	Lodestone/Renderer/ShadowCascades.cpp
+	Lodestone/Renderer/ShadowCascades.h
 	ThirdPartyConfig/imgui/LodestoneImGuiConfig.h
 )
 
 ls_add_shaders(LodestoneClient
 	CONFIG Shaders/Shaders.cfg
 	SOURCES
+		Shaders/AmbientOcclusion.hlsl
+		Shaders/Common.hlsli
 		Shaders/DebugCube.hlsl
 		Shaders/DebugGrid.hlsl
+		Shaders/Environment.hlsl
+		Shaders/EnvironmentMapping.hlsli
+		Shaders/Fullscreen.hlsl
+		Shaders/Fullscreen.hlsli
 		Shaders/ImGui.hlsl
+		Shaders/Lighting.hlsli
+		Shaders/Mesh.hlsl
+		Shaders/Sky.hlsl
+		Shaders/Tonemap.hlsl
 		Shaders/Triangle.hlsl
 	OUTPUTS
+		AmbientOcclusion_PSOcclusion.spirv.h AmbientOcclusion_PSBlur.spirv.h
 		DebugCube_VSMain.spirv.h DebugCube_PSMain.spirv.h
 		DebugGrid_VSMain.spirv.h DebugGrid_PSMain.spirv.h
+		Environment_CSEquirectangularToCube.spirv.h Environment_CSDownsampleCube.spirv.h
+		Environment_CSPrefilter.spirv.h
+		Fullscreen_VSMain.spirv.h
 		ImGui_VSMain.spirv.h ImGui_PSMain.spirv.h
+		Mesh_VSMain.spirv.h Mesh_VSShadow.spirv.h Mesh_PSShadowMasked.spirv.h
+		Mesh_PSPrepass.spirv.h Mesh_PSPrepassMasked.spirv.h
+		Mesh_PSForward.spirv.h Mesh_PSForwardMasked.spirv.h Mesh_PSForwardBlended.spirv.h
+		Sky_PSMain.spirv.h
+		Tonemap_PSMain.spirv.h
 		Triangle_VSMain.spirv.h Triangle_PSMain.spirv.h
 )
 

@@ -47,6 +47,7 @@ namespace Lodestone {
 		depth.format = DepthFormat;
 		depth.debugName = depthName;
 		depth.isRenderTarget = true;
+		depth.isShaderResource = true;
 		depth.initialState = nvrhi::ResourceStates::DepthWrite;
 		depth.keepInitialState = true;
 		nvrhi::TextureHandle depthTexture = m_Device->createTexture(depth);

@@ -99,13 +99,17 @@ ls_add_test_executable(LodestoneCoreTests
 		Lodestone::Lua
 )
 
-# LodestoneClient code that needs no window or GPU
+# LodestoneClient code that needs no window or GPU: input, and the renderer's CPU side
 ls_add_test_executable(LodestoneClientTests
 	PREFIX Client
 	LABELS unit
 	SOURCES
 		Client/DeviceInputTests.cpp
+		Client/ImageBasedLightingTests.cpp
 		Client/InputCommandBuilderTests.cpp
+		Client/MipChainTests.cpp
+		Client/RenderWorldTests.cpp
+		Client/ShadowCascadeTests.cpp
 	LIBRARIES
 		LodestoneClient
 )
@@ -127,6 +131,7 @@ ls_add_test_executable(LodestoneRenderTests
 		Render/ImGuiRenderTests.cpp
 		Render/RenderTestDevice.cpp
 		Render/RenderTestDevice.h
+		Render/SceneRendererTests.cpp
 		Render/TriangleRenderTests.cpp
 	LIBRARIES
 		LodestoneClient
