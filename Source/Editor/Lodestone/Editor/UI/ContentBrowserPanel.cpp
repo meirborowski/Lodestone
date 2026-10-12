@@ -195,7 +195,8 @@ namespace Lodestone {
 				open();
 		}
 		ImGui::SetItemTooltip("%s\n%s", path.c_str(), asset.Metadata.Id.ToString().c_str());
-		if (type == AssetType::Prefab && ImGui::BeginDragDropSource())
+		// Prefabs and models drop into the viewport and the hierarchy; any asset drops onto an inspector field
+		if (ImGui::BeginDragDropSource())
 		{
 			ImGui::SetDragDropPayload(AssetPayload, path.data(), path.size());
 			ImGui::TextUnformatted(path.c_str());
@@ -207,12 +208,12 @@ namespace Lodestone {
 			if ((type == AssetType::Scene || type == AssetType::Prefab) &&
 				ImGui::MenuItem("Open", nullptr, false, editing))
 				open();
-			if (type == AssetType::Prefab && ImGui::MenuItem("Instance in Scene", nullptr, false, editing))
+			if (IsInstantiable(type) && ImGui::MenuItem("Instance in Scene", nullptr, false, editing))
 			{
 				m_Deferred.emplace_back(
 					[&context, path]
 					{
-						if (const auto instance = context.InstantiatePrefab(path); instance)
+						if (const auto instance = context.InstantiateAsset(path); instance)
 							context.Select(*instance);
 						else
 							ReportFailure(fmt::format("Instancing {}", path), instance.error());

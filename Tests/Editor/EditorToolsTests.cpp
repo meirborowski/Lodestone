@@ -23,13 +23,13 @@ namespace Lodestone {
 	namespace {
 
 		// Every tool the editor offers. A new tool is added here deliberately, with its tests
-		constexpr std::array<std::string_view, 38> ToolNames = {"project_info", "project_create", "project_open",
+		constexpr std::array<std::string_view, 40> ToolNames = {"project_info", "project_create", "project_open",
 			"scene_new", "scene_open", "prefab_open", "document_save", "scene_hierarchy", "entity_create",
 			"entity_delete", "entity_duplicate", "entity_set_parent", "entity_get", "entity_find", "selection_set",
 			"component_types", "component_add", "component_remove", "component_set", "prefab_create",
-			"prefab_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start", "play_stop", "play_pause",
-			"play_step", "play_status", "input_send", "viewport_screenshot", "camera_set", "camera_frame", "log_read",
-			"asset_list", "asset_import", "asset_rescan", "editor_quit"};
+			"prefab_instantiate", "model_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start",
+			"play_stop", "play_pause", "play_step", "play_status", "input_send", "viewport_screenshot", "render_stats",
+			"camera_set", "camera_frame", "log_read", "asset_list", "asset_import", "asset_rescan", "editor_quit"};
 
 		UUID ToId(const std::string& text)
 		{
@@ -83,6 +83,7 @@ namespace Lodestone {
 					}
 					return image;
 				};
+				host.GetRenderStats = [this] { return Stats; };
 				RegisterEditorTools(m_Server, Context, std::move(host));
 				if (withProject)
 					Ok("project_create", {{"directory", GetProjectDirectory()}, {"name", "Tool Tests"}});
@@ -134,6 +135,8 @@ namespace Lodestone {
 			EditorContext Context;
 			int CaptureCount = 0;
 			bool CaptureFails = false;
+			// What the stand-in renderer reports
+			std::optional<RenderStats> Stats;
 			int QuitRequests = 0;
 
 		private:
@@ -333,6 +336,100 @@ namespace Lodestone {
 		CHECK(info["document"]["kind"] == "prefab");
 		CHECK(info["document"]["path"] == "Prefabs/Tree.lprefab");
 		CHECK(info["document"]["entityCount"] == 2);
+	}
+
+	TEST_CASE("model_instantiate places a model's nodes as entities that draw its meshes, undoably")
+	{
+		Fixture fixture;
+		const std::filesystem::path source = std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "Primitives.glb";
+		const Json::Value model =
+			fixture.Ok("asset_import", {{"source", PathToUtf8(source)}, {"path", "Models/Primitives.glb"}});
+		const std::string group = fixture.CreateEntity("Group");
+
+		const Json::Value instance =
+			fixture.Ok("model_instantiate", {{"path", "Models/Primitives.glb"}, {"parent", group}});
+
+		CHECK(instance["done"] == "Instance model 'Primitives'");
+		const Json::Value root = fixture.Ok("entity_get", {{"entity", instance["id"]}});
+		CHECK(root["name"] == "Primitives");
+		CHECK(root["parent"] == group);
+		CHECK_FALSE(root["components"].contains("MeshRenderer"));
+		REQUIRE(root["children"].size() == 3);
+		const std::array<std::string_view, 3> names = {"Plane", "Cube", "Sphere"};
+		for (uint32_t index = 0; index < names.size(); ++index)
+		{
+			const Json::Value child = fixture.Ok("entity_get", {{"entity", root["children"][index]}});
+			CAPTURE(index);
+			CHECK(child["name"] == names[index]);
+			CHECK(child["components"]["MeshRenderer"]["Model"] == model["id"]);
+			CHECK(child["components"]["MeshRenderer"]["Mesh"] == index);
+			CHECK(child["components"]["Transform"]["Position"][0] == doctest::Approx(1.5 * index));
+		}
+
+		fixture.Ok("edit_undo");
+		CHECK_FALSE(fixture.Context.GetScene().Contains(ToId(instance["id"].get<std::string>())));
+		CHECK(fixture.Context.GetScene().GetEntityCount() == 1);
+		fixture.Ok("edit_redo");
+		CHECK(fixture.Context.GetScene().GetEntityCount() == 5);
+		CHECK(fixture.Context.GetScene().Contains(ToId(instance["id"].get<std::string>())));
+
+		fixture.Fails("model_instantiate", {{"path", "Models/Missing.glb"}});
+		fixture.Fails("model_instantiate", {{"path", "../Primitives.glb"}});
+		fixture.Fails(
+			"model_instantiate", {{"path", "Models/Primitives.glb"}, {"parent", UUID::Generate().ToString()}});
+		fixture.Ok("document_save", {{"path", "Scenes/Main.lscene"}});
+		fixture.Fails("model_instantiate", {{"path", "Scenes/Main.lscene"}});
+	}
+
+	TEST_CASE("render_stats reports the renderer's latest frame, and when there's none")
+	{
+		Fixture fixture;
+		CHECK(fixture.Fails("render_stats").find("Nothing has rendered yet") != std::string::npos);
+
+		RenderStats stats;
+		stats.DrawCalls = 12;
+		stats.PassDrawCalls[static_cast<size_t>(RenderPass::Opaque)] = 5;
+		stats.Triangles = 3456;
+		stats.Meshes = 7;
+		stats.VisibleMeshes = 5;
+		stats.DirectionalLights = 1;
+		stats.PunctualLights = 2;
+		stats.ShadowCascades = 4;
+		stats.CpuTime = 1.5;
+		fixture.Stats = stats;
+		const Json::Value described = fixture.Ok("render_stats");
+
+		CHECK(described["drawCalls"] == 12);
+		CHECK(described["triangles"] == 3456);
+		CHECK(described["meshes"] == 7);
+		CHECK(described["visibleMeshes"] == 5);
+		CHECK(described["directionalLights"] == 1);
+		CHECK(described["punctualLights"] == 2);
+		CHECK(described["shadowCascades"] == 4);
+		CHECK(described["cpuMilliseconds"] == 1.5);
+		CHECK(described["gpuMilliseconds"].is_null());
+		REQUIRE(described["passes"].size() == RenderPassCount);
+		CHECK(described["passes"][3]["name"] == "Opaque");
+		CHECK(described["passes"][3]["drawCalls"] == 5);
+		CHECK(described["passes"][3]["gpuMilliseconds"].is_null());
+
+		stats.GpuPassTimes = std::array<double, RenderPassCount>{0.5, 0.25, 0.25, 1.0, 0.0, 0.0, 0.5};
+		fixture.Stats = stats;
+		const Json::Value timed = fixture.Ok("render_stats");
+		CHECK(timed["gpuMilliseconds"] == 2.5);
+		CHECK(timed["passes"][0]["gpuMilliseconds"] == 0.5);
+	}
+
+	TEST_CASE("render_stats fails where the editor has no renderer")
+	{
+		McpServer server("Lodestone Editor", "0.0.0", "");
+		EditorContext context;
+		RegisterEditorTools(server, context, {});
+
+		const McpToolResult result = server.CallTool("render_stats", Json::Value::object());
+
+		CHECK(result.IsError);
+		CHECK(result.Content[0]["text"].get<std::string>().find("no renderer") != std::string::npos);
 	}
 
 	TEST_CASE("entity_create places entities with components under parents, at an index")

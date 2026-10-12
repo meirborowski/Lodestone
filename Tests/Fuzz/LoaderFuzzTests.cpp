@@ -1,6 +1,9 @@
 #include "Common/DescribeError.h"
 #include "Common/Fuzzer.h"
 #include "Lodestone/Asset/AssetMetadata.h"
+#include "Lodestone/Asset/ModelImporter.h"
+#include "Lodestone/Core/HdrImage.h"
+#include "Lodestone/Core/Image.h"
 #include "Lodestone/Project/Project.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 #include "Lodestone/Scene/PrefabSerializer.h"
@@ -13,7 +16,8 @@
 #include <string>
 #include <vector>
 
-// Fuzz tests for the loaders of files that may come from anywhere: scenes, prefabs, projects and asset metadata.
+// Fuzz tests for the loaders of files that may come from anywhere: scenes, prefabs, projects, asset metadata, and the
+// importers of models, images and HDR environment maps.
 // Corrupt or hostile input must fail cleanly - never crash, hang or trip a sanitizer. Whatever does load must also save
 // and load again unchanged, which catches loaders that accept input their own writers can't represent
 
@@ -118,6 +122,90 @@ namespace Lodestone {
 				const auto reloaded = Project::DeserializeFromText(Project::SerializeToText(*settings));
 				REQUIRE_MESSAGE(reloaded.has_value(), Testing::DescribeError(reloaded));
 				REQUIRE(*reloaded == *settings);
+			},
+			options);
+		CHECK(report.Runs > 0);
+	}
+
+	TEST_CASE("Fuzz the glTF importer")
+	{
+		Testing::FuzzOptions options = Testing::MakeFuzzOptions("Model");
+		options.Dictionary = MakeJsonDictionary({"asset", "version", "2.0", "buffers", "bufferViews", "accessors",
+			"meshes", "primitives", "attributes", "POSITION", "NORMAL", "TANGENT", "TEXCOORD_0", "indices", "mode",
+			"material", "materials", "pbrMetallicRoughness", "baseColorTexture", "textures", "images", "samplers",
+			"nodes", "children", "matrix", "rotation", "scale", "translation", "scenes", "scene", "byteOffset",
+			"byteLength", "byteStride", "componentType", "count", "type", "VEC3", "SCALAR", "alphaMode", "MASK",
+			"extensionsRequired", "uri", "data:application/octet-stream;base64,", "glTF", "JSON", "BIN"});
+
+		const auto report = Testing::RunFuzzer(
+			[](std::string_view input)
+			{
+				const std::vector<uint8_t> bytes(input.begin(), input.end());
+				const auto model = ModelImporter::Import(bytes);
+				if (!model)
+					return;
+				// Whatever imports is consistent: every index refers to a vertex, every reference to what exists
+				for (const ModelMesh& mesh : model->Meshes)
+				{
+					for (const uint32_t index : mesh.Indices)
+						REQUIRE(index < mesh.Vertices.size());
+					for (const MeshPrimitive& primitive : mesh.Primitives)
+					{
+						REQUIRE(
+							static_cast<uint64_t>(primitive.FirstIndex) + primitive.IndexCount <= mesh.Indices.size());
+						REQUIRE(primitive.Material < model->Materials.size());
+					}
+				}
+				for (const ModelTexture& texture : model->Textures)
+					REQUIRE(texture.Image < model->Images.size());
+				for (const ModelNode& node : model->Nodes)
+				{
+					REQUIRE((!node.Mesh || *node.Mesh < model->Meshes.size()));
+					for (const uint32_t child : node.Children)
+						REQUIRE(child < model->Nodes.size());
+				}
+				static_cast<void>(model->GetBounds());
+			},
+			options);
+		CHECK(report.Runs > 0);
+	}
+
+	TEST_CASE("Fuzz the image decoder")
+	{
+		Testing::FuzzOptions options = Testing::MakeFuzzOptions("Image");
+		options.Dictionary = {"\x89PNG\r\n\x1a\n", "IHDR", "IDAT", "IEND", "PLTE", "tRNS", "\xFF\xD8", "\xFF\xC0",
+			"\xFF\xC4", "\xFF\xDA", "\xFF\xDB", "\xFF\xD9", "\xFF\xC2"};
+
+		const auto report = Testing::RunFuzzer(
+			[](std::string_view input)
+			{
+				const std::vector<uint8_t> bytes(input.begin(), input.end());
+				const auto image = Image::Decode(bytes);
+				if (!image)
+					return;
+				REQUIRE(static_cast<uint64_t>(image->GetWidth()) * image->GetHeight() <= Image::MaxPixelCount);
+				REQUIRE(image->GetPixels().size() == static_cast<size_t>(image->GetWidth()) * image->GetHeight() * 4);
+			},
+			options);
+		CHECK(report.Runs > 0);
+	}
+
+	TEST_CASE("Fuzz the HDR image decoder")
+	{
+		Testing::FuzzOptions options = Testing::MakeFuzzOptions("Hdr");
+		options.Dictionary = {"#?RADIANCE\n", "#?RGBE\n", "FORMAT=32-bit_rle_rgbe\n", "-Y ", "+X ", "+Y ", "-X ",
+			"\x02\x02", "65536", "0"};
+
+		const auto report = Testing::RunFuzzer(
+			[](std::string_view input)
+			{
+				const std::vector<uint8_t> bytes(input.begin(), input.end());
+				const auto image = HdrImage::Decode(bytes);
+				if (!image)
+					return;
+				REQUIRE(static_cast<uint64_t>(image->GetWidth()) * image->GetHeight() <= HdrImage::MaxPixelCount);
+				// What decodes encodes again
+				REQUIRE(image->EncodeHdr().has_value());
 			},
 			options);
 		CHECK(report.Runs > 0);

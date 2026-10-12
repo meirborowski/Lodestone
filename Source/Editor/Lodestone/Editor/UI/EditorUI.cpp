@@ -93,7 +93,7 @@ namespace Lodestone {
 		DrawDockSpace();
 
 		if (m_ShowViewport)
-			m_Viewport.Draw(*m_Context, m_Host.PrepareViewport, frameSeconds, &m_ShowViewport);
+			m_Viewport.Draw(*m_Context, m_Host.Viewport, frameSeconds, &m_ShowViewport);
 		if (m_ShowHierarchy)
 			m_Hierarchy.Draw(*m_Context, &m_ShowHierarchy);
 		if (m_ShowInspector)

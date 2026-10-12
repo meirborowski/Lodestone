@@ -9,11 +9,17 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Asset/AssetMetadata.h
 	Lodestone/Asset/AssetRegistry.cpp
 	Lodestone/Asset/AssetRegistry.h
+	Lodestone/Asset/Model.cpp
+	Lodestone/Asset/Model.h
+	Lodestone/Asset/ModelImporter.cpp
+	Lodestone/Asset/ModelImporter.h
 	Lodestone/Core/Assert.cpp
 	Lodestone/Core/Assert.h
 	Lodestone/Core/Base.h
 	Lodestone/Core/Base64.cpp
 	Lodestone/Core/Base64.h
+	Lodestone/Core/BoundingBox.cpp
+	Lodestone/Core/BoundingBox.h
 	Lodestone/Core/CommandLine.cpp
 	Lodestone/Core/CommandLine.h
 	Lodestone/Core/Debugger.cpp
@@ -25,6 +31,8 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Core/Error.h
 	Lodestone/Core/FileSystem.cpp
 	Lodestone/Core/FileSystem.h
+	Lodestone/Core/HdrImage.cpp
+	Lodestone/Core/HdrImage.h
 	Lodestone/Core/Image.cpp
 	Lodestone/Core/Image.h
 	Lodestone/Core/Log.cpp
@@ -50,8 +58,12 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Scene/Entity.h
 	Lodestone/Scene/EntitySerializer.cpp
 	Lodestone/Scene/EntitySerializer.h
+	Lodestone/Scene/ModelEntities.cpp
+	Lodestone/Scene/ModelEntities.h
 	Lodestone/Scene/PrefabSerializer.cpp
 	Lodestone/Scene/PrefabSerializer.h
+	Lodestone/Scene/RenderComponents.cpp
+	Lodestone/Scene/RenderComponents.h
 	Lodestone/Scene/Scene.cpp
 	Lodestone/Scene/Scene.h
 	Lodestone/Scene/SceneSerializer.cpp
@@ -85,7 +97,7 @@ target_compile_definitions(LodestoneCore PUBLIC
 
 target_link_libraries(LodestoneCore
 	PUBLIC spdlog::spdlog glm::glm EnTT::EnTT nlohmann_json::nlohmann_json
-	PRIVATE stb::stb
+	PRIVATE stb::stb cgltf::cgltf
 )
 
 ls_configure_target(LodestoneCore)

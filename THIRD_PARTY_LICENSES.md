@@ -13,6 +13,7 @@ When adding a dependency, add it here with its full license text (see [Tech Stac
 | [sol2](https://github.com/ThePhD/sol2) | develop @ c1f95a7 | MIT | Lua bindings | Yes |
 | [glm](https://github.com/g-truc/glm) | 1.0.3 | MIT (dual-licensed; Lodestone uses it under MIT) | Math | Yes |
 | [stb_image and stb_image_write](https://github.com/nothings/stb) | master @ 2c980bb | MIT (dual-licensed with public domain) | Image loading and saving | Yes |
+| [cgltf](https://github.com/jkuhlmann/cgltf) | 1.15 | MIT | glTF model import | Yes |
 | [GLFW](https://github.com/glfw/glfw) | 3.5.1 | zlib | Windows and device input | Yes |
 | [Vulkan-Headers](https://github.com/KhronosGroup/Vulkan-Headers) | 1.4.363 | MIT (dual-licensed with Apache 2.0; Lodestone uses it under MIT) | Vulkan API and vulkan.hpp | Yes |
 | [NVRHI](https://github.com/NVIDIA-RTX/NVRHI) | main @ 6b96fb0 | MIT | Rendering hardware interface | Yes |
@@ -22,6 +23,16 @@ When adding a dependency, add it here with its full license text (see [Tech Stac
 | [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo) | master @ 18cef5e | MIT | The editor's transform gizmo | No |
 | [cpp-httplib](https://github.com/yhirose/cpp-httplib) | 0.59.0 | MIT | The editor's MCP server over HTTP | No |
 | [doctest](https://github.com/doctest/doctest) | 2.5.3 | MIT | Unit tests | No |
+
+Assets from elsewhere, in the repository for tests only:
+
+| Asset | Author | License | Used for | In exported games |
+|---|---|---|---|---|
+| [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), 1k HDR | Greg Zaal (original), Jarod Guest (sky edits), via Poly Haven | CC0 | Image-based lighting tests (`Tests/Fixtures/Environments/PolyHaven`) | No |
+| [Studio Small 09](https://polyhaven.com/a/studio_small_09), 1k HDR | Sergej Majboroda, via Poly Haven | CC0 | Image-based lighting tests | No |
+| [Venice Sunset](https://polyhaven.com/a/venice_sunset), 1k HDR | Greg Zaal, via Poly Haven | CC0 | Image-based lighting tests | No |
+
+CC0 places these in the public domain, so they carry no license text. They're credited here all the same.
 
 ## spdlog
 
@@ -176,6 +187,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## cgltf
+
+```
+Copyright (c) 2018-2021 Johannes Kuhlmann
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ## GLFW

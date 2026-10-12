@@ -1,12 +1,14 @@
 """The agent smoke test: Milestone 4's acceptance test (see docs/Milestones.md).
 
-An agent - this script - starts the headless editor and builds a scene with MCP tools alone: it creates entities, sets
-their components, makes a prefab and instances it, saves the scene, reloads it, plays it with input, and screenshots
-it, checking the result of every step. It talks to the editor as Claude Code would, over stdio (the editor started with
+An agent - this script - starts the headless editor and builds a scene with MCP tools alone: it imports a model,
+creates entities and sets their components - meshes and lights among them - makes a prefab and instances it, instances
+the model, saves the scene, reloads it, screenshots it and reads the renderer's stats, and plays it with input,
+checking the result of every step. It talks to the editor as Claude Code would, over stdio (the editor started with
 --headless --mcp-stdio) or over HTTP (the editor started with --headless --mcp-port 0), so it also tests both
 transports end to end.
 
-    python McpAgentSmokeTest.py --editor <LodestoneEditor> --transport stdio|http [--vulkan-driver <library>]
+    python McpAgentSmokeTest.py --editor <LodestoneEditor> --transport stdio|http --model <Primitives.glb>
+        [--vulkan-driver <library>]
 """
 
 import argparse
@@ -244,7 +246,7 @@ def find_entities(hierarchy, name):
     return [entity for entity in hierarchy["entities"] if entity["name"] == name]
 
 
-def run(agent, project_directory, client):
+def run(agent, project_directory, client, model_file):
     # The handshake, and the tools an agent discovers
     initialized = agent.request("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
                                                "clientInfo": {"name": "Lodestone smoke test", "version": "1"}})
@@ -252,24 +254,42 @@ def run(agent, project_directory, client):
     check(initialized["serverInfo"]["name"] == "Lodestone Editor", "The server isn't the editor")
     agent.client.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
     tools = {tool["name"] for tool in agent.request("tools/list")["tools"]}
-    for needed in ["project_create", "entity_create", "component_set", "prefab_create", "prefab_instantiate",
-                   "document_save", "scene_open", "viewport_screenshot", "play_start", "input_send"]:
+    for needed in ["project_create", "asset_import", "entity_create", "component_set", "prefab_create",
+                   "prefab_instantiate", "model_instantiate", "document_save", "scene_open", "viewport_screenshot",
+                   "render_stats", "play_start", "input_send"]:
         check(needed in tools, f"The editor has no {needed} tool")
 
     # A project, and what components exist
     agent.tool("project_create", {"directory": str(project_directory), "name": "Smoke Test"})
     components = {component["name"] for component in agent.data("component_types")["components"]}
-    check({"Name", "Transform", "Hierarchy"} <= components, f"Missing core components in {components}")
+    check({"Name", "Transform", "Hierarchy", "MeshRenderer", "DirectionalLight", "PointLight"} <= components,
+          f"Missing components in {components}")
 
-    # Entities with components: a ground, and a tower with a light on top
-    ground = agent.data("entity_create", {"name": "Ground",
-                                          "components": {"Transform": {"Scale": [12, 0.2, 12]}}})["id"]
-    tower = agent.data("entity_create", {"name": "Tower"})["id"]
+    # The empty scene, to compare the finished one with
+    agent.tool("camera_set", {"position": [8, 7, 10], "target": [0, 1, 0]})
+    empty = screenshot(agent, 320, 180)
+
+    # A model to draw with: a plane, a cube and a sphere
+    model = agent.data("asset_import", {"source": str(model_file), "path": "Models/Primitives.glb"})["id"]
+    cube = {"Model": model, "Mesh": 1}
+
+    # Entities with components: the sun, a ground, and a tower with a light on top
+    # Turned 60 degrees down from facing -Z (quaternions are x, y, z, w)
+    agent.data("entity_create", {"name": "Sun", "components": {
+        "Transform": {"Rotation": [-0.5, 0, 0, 0.8660254]}, "DirectionalLight": {"Intensity": 3}}})
+    ground = agent.data("entity_create", {"name": "Ground", "components": {
+        "Transform": {"Scale": [12, 0.2, 12]}, "MeshRenderer": cube}})["id"]
+    tower = agent.data("entity_create", {"name": "Tower", "components": {"MeshRenderer": cube}})["id"]
     agent.data("component_set", {"entity": tower, "component": "Transform",
                                  "fields": {"Position": [-3, 1.5, 0], "Scale": [1, 3, 1]}})
     agent.data("entity_create", {"name": "Light", "parent": tower,
-                                 "components": {"Transform": {"Position": [0, 0.6, 0], "Scale": [0.5, 0.1, 0.5]}}})
+                                 "components": {"Transform": {"Position": [0, 0.6, 0]},
+                                                "PointLight": {"Color": [1, 0.6, 0.3], "Range": 6}}})
     agent.failing_tool("component_set", {"entity": tower, "component": "Transform", "fields": {"Position": "up"}})
+
+    # The whole model, placed beside the towers
+    shapes = agent.data("model_instantiate", {"path": "Models/Primitives.glb"})["id"]
+    agent.data("component_set", {"entity": shapes, "component": "Transform", "fields": {"Position": [-2, 0.5, 3]}})
 
     # A prefab of the tower, instanced twice
     prefab = agent.data("prefab_create", {"entity": tower, "path": "Prefabs/Tower.lprefab"})
@@ -291,7 +311,11 @@ def run(agent, project_directory, client):
 
     hierarchy = agent.data("scene_hierarchy")
     names = [entity["name"] for entity in hierarchy["entities"]]
-    check(names == ["Ground", "Tower", "Light", "Tower", "Light", "Tower", "Light"], f"The scene reloaded as {names}")
+    check(names == ["Sun", "Ground", "Tower", "Light", "Primitives", "Plane", "Cube", "Sphere", "Tower", "Light",
+                    "Tower", "Light"], f"The scene reloaded as {names}")
+    sphere = agent.data("entity_get", {"entity": find_entities(hierarchy, "Sphere")[0]["id"]})
+    check(sphere["components"]["MeshRenderer"] == {"Model": model, "Mesh": 2, "CastShadows": True},
+          f"The model's sphere draws {sphere['components'].get('MeshRenderer')}")
     for instance in instances:
         described = agent.data("entity_get", {"entity": instance})
         check(described["components"]["PrefabInstance"]["Prefab"] == prefab["asset"],
@@ -301,19 +325,26 @@ def run(agent, project_directory, client):
     check(all(abs(actual - expected) < 1e-4 for actual, expected in zip(light["worldPosition"], [3, 3.3, 0])),
           f"The last light is at {light['worldPosition']}")
     assets = {asset["path"] for asset in agent.data("asset_list")["assets"]}
-    check(assets == {"Prefabs/Tower.lprefab", "Scenes/Main.lscene"}, f"The project's assets are {assets}")
+    check(assets == {"Models/Primitives.glb", "Prefabs/Tower.lprefab", "Scenes/Main.lscene"},
+          f"The project's assets are {assets}")
 
     # Screenshots: the scene from the camera, and the selection highlighted
     agent.tool("camera_set", {"position": [8, 7, 10], "target": [0, 1, 0]})
     plain = screenshot(agent, 320, 180)
     agent.tool("selection_set", {"entity": instances[1]})
     selected = screenshot(agent, 320, 180)
-    background = plain[:4]
-    check(abs(background[0] - 31) <= 2 and abs(background[2] - 36) <= 2 and background[3] == 255,
-          f"The top left corner isn't the background: {tuple(background)}")
-    drawn = sum(1 for index in range(0, len(plain), 4) if plain[index:index + 3] != background[:3])
+    check(all(plain[index] == 255 for index in range(3, len(plain), 4)), "The screenshot isn't opaque")
+    drawn = sum(1 for index in range(0, len(plain), 4)
+                if max(abs(plain[index + channel] - empty[index + channel]) for channel in range(3)) > 8)
     check(drawn > len(plain) // 4 // 10, f"Only {drawn} pixels show the scene")
     check(plain != selected, "Selecting an entity didn't highlight it")
+
+    # The renderer drew every mesh, lit
+    stats = agent.data("render_stats")
+    check(stats["meshes"] == 7 and stats["visibleMeshes"] >= 5, f"The renderer saw {stats['visibleMeshes']} of "
+          f"{stats['meshes']} meshes")
+    check(stats["drawCalls"] > stats["visibleMeshes"] and stats["triangles"] > 0, f"The renderer's stats are {stats}")
+    check(stats["directionalLights"] == 1 and stats["shadowCascades"] > 0, f"The sun didn't cast shadows: {stats}")
 
     # Play: input reaches the simulation, and stopping restores the scene
     check(agent.data("play_start", {"paused": True}) == {"state": "Paused", "tick": 0, "queuedInput": 0},
@@ -338,6 +369,8 @@ def main():
     parser.add_argument("--editor", required=True, help="The LodestoneEditor executable")
     parser.add_argument("--transport", required=True, choices=["stdio", "http"])
     parser.add_argument("--vulkan-driver", help="Render screenshots with this Vulkan driver, e.g. lavapipe")
+    parser.add_argument("--model", required=True, type=pathlib.Path,
+                        help="A model to build the scene with: Tests/Fixtures/Models/Primitives.glb")
     arguments = parser.parse_args()
     driver_arguments = ["--vulkan-driver", arguments.vulkan_driver] if arguments.vulkan_driver else []
 
@@ -346,7 +379,7 @@ def main():
         client = (StdioClient if arguments.transport == "stdio" else HttpClient)(arguments.editor, driver_arguments)
         agent = Agent(client)
         try:
-            run(agent, project, client)
+            run(agent, project, client, arguments.model)
             exit_code = client.close() if arguments.transport == "stdio" else client.close(agent)
             check(exit_code == 0, f"The editor exited with {exit_code}")
             check((project / "Assets" / "Scenes" / "Main.lscene").is_file(), "The scene file wasn't written")

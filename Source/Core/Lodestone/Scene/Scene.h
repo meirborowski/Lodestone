@@ -79,8 +79,14 @@ namespace Lodestone {
 			std::span<const Entity> entities, std::span<const UUID> parents);
 		// The root entities, in order
 		std::span<const UUID> GetRootEntities() const { return m_Roots; }
-		// The entity's transform relative to the world: its local transform combined with its ancestors'
-		glm::mat4 GetWorldMatrix(Entity entity) const;
+		// The entity's transform relative to the world: its local transform combined with its ancestors'. With an
+		// interpolation factor under 1, each of them is where it's drawn part way through the latest simulation tick
+		// (see GetInterpolatedTransform())
+		glm::mat4 GetWorldMatrix(Entity entity, float interpolationFactor = 1.0f) const;
+		// The entity's local transform part way through the latest simulation tick: interpolated by the factor from
+		// where it was at the tick's start (0, its PreviousTransformComponent) to where it is (1). Entities without a
+		// previous transform - created during the tick, or not simulated - are where they are
+		TransformComponent GetInterpolatedTransform(entt::entity handle, float interpolationFactor) const;
 
 		entt::registry& GetRegistry() { return m_Registry; }
 		const entt::registry& GetRegistry() const { return m_Registry; }

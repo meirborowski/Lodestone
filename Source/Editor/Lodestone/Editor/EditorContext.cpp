@@ -1,15 +1,18 @@
 #include "Lodestone/Editor/EditorContext.h"
 
+#include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
+#include "Lodestone/Scene/ModelEntities.h"
 #include "Lodestone/Scene/PrefabSerializer.h"
 #include "Lodestone/Scene/SceneSerializer.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
 
+#include <string>
 #include <system_error>
 #include <utility>
 
@@ -104,6 +107,14 @@ namespace Lodestone {
 			return std::unexpected(Error(ErrorCode::InvalidArgument,
 				fmt::format("'{}' is outside the project's asset directory", relativePath)));
 		return resolved;
+	}
+
+	std::expected<AssetScanReport, Error> EditorContext::ScanAssets()
+	{
+		if (!m_Assets)
+			return std::unexpected(Error(ErrorCode::InvalidState, "No project is open"));
+		++m_AssetGeneration;
+		return m_Assets->Scan();
 	}
 
 	std::expected<void, Error> EditorContext::NewScene()
@@ -232,6 +243,52 @@ namespace Lodestone {
 		return instance.GetInstanceId();
 	}
 
+	std::expected<UUID, Error> EditorContext::InstantiateModel(
+		std::string_view path, UUID parent, std::optional<size_t> index)
+	{
+		if (auto editing = RequireEditing(); !editing)
+			return std::unexpected(editing.error());
+		const auto resolved = ResolveAssetPath(path);
+		if (!resolved)
+			return std::unexpected(resolved.error());
+		if (GetAssetTypeForFile(*resolved) != AssetType::Model)
+			return std::unexpected(Error(ErrorCode::InvalidArgument,
+				fmt::format("{} isn't a model: models are .gltf or .glb files", PathToUtf8(resolved->filename()))));
+
+		// The meshes refer to the model by its asset UUID, so it must be registered
+		const std::filesystem::path relative =
+			resolved->lexically_relative(m_Project->GetAssetDirectory().lexically_normal());
+		const AssetInfo* asset = m_Assets->FindByPath(relative);
+		if (asset == nullptr && std::filesystem::is_regular_file(*resolved))
+		{
+			RescanAssets();
+			asset = m_Assets->FindByPath(relative);
+		}
+		if (asset == nullptr)
+			return std::unexpected(Error(ErrorCode::NotFound, fmt::format("The project has no model '{}'", path)));
+		// Only the nodes and meshes are needed: the renderer loads the textures when it draws the model
+		auto model = ModelImporter::Import(*resolved, {.LoadTextures = false});
+		if (!model)
+			return std::unexpected(model.error());
+
+		const std::string name = PathToUtf8(resolved->stem());
+		auto command = CreateScope<InstantiateModelCommand>(
+			BuildModelEntities(*model, asset->Metadata.Id, name, *m_Components), name, parent, index);
+		const InstantiateModelCommand& instance = *command;
+		if (auto executed = Execute(std::move(command)); !executed)
+			return std::unexpected(executed.error());
+		// The history owns the command now
+		return instance.GetInstanceId();
+	}
+
+	std::expected<UUID, Error> EditorContext::InstantiateAsset(
+		std::string_view path, UUID parent, std::optional<size_t> index)
+	{
+		if (GetAssetTypeForFile(PathFromUtf8(path)) == AssetType::Model)
+			return InstantiateModel(path, parent, index);
+		return InstantiatePrefab(path, parent, index);
+	}
+
 	std::expected<void, Error> EditorContext::Execute(Scope<Command> command)
 	{
 		if (auto editing = RequireEditing(); !editing)
@@ -357,7 +414,7 @@ namespace Lodestone {
 	{
 		if (m_Assets)
 		{
-			if (auto scanned = m_Assets->Scan(); !scanned)
+			if (auto scanned = ScanAssets(); !scanned)
 				LS_CORE_ERROR("Scanning the project's assets failed: {}", scanned.error());
 		}
 	}

@@ -7,7 +7,7 @@
 namespace Lodestone {
 
 	std::expected<Scope<RenderTarget>, Error> RenderTarget::Create(
-		nvrhi::IDevice* device, glm::uvec2 size, const char* debugName)
+		nvrhi::IDevice* device, glm::uvec2 size, std::string_view debugName)
 	{
 		auto target = CreateScope<RenderTarget>(Passkey(), device, debugName);
 		if (auto resized = target->Resize(size); !resized)
@@ -15,7 +15,7 @@ namespace Lodestone {
 		return target;
 	}
 
-	RenderTarget::RenderTarget(Passkey /*passkey*/, nvrhi::IDevice* device, const char* debugName)
+	RenderTarget::RenderTarget(Passkey /*passkey*/, nvrhi::IDevice* device, std::string_view debugName)
 		: m_Device(device), m_DebugName(debugName)
 	{
 	}
@@ -47,6 +47,7 @@ namespace Lodestone {
 		depth.format = DepthFormat;
 		depth.debugName = depthName;
 		depth.isRenderTarget = true;
+		depth.isShaderResource = true;
 		depth.initialState = nvrhi::ResourceStates::DepthWrite;
 		depth.keepInitialState = true;
 		nvrhi::TextureHandle depthTexture = m_Device->createTexture(depth);

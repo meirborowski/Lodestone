@@ -66,6 +66,11 @@ namespace Lodestone {
 		// A path inside the asset directory, from a path relative to it. Fails without a project, and for paths that
 		// would leave the asset directory
 		[[nodiscard]] std::expected<std::filesystem::path, Error> ResolveAssetPath(std::string_view relativePath) const;
+		// Finds new, changed and removed assets (see AssetRegistry::Scan()). Fails without a project
+		[[nodiscard]] std::expected<AssetScanReport, Error> ScanAssets();
+		// Changes whenever the project's assets may have: when a project opens, and with every scan - so whatever
+		// keeps assets loaded knows to load them again
+		uint64_t GetAssetGeneration() const { return m_AssetGeneration; }
 
 		// The open document
 		Scene& GetScene() { return *m_Scene; }
@@ -86,6 +91,14 @@ namespace Lodestone {
 		// Instances a prefab asset into the document, as a command, under a parent (nil for a root entity). Returns
 		// the instance's root
 		[[nodiscard]] std::expected<UUID, Error> InstantiatePrefab(
+			std::string_view path, UUID parent = {}, std::optional<size_t> index = std::nullopt);
+		// Instances a model asset (.gltf or .glb) into the document, as a command: an entity for each of the model's
+		// nodes, drawing its meshes, under a root named after the model (see BuildModelEntities()), under a parent
+		// (nil for a root entity). Returns the root
+		[[nodiscard]] std::expected<UUID, Error> InstantiateModel(
+			std::string_view path, UUID parent = {}, std::optional<size_t> index = std::nullopt);
+		// Instances a prefab or a model, whichever the asset is
+		[[nodiscard]] std::expected<UUID, Error> InstantiateAsset(
 			std::string_view path, UUID parent = {}, std::optional<size_t> index = std::nullopt);
 
 		// Editing. Commands are rejected in play mode: what changes while playing is thrown away when it stops
@@ -134,6 +147,7 @@ namespace Lodestone {
 		const ComponentRegistry* m_Components;
 		Scope<Project> m_Project;
 		Scope<AssetRegistry> m_Assets;
+		uint64_t m_AssetGeneration = 0;
 
 		Scope<Scene> m_Scene;
 		DocumentKind m_DocumentKind = DocumentKind::Scene;

@@ -99,6 +99,12 @@ ls_declare_dependency(stb
 	SHA256 9a955b1b49a4410088a2e0ee2a9c057c3c907d0c1d75454144cb980aca0ba515
 )
 
+# cgltf - glTF 2.0 parsing for model import (MIT). Single header; the target is defined below
+ls_declare_dependency(cgltf POPULATE_ONLY
+	URL https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.15.tar.gz
+	SHA256 84e352092e5cd6aab7f66de62ddb66beb5e6f18d412ca9d12950d7a55bfef25a
+)
+
 # GLFW - windows and device input (zlib)
 ls_declare_dependency(glfw
 	URL https://github.com/glfw/glfw/releases/download/3.5.1/glfw-3.5.1.zip
@@ -168,7 +174,7 @@ ls_declare_dependency(httplib POPULATE_ONLY
 )
 
 FetchContent_MakeAvailable(
-	spdlog doctest lua sol2 glm stb glfw vulkan_headers nvrhi entt nlohmann_json imgui imguizmo httplib)
+	spdlog doctest lua sol2 glm stb cgltf glfw vulkan_headers nvrhi entt nlohmann_json imgui imguizmo httplib)
 
 # NVRHI's Vulkan backend calls into NVRHI's common library without declaring it. Linkers that resolve symbols in one
 # pass (GNU ld) need the common library after the backend on the command line, which this dependency guarantees
@@ -186,7 +192,21 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/stb/StbImplementation.cpp" CO
 add_library(stb STATIC EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/stb/StbImplementation.cpp")
 add_library(stb::stb ALIAS stb)
 target_include_directories(stb SYSTEM PUBLIC "${stb_SOURCE_DIR}")
-target_compile_definitions(stb PUBLIC STBI_ONLY_PNG STBI_ONLY_JPEG STBI_NO_STDIO STBI_WRITE_NO_STDIO)
+target_compile_definitions(stb PUBLIC
+	STBI_ONLY_PNG STBI_ONLY_JPEG STBI_ONLY_HDR STBI_NO_STDIO STBI_WRITE_NO_STDIO
+	# No image is wider or taller than this, so a hostile file can't make stb allocate gigabytes
+	STBI_MAX_DIMENSIONS=16384
+)
+
+# cgltf, compiled once in a translation unit of its own, like stb. Lodestone reads every file it loads itself, through
+# callbacks, so models can only reach files beside them (see Lodestone/Asset/ModelImporter.cpp)
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/cgltf/CgltfImplementation.cpp" CONTENT [[
+#define CGLTF_IMPLEMENTATION
+#include <cgltf.h>
+]])
+add_library(cgltf STATIC EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/cgltf/CgltfImplementation.cpp")
+add_library(cgltf::cgltf ALIAS cgltf)
+target_include_directories(cgltf SYSTEM PUBLIC "${cgltf_SOURCE_DIR}")
 
 include("${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake")
 

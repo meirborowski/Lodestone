@@ -1,0 +1,40 @@
+{
+  "format": "Lodestone.BenchmarkBaseline",
+  "version": 1,
+  "drawCalls": 22503,
+  "triangles": 9188138,
+  "local": {
+    "device": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "driver": "NVIDIA 592.82",
+    "size": [
+      1920,
+      1080
+    ],
+    "frames": 300,
+    "probeFrames": 16,
+    "drawCalls": 22503,
+    "triangles": 9188138,
+    "cpuMilliseconds": {
+      "mean": 1.6358743333333332,
+      "p95": 2.2368
+    },
+    "wallMilliseconds": {
+      "mean": 4.184789999999997,
+      "p95": 5.1477
+    },
+    "gpuMilliseconds": {
+      "mean": 2.2423085405258147,
+      "p95": 2.800639872020838
+    },
+    "gpuPassMilliseconds": {
+      "Shadows": 0.23818840824626697,
+      "Prepass": 0.10092607070049459,
+      "Ambient occlusion": 0.959917030026233,
+      "Opaque": 0.8595587195513963,
+      "Sky": 0.02310785220498264,
+      "Transparent": 0.007084200456956507,
+      "Tonemap": 0.05352625933948462
+    },
+    "fps": 445.9689565136754
+  }
+}

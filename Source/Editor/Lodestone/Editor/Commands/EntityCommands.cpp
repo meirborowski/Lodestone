@@ -270,22 +270,12 @@ namespace Lodestone {
 		return DestroyById(scene, m_CopyId);
 	}
 
-	InstantiatePrefabCommand::InstantiatePrefabCommand(
-		Json::Value prefab, UUID prefabAsset, std::string prefabName, UUID parent, std::optional<size_t> index)
-		: m_Prefab(std::move(prefab)),
-		  m_PrefabAsset(prefabAsset),
-		  m_PrefabName(std::move(prefabName)),
-		  m_Parent(parent),
-		  m_Index(index)
+	InstantiateEntitiesCommand::InstantiateEntitiesCommand(UUID parent, std::optional<size_t> index)
+		: m_Parent(parent), m_Index(index)
 	{
 	}
 
-	std::string InstantiatePrefabCommand::GetName() const
-	{
-		return fmt::format("Instance prefab '{}'", m_PrefabName);
-	}
-
-	std::expected<void, Error> InstantiatePrefabCommand::Execute(Scene& scene)
+	std::expected<void, Error> InstantiateEntitiesCommand::Execute(Scene& scene)
 	{
 		const auto parent = FindParent(scene, m_Parent);
 		if (!parent)
@@ -293,7 +283,7 @@ namespace Lodestone {
 
 		if (m_Instance.is_null())
 		{
-			auto instance = PrefabSerializer::Instantiate(scene, m_Prefab, m_PrefabAsset, *parent, m_Index);
+			auto instance = InstantiateFirst(scene, *parent, m_Index);
 			if (!instance)
 				return std::unexpected(instance.error());
 			m_InstanceId = instance->GetId();
@@ -307,9 +297,47 @@ namespace Lodestone {
 		return {};
 	}
 
-	std::expected<void, Error> InstantiatePrefabCommand::Undo(Scene& scene)
+	std::expected<void, Error> InstantiateEntitiesCommand::Undo(Scene& scene)
 	{
 		return DestroyById(scene, m_InstanceId);
+	}
+
+	InstantiatePrefabCommand::InstantiatePrefabCommand(
+		Json::Value prefab, UUID prefabAsset, std::string prefabName, UUID parent, std::optional<size_t> index)
+		: InstantiateEntitiesCommand(parent, index),
+		  m_Prefab(std::move(prefab)),
+		  m_PrefabAsset(prefabAsset),
+		  m_PrefabName(std::move(prefabName))
+	{
+	}
+
+	std::string InstantiatePrefabCommand::GetName() const
+	{
+		return fmt::format("Instance prefab '{}'", m_PrefabName);
+	}
+
+	std::expected<Entity, Error> InstantiatePrefabCommand::InstantiateFirst(
+		Scene& scene, Entity parent, std::optional<size_t> index)
+	{
+		return PrefabSerializer::Instantiate(scene, m_Prefab, m_PrefabAsset, parent, index);
+	}
+
+	InstantiateModelCommand::InstantiateModelCommand(
+		Json::Value entities, std::string modelName, UUID parent, std::optional<size_t> index)
+		: InstantiateEntitiesCommand(parent, index), m_Entities(std::move(entities)), m_ModelName(std::move(modelName))
+	{
+	}
+
+	std::string InstantiateModelCommand::GetName() const
+	{
+		return fmt::format("Instance model '{}'", m_ModelName);
+	}
+
+	std::expected<Entity, Error> InstantiateModelCommand::InstantiateFirst(
+		Scene& scene, Entity parent, std::optional<size_t> index)
+	{
+		return EntitySerializer::InstantiateTree(
+			scene, m_Entities, EntitySerializer::IdPolicy::Regenerate, parent, index);
 	}
 
 	SetParentCommand::SetParentCommand(UUID id, UUID parent, std::optional<size_t> index)

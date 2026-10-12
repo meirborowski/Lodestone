@@ -1,7 +1,9 @@
 #include "Lodestone/Scene/Components.h"
 
 #include "Lodestone/Reflection/ComponentRegistry.h"
+#include "Lodestone/Scene/RenderComponents.h"
 
+#include <glm/common.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace Lodestone {
@@ -10,6 +12,15 @@ namespace Lodestone {
 	{
 		const glm::mat4 translation = glm::translate(glm::mat4(1.0f), Position);
 		return translation * glm::mat4_cast(Rotation) * glm::scale(glm::mat4(1.0f), Scale);
+	}
+
+	TransformComponent InterpolateTransform(const TransformComponent& from, const TransformComponent& to, float factor)
+	{
+		TransformComponent interpolated;
+		interpolated.Position = glm::mix(from.Position, to.Position, factor);
+		interpolated.Rotation = glm::slerp(from.Rotation, to.Rotation, factor);
+		interpolated.Scale = glm::mix(from.Scale, to.Scale, factor);
+		return interpolated;
 	}
 
 	void RegisterCoreComponents(ComponentRegistry& registry)
@@ -58,6 +69,7 @@ namespace Lodestone {
 		{
 			auto* registry = new ComponentRegistry();
 			RegisterCoreComponents(*registry);
+			RegisterRenderComponents(*registry);
 			return registry;
 		}();
 		return *s_Registry;

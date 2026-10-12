@@ -4,9 +4,6 @@
 #include "Lodestone/Core/Log.h"
 #include "Lodestone/Scene/Entity.h"
 
-#include <glm/common.hpp>
-#include <glm/gtc/quaternion.hpp>
-
 #include <algorithm>
 #include <cmath>
 
@@ -82,18 +79,8 @@ namespace Lodestone {
 
 	TransformComponent Simulation::GetInterpolatedTransform(Entity entity) const
 	{
-		const TransformComponent& current = entity.GetTransform();
-		const auto* previous = entity.TryGet<PreviousTransformComponent>();
-		// Entities created during the latest tick have nowhere to come from
-		if (previous == nullptr)
-			return current;
-
-		const float factor = GetInterpolationFactor();
-		TransformComponent interpolated;
-		interpolated.Position = glm::mix(previous->Transform.Position, current.Position, factor);
-		interpolated.Rotation = glm::slerp(previous->Transform.Rotation, current.Rotation, factor);
-		interpolated.Scale = glm::mix(previous->Transform.Scale, current.Scale, factor);
-		return interpolated;
+		LS_CORE_ASSERT(entity.GetScene() == m_Scene && entity.IsValid(), "The entity isn't in the simulated scene");
+		return m_Scene->GetInterpolatedTransform(entity.GetHandle(), GetInterpolationFactor());
 	}
 
 	SimulationState Simulation::SaveState() const

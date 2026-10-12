@@ -149,6 +149,25 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+      # The benchmark's CPU frame time, in the job summary: reported, not gated, as shared runners are too noisy. Its
+      # draw calls are gated by a test above (see docs/Testing.md#performance)
+      - name: Report the benchmark
+        if: matrix.preset == 'release' && matrix.toolchain.lavapipe == 'ON'
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            benchmark=build/release/Tests/LodestoneBenchmark.exe
+            driver="$(cygpath -wa .cache/lavapipe/mesa-*-windows/x64/vulkan_lvp.dll)"
+            python=python
+          else
+            benchmark=build/release/Tests/LodestoneBenchmark
+            driver="$(ls "$PWD"/.cache/lavapipe/*/lib/libvulkan_lvp.so)"
+            python=python3
+          fi
+          "$benchmark" --frames 30 --size 640x360 --vulkan-driver "$driver" --output benchmark.json > /dev/null
+          "$python" tools/benchmark-summary.py benchmark.json "Benchmark: ${{ matrix.toolchain.name }}" \
+            >> "$GITHUB_STEP_SUMMARY"
+
       # The Vulkan loader lists window surface extensions only for installed drivers, and the runner has no GPU
       # driver, so the windowed runtime needs lavapipe installed as a system driver. Rendering tests, above, load it
       # directly instead

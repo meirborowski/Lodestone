@@ -1,13 +1,16 @@
 #pragma once
 
 #include "Lodestone/Core/Error.h"
+#include "Lodestone/Core/UUID.h"
 #include "Lodestone/Editor/EditorContext.h"
+#include "Lodestone/Renderer/RenderStats.h"
 
 #include <glm/vec2.hpp>
 #include <imgui.h>
 
 #include <expected>
 #include <functional>
+#include <optional>
 
 namespace Lodestone {
 
@@ -25,10 +28,19 @@ namespace Lodestone {
 	public:
 		static constexpr const char* Title = "Viewport";
 
-		// Sizes the scene's image and returns its texture, to show this frame
-		using PrepareImage = std::function<std::expected<ImTextureID, Error>(glm::uvec2 size)>;
+		// What the panel needs from the renderer behind it
+		struct Host
+		{
+			// Sizes the scene's image and returns its texture, to show this frame
+			std::function<std::expected<ImTextureID, Error>(glm::uvec2 size)> PrepareImage;
+			// The entity under a point of the image (in pixels from its top left), or the nil UUID. Without it,
+			// clicking picks entities by their markers alone
+			std::function<UUID(glm::uvec2 size, glm::vec2 point)> PickEntity;
+			// The renderer's stats for the latest frame, if it has any
+			std::function<std::optional<RenderStats>()> GetStats;
+		};
 
-		void Draw(EditorContext& context, const PrepareImage& prepareImage, float frameSeconds, bool* open);
+		void Draw(EditorContext& context, const Host& host, float frameSeconds, bool* open);
 
 		// Whether the panel showed the scene this frame, so it needs rendering
 		bool IsVisible() const { return m_Visible; }
@@ -46,7 +58,7 @@ namespace Lodestone {
 		void HandleShortcuts(EditorContext& context);
 		void HandleCamera(EditorContext& context, glm::vec2 size) const;
 		void DrawGizmo(EditorContext& context, glm::vec2 position, glm::vec2 size);
-		void DrawStats(const EditorContext& context, glm::vec2 position, float frameSeconds);
+		void DrawStats(const EditorContext& context, const Host& host, glm::vec2 position, float frameSeconds);
 
 	private:
 		GizmoOperation m_Operation = GizmoOperation::Translate;

@@ -253,6 +253,32 @@ namespace Lodestone {
 			Near(scene.GetWorldMatrix(parent) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), glm::vec4(10.0f, 0.0f, 0.0f, 1.0f)));
 	}
 
+	TEST_CASE("World matrices interpolate every ancestor from the start of the latest tick")
+	{
+		Scene scene;
+		Entity parent = scene.CreateEntity();
+		Entity child = scene.CreateEntity();
+		REQUIRE(scene.SetParent(child, parent).has_value());
+		parent.GetTransform().Position = glm::vec3(10.0f, 0.0f, 0.0f);
+		parent.Add<PreviousTransformComponent>(PreviousTransformComponent{.Transform = TransformComponent{}});
+		child.GetTransform().Position = glm::vec3(0.0f, 4.0f, 0.0f);
+		child.Add<PreviousTransformComponent>(
+			PreviousTransformComponent{.Transform = TransformComponent{.Position = glm::vec3(0.0f, 2.0f, 0.0f)}});
+		const auto origin = [&scene](Entity entity, float factor) { return scene.GetWorldMatrix(entity, factor)[3]; };
+
+		CHECK(Near(origin(child, 0.25f), glm::vec4(2.5f, 2.5f, 0.0f, 1.0f)));
+		CHECK(Near(origin(child, 0.0f), glm::vec4(0.0f, 2.0f, 0.0f, 1.0f)));
+		// Factors beyond the tick are clamped to it, and the end of the tick is exactly the current transforms
+		CHECK(Near(origin(child, -1.0f), glm::vec4(0.0f, 2.0f, 0.0f, 1.0f)));
+		CHECK(scene.GetWorldMatrix(child, 1.0f) == scene.GetWorldMatrix(child));
+		CHECK(scene.GetWorldMatrix(child, 2.0f) == scene.GetWorldMatrix(child));
+		CHECK(Near(origin(child, 1.0f), glm::vec4(10.0f, 4.0f, 0.0f, 1.0f)));
+
+		// An entity without a previous transform - created during the tick - is where it is
+		child.Remove<PreviousTransformComponent>();
+		CHECK(Near(origin(child, 0.25f), glm::vec4(2.5f, 4.0f, 0.0f, 1.0f)));
+	}
+
 	TEST_CASE("A snapshot restores the scene exactly, entity handles included")
 	{
 		Scene scene;

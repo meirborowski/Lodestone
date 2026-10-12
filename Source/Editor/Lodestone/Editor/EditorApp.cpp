@@ -50,9 +50,12 @@ namespace Lodestone {
 			"create one with project_create; scenes and prefabs are saved in its Assets directory, and every path "
 			"you give is relative to it. Entities are identified by UUIDs. component_types lists every component and "
 			"its fields: add them with component_add and change them with component_set. Every edit is a command "
-			"that edit_undo can undo. viewport_screenshot shows the scene from the editor camera (camera_set and "
-			"camera_frame move it). play_start runs the scene; input_send plays it, play_step runs ticks while "
-			"paused, and play_stop restores the scene as it was. log_read shows the log, including errors.";
+			"that edit_undo can undo. Models (.gltf, .glb) and environments (.hdr) come into the project with "
+			"asset_import; model_instantiate places a model, MeshRenderer components draw meshes, and the light, "
+			"Environment and RenderSettings components light the scene. viewport_screenshot shows the scene from the "
+			"editor camera (camera_set and camera_frame move it), and render_stats what the renderer did. play_start "
+			"runs the scene; input_send plays it, play_step runs ticks while paused, and play_stop restores the scene "
+			"as it was. log_read shows the log, including errors.";
 
 		// How often the headless editor wakes up when nothing happens: to see whether its stdio client has gone,
 		// and, while playing, to run the simulation
@@ -164,6 +167,8 @@ namespace Lodestone {
 				return m_View->Capture(context, size);
 			}
 
+			// The latest screenshot's render stats
+			std::optional<RenderStats> GetStats() const { return m_View ? m_View->GetStats() : std::nullopt; }
 			uint32_t GetValidationErrorCount() const { return m_Device ? m_Device->GetValidationErrorCount() : 0; }
 
 		private:
@@ -200,6 +205,7 @@ namespace Lodestone {
 			EditorToolHost host;
 			host.Capture = [&capture, &context](uint32_t width, uint32_t height)
 			{ return capture.Capture(context, glm::uvec2(width, height)); };
+			host.GetRenderStats = [&capture] { return capture.GetStats(); };
 			if (!options.McpStdio)
 				host.RequestQuit = [&quit] { quit = true; };
 			RegisterEditorTools(server, context, std::move(host));
@@ -303,6 +309,7 @@ namespace Lodestone {
 			EditorToolHost host;
 			host.Capture = [&sceneView, &context](uint32_t width, uint32_t height)
 			{ return (*sceneView)->Capture(context, glm::uvec2(width, height)); };
+			host.GetRenderStats = [&sceneView] { return (*sceneView)->GetStats(); };
 			host.RequestQuit = [&quit] { quit = true; };
 			RegisterEditorTools(server, context, std::move(host));
 			auto http = StartHttp(options, server, dispatcher);
@@ -335,13 +342,17 @@ namespace Lodestone {
 				return std::unexpected(imguiRenderer.error());
 
 			EditorUIHost uiHost;
-			uiHost.PrepareViewport = [&sceneView, &imguiRenderer](glm::uvec2 size) -> std::expected<ImTextureID, Error>
+			uiHost.Viewport.PrepareImage = [&sceneView, &imguiRenderer](
+											   glm::uvec2 size) -> std::expected<ImTextureID, Error>
 			{
 				const auto texture = (*sceneView)->PrepareViewport(size);
 				if (!texture)
 					return std::unexpected(texture.error());
 				return (*imguiRenderer)->GetTextureId(*texture);
 			};
+			uiHost.Viewport.PickEntity = [&sceneView, &context](glm::uvec2 size, glm::vec2 point)
+			{ return (*sceneView)->PickEntity(context, size, point); };
+			uiHost.Viewport.GetStats = [&sceneView] { return (*sceneView)->GetStats(); };
 			uiHost.McpUrl = *http ? (*http)->GetUrl() : std::string();
 			EditorUI ui(context, std::move(uiHost));
 

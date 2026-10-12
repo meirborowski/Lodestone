@@ -36,6 +36,10 @@ namespace Lodestone {
 		glm::mat4 GetMatrix() const;
 	};
 
+	// A transform between two others: position and scale interpolated linearly, rotation spherically. A factor of 0
+	// gives the first, 1 the second
+	TransformComponent InterpolateTransform(const TransformComponent& from, const TransformComponent& to, float factor);
+
 	// The entity's place in the scene hierarchy. Only Scene changes it, which keeps parents and children consistent
 	// (see Scene::SetParent)
 	struct HierarchyComponent

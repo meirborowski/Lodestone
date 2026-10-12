@@ -19,8 +19,8 @@ namespace Lodestone {
 	// What the editor UI needs from the application around it
 	struct EditorUIHost
 	{
-		// Sizes the viewport's image and returns its texture, to show this frame
-		ViewportPanel::PrepareImage PrepareViewport;
+		// The renderer behind the viewport: its image, picking and stats
+		ViewportPanel::Host Viewport;
 		// Where MCP clients reach the editor over HTTP, if it serves HTTP
 		std::string McpUrl;
 	};

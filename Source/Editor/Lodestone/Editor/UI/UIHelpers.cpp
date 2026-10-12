@@ -80,4 +80,9 @@ namespace Lodestone {
 		return dropped;
 	}
 
+	bool IsInstantiable(std::optional<AssetType> type)
+	{
+		return type == AssetType::Prefab || type == AssetType::Model;
+	}
+
 }

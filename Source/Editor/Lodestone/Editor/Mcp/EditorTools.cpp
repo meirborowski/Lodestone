@@ -827,6 +827,37 @@ namespace Lodestone {
 					return McpToolResult::Structured(
 						{{"done", context.GetHistory().GetUndoName().value_or("")}, {"id", instance->ToString()}});
 				}});
+
+			server.AddTool({.Name = "model_instantiate",
+				.Title = "Instance a model",
+				.Description =
+					"Places a model asset (.gltf or .glb) in the open document: a root entity named after the "
+					"model, with an entity for each of the model's nodes below it - with the node's name and "
+					"transform, and a MeshRenderer for nodes with a mesh. Optionally under a parent. Returns "
+					"the root's UUID",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"path": {"type": "string", "description": "The model, relative to the project's Assets directory"},
+					"parent": {"type": ["string", "null"], "description": "The parent's UUID; absent or null for a root entity"},
+					"index": {"type": "integer", "minimum": 0}},
+					"required": ["path"]})"),
+				.Handler = [&context](const Json::Value& json)
+				{
+					const Arguments arguments(json);
+					const auto path = arguments.String("path");
+					const auto parent = arguments.OptionalId("parent");
+					const auto index = arguments.OptionalIndex("index");
+					if (!path)
+						return Fail(path.error());
+					if (!parent)
+						return Fail(parent.error());
+					if (!index)
+						return Fail(index.error());
+					const auto instance = context.InstantiateModel(*path, *parent, *index);
+					if (!instance)
+						return Fail(instance.error());
+					return McpToolResult::Structured(
+						{{"done", context.GetHistory().GetUndoName().value_or("")}, {"id", instance->ToString()}});
+				}});
 		}
 
 		void AddHistoryTools(McpServer& server, EditorContext& context)
@@ -1034,13 +1065,55 @@ namespace Lodestone {
 				}});
 		}
 
-		void AddViewTools(McpServer& server, EditorContext& context, ViewportCapture capture)
+		Json::Value DescribeRenderStats(const RenderStats& stats)
 		{
+			Json::Value passes = Json::Value::array();
+			for (size_t pass = 0; pass < RenderPassCount; ++pass)
+			{
+				Json::Value described = {
+					{"name", ToString(static_cast<RenderPass>(pass))}, {"drawCalls", stats.PassDrawCalls[pass]}};
+				described["gpuMilliseconds"] =
+					stats.GpuPassTimes ? Json::Value((*stats.GpuPassTimes)[pass]) : Json::Value();
+				passes.push_back(std::move(described));
+			}
+			const std::optional<double> gpu = stats.GetGpuTime();
+			return {{"drawCalls", stats.DrawCalls}, {"triangles", stats.Triangles}, {"meshes", stats.Meshes},
+				{"visibleMeshes", stats.VisibleMeshes}, {"directionalLights", stats.DirectionalLights},
+				{"punctualLights", stats.PunctualLights}, {"shadowCascades", stats.ShadowCascades},
+				{"cpuMilliseconds", stats.CpuTime}, {"gpuMilliseconds", gpu ? Json::Value(*gpu) : Json::Value()},
+				{"passes", std::move(passes)}};
+		}
+
+		void AddViewTools(McpServer& server, EditorContext& context, ViewportCapture capture,
+			std::function<std::optional<RenderStats>()> getRenderStats)
+		{
+			server.AddTool({.Name = "render_stats",
+				.Title = "Read the renderer's stats",
+				.Description =
+					"What the renderer did for its latest frame - the viewport's, or in a headless editor the "
+					"latest screenshot's: draw calls and triangles in all and per pass, meshes seen, lights, "
+					"shadow cascades, and CPU and GPU milliseconds. GPU times are of an earlier frame, and "
+					"null until one finishes or where the GPU can't time work",
+				.InputSchema = Schema(R"({"type": "object", "properties": {}})"),
+				.ReadOnly = true,
+				.Handler = [getRenderStats = std::move(getRenderStats)](const Json::Value&)
+				{
+					if (!getRenderStats)
+						return McpToolResult::Failure("The editor has no renderer: it has no graphics device");
+					const std::optional<RenderStats> stats = getRenderStats();
+					if (!stats)
+						return McpToolResult::Failure(
+							"Nothing has rendered yet: show the viewport, or take a screenshot (viewport_screenshot)");
+					return McpToolResult::Structured(DescribeRenderStats(*stats));
+				}});
+
 			server.AddTool({.Name = "viewport_screenshot",
 				.Title = "Screenshot the viewport",
-				.Description = "Renders the open document from the editor camera and returns it as a PNG. Until the "
-							   "scene renderer arrives, entities show as shaded cubes on a ground grid, the selection "
-							   "in orange",
+				.Description =
+					"Renders the open document from the editor camera and returns it as a PNG: the scene as "
+					"it's lit and shaded, with the editor's overlay - a ground grid, a marker for each entity "
+					"that draws nothing itself (lights yellow, cameras blue, others grey), and the selection "
+					"outlined in orange",
 				.InputSchema = Schema(R"({"type": "object", "properties": {
 					"width": {"type": "integer", "minimum": 16, "maximum": 4096, "description": "1280 by default"},
 					"height": {"type": "integer", "minimum": 16, "maximum": 4096, "description": "720 by default"}}})"),
@@ -1220,7 +1293,7 @@ namespace Lodestone {
 					if (error)
 						return McpToolResult::Failure(
 							fmt::format("Copying {} to {} failed: {}", *source, *path, error.message()));
-					if (auto scanned = context.GetAssets()->Scan(); !scanned)
+					if (auto scanned = context.ScanAssets(); !scanned)
 						return Fail(scanned.error());
 					const AssetInfo* asset = context.GetAssets()->FindByPath(PathFromUtf8(*path));
 					if (asset == nullptr)
@@ -1237,9 +1310,7 @@ namespace Lodestone {
 				.InputSchema = Schema(R"({"type": "object", "properties": {}})"),
 				.Handler = [&context](const Json::Value&)
 				{
-					if (context.GetAssets() == nullptr)
-						return McpToolResult::Failure("No project is open");
-					const auto report = context.GetAssets()->Scan();
+					const auto report = context.ScanAssets();
 					if (!report)
 						return Fail(report.error());
 					Json::Value errors = Json::Value::array();
@@ -1262,7 +1333,7 @@ namespace Lodestone {
 		AddPrefabTools(server, context);
 		AddHistoryTools(server, context);
 		AddPlayTools(server, context);
-		AddViewTools(server, context, std::move(host.Capture));
+		AddViewTools(server, context, std::move(host.Capture), std::move(host.GetRenderStats));
 		AddLogAndAssetTools(server, context);
 	}
 

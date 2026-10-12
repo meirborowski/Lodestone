@@ -1,5 +1,6 @@
 #include "Lodestone/Editor/UI/HierarchyPanel.h"
 
+#include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Editor/UI/UIHelpers.h"
 #include "Lodestone/Scene/Entity.h"
@@ -21,9 +22,11 @@ namespace Lodestone {
 				context.Select(created.GetEntityId());
 		}
 
-		void InstantiatePrefab(EditorContext& context, const std::string& path, UUID parent)
+		void InstantiateAsset(EditorContext& context, const std::string& path, UUID parent)
 		{
-			const auto instance = context.InstantiatePrefab(path, parent);
+			if (!IsInstantiable(GetAssetTypeForFile(PathFromUtf8(path))))
+				return;
+			const auto instance = context.InstantiateAsset(path, parent);
 			if (!instance)
 			{
 				ReportFailure("Instancing " + path, instance.error());
@@ -59,7 +62,7 @@ namespace Lodestone {
 			if (const auto dropped = AcceptEntityDrop())
 				Defer([&context, id = *dropped] { RunCommand(context, CreateScope<SetParentCommand>(id, UUID())); });
 			if (const auto asset = AcceptAssetDrop())
-				Defer([&context, path = *asset] { InstantiatePrefab(context, path, {}); });
+				Defer([&context, path = *asset] { InstantiateAsset(context, path, {}); });
 		}
 		if (ImGui::BeginPopupContextItem("##HierarchyMenu"))
 		{
@@ -103,7 +106,7 @@ namespace Lodestone {
 				Defer([&context, child = *dropped, id]
 					{ RunCommand(context, CreateScope<SetParentCommand>(child, id)); });
 			if (const auto asset = AcceptAssetDrop())
-				Defer([&context, path = *asset, id] { InstantiatePrefab(context, path, id); });
+				Defer([&context, path = *asset, id] { InstantiateAsset(context, path, id); });
 		}
 		if (ImGui::BeginPopupContextItem())
 		{

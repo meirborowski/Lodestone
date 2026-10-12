@@ -75,6 +75,10 @@ namespace Lodestone {
 		uint32_t ApiVersion = 0;
 		std::string DriverName;
 		std::string DriverInfo;
+		// The most anisotropic filtering samplers may use; 1 where the device has none
+		float MaxSamplerAnisotropy = 1.0f;
+		// Whether the graphics queue can time GPU work (nvrhi::ITimerQuery)
+		bool SupportsTimerQueries = false;
 	};
 
 	// The GPU the engine renders with: a Vulkan device, wrapped in an NVRHI device for rendering.

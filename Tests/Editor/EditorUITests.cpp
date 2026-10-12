@@ -99,7 +99,7 @@ namespace Lodestone {
 			EditorUIHost MakeHost()
 			{
 				EditorUIHost host;
-				host.PrepareViewport = [this](glm::uvec2 size) -> std::expected<ImTextureID, Error>
+				host.Viewport.PrepareImage = [this](glm::uvec2 size) -> std::expected<ImTextureID, Error>
 				{
 					ViewportSizes.push_back(size);
 					return static_cast<ImTextureID>(1);
@@ -278,7 +278,7 @@ namespace Lodestone {
 		const ImGuiScope imgui;
 		EditorContext context(GetTestComponents());
 		EditorUIHost host;
-		host.PrepareViewport = [](glm::uvec2) -> std::expected<ImTextureID, Error>
+		host.Viewport.PrepareImage = [](glm::uvec2) -> std::expected<ImTextureID, Error>
 		{ return std::unexpected(Error(ErrorCode::DeviceError, "No device")); };
 		EditorUI ui(context, std::move(host));
 

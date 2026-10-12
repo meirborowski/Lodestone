@@ -36,14 +36,16 @@ The tools so far (`Source/Editor/Lodestone/Editor/Mcp/EditorTools.cpp`):
 | Documents | `scene_new`, `scene_open`, `prefab_open`, `document_save`, `scene_hierarchy` |
 | Entities | `entity_create`, `entity_delete`, `entity_duplicate`, `entity_set_parent`, `entity_get`, `entity_find`, `selection_set` |
 | Components | `component_types`, `component_add`, `component_set`, `component_remove` |
-| Prefabs | `prefab_create`, `prefab_instantiate` |
+| Prefabs and models | `prefab_create`, `prefab_instantiate`, `model_instantiate` |
 | Undo | `edit_undo`, `edit_redo`, `edit_history` |
 | Play mode | `play_start` (optionally paused), `play_stop`, `play_pause`, `play_step`, `play_status`, `input_send` |
-| View | `viewport_screenshot`, `camera_set`, `camera_frame` |
+| View and rendering | `viewport_screenshot`, `render_stats`, `camera_set`, `camera_frame` |
 | Logs and assets | `log_read`, `asset_list`, `asset_import`, `asset_rescan` |
 
 Entities are addressed by UUID. Tools that replace the open document refuse while it has unsaved changes, unless given `discardChanges: true`. A tool that fails returns an error result saying why, so agents can correct themselves. To add a tool, see the `add-mcp-tool` skill.
 
+Rendering is set up with the generic component tools: `MeshRenderer` (a model asset's UUID and a mesh index), `Camera`, `DirectionalLight`, `PointLight`, `SpotLight`, `Environment` (an HDR environment asset) and `RenderSettings` (exposure, tonemapper, ambient occlusion, shadows). `asset_import` brings models (.gltf, .glb) and environments (.hdr) into the project, `model_instantiate` places a model's nodes as entities, `viewport_screenshot` shows the lit result with the editor's overlay, and `render_stats` reports draw calls, triangles, meshes seen and CPU and GPU times.
+
 ## Testing
 - Every MCP tool has in-process tests that call it directly (`Tests/Editor/EditorToolsTests.cpp`), including with missing and wrongly typed arguments
-- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it builds a scene with entities, components and prefab instances, saves and reloads it, plays it with input and screenshots it
+- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it imports a model and builds a scene with entities, components - meshes and lights among them - prefab instances and a model instance, saves and reloads it, screenshots it, reads the renderer's stats and plays it with input

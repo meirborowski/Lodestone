@@ -33,6 +33,10 @@ function(ls_configure_target target)
 			-Wall -Wextra -Wpedantic -Werror
 			-Wshadow -Wnon-virtual-dtor -Woverloaded-virtual
 			${LS_ALLOW_PARTIAL_DESIGNATED_INITIALIZERS}
+			# No fusing of multiplies and adds into FMAs, which Clang does by default where the CPU has them (arm64):
+			# arithmetic rounds the same as with MSVC, so culling, the benchmark's draw calls and the simulation agree
+			# across compilers as far as their math libraries do
+			-ffp-contract=off
 		)
 	endif()
 endfunction()

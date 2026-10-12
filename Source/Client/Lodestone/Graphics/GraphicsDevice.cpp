@@ -198,6 +198,7 @@ namespace Lodestone {
 			VkPhysicalDeviceProperties Properties{};
 			VkPhysicalDeviceFeatures CoreFeatures{};
 			uint32_t GraphicsQueueFamily = 0;
+			uint32_t TimestampValidBits = 0;
 			bool HasPortabilitySubset = false;
 			bool HasBufferDeviceAddress = false;
 			bool HasMaintenance4 = false;
@@ -230,6 +231,9 @@ namespace Lodestone {
 				return std::unexpected("it doesn't support dynamic rendering");
 			if (features13.synchronization2 == VK_FALSE)
 				return std::unexpected("it doesn't support synchronization2");
+			// The shader compiler turns HLSL's discard into demote to helper invocation for Vulkan 1.3
+			if (features13.shaderDemoteToHelperInvocation == VK_FALSE)
+				return std::unexpected("it doesn't support demoting to helper invocations");
 			candidate.CoreFeatures = features.features;
 			candidate.HasBufferDeviceAddress = features12.bufferDeviceAddress == VK_TRUE;
 			candidate.HasMaintenance4 = features13.maintenance4 == VK_TRUE;
@@ -256,6 +260,7 @@ namespace Lodestone {
 				if (presenting && !config.SupportsPresentation(instance, handle, family))
 					continue;
 				candidate.GraphicsQueueFamily = family;
+				candidate.TimestampValidBits = families[family].timestampValidBits;
 				return candidate;
 			}
 			return std::unexpected(
@@ -526,6 +531,7 @@ namespace Lodestone {
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		features13.dynamicRendering = VK_TRUE;
 		features13.synchronization2 = VK_TRUE;
+		features13.shaderDemoteToHelperInvocation = VK_TRUE;
 		features13.maintenance4 = best->HasMaintenance4 ? VK_TRUE : VK_FALSE;
 		VkPhysicalDeviceVulkan12Features features12{};
 		features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -573,6 +579,11 @@ namespace Lodestone {
 		m_Info.ApiVersion = properties.properties.apiVersion;
 		m_Info.DriverName = static_cast<const char*>(driver.driverName);
 		m_Info.DriverInfo = static_cast<const char*>(driver.driverInfo);
+		const VkPhysicalDeviceLimits& limits = properties.properties.limits;
+		m_Info.MaxSamplerAnisotropy =
+			best->CoreFeatures.samplerAnisotropy == VK_TRUE ? std::max(limits.maxSamplerAnisotropy, 1.0f) : 1.0f;
+		// NVRHI reads 32 bits of each timestamp, and measures the difference of two, which wraps correctly
+		m_Info.SupportsTimerQueries = best->TimestampValidBits >= 32 && limits.timestampPeriod > 0.0f;
 		return {};
 	}
 

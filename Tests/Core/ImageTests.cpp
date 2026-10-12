@@ -4,7 +4,9 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <fstream>
 
 namespace Lodestone {
@@ -71,6 +73,26 @@ namespace Lodestone {
 		CHECK(*decoded == image);
 	}
 
+	TEST_CASE("Empty data chunks in a PNG are skipped")
+	{
+		Image image(3, 3);
+		image.SetPixel(1, 1, {.R = 10, .G = 20, .B = 30, .A = 255});
+		auto encoded = image.EncodePng();
+		REQUIRE(encoded.has_value());
+		// An IDAT chunk with no data, and its CRC (over its type)
+		const std::array<uint8_t, 12> emptyData = {0, 0, 0, 0, 'I', 'D', 'A', 'T', 0x35, 0xAF, 0x06, 0x1E};
+		// The first IDAT follows the signature and the IHDR chunk; the last chunk is the 12-byte IEND
+		constexpr ptrdiff_t firstDataChunk = 8 + 12 + 13;
+		REQUIRE(std::equal(encoded->begin() + firstDataChunk + 4, encoded->begin() + firstDataChunk + 8, "IDAT"));
+		encoded->insert(encoded->end() - 12, emptyData.begin(), emptyData.end());
+		encoded->insert(encoded->begin() + firstDataChunk, emptyData.begin(), emptyData.end());
+
+		const auto decoded = Image::Decode(*encoded);
+
+		REQUIRE(decoded.has_value());
+		CHECK(*decoded == image);
+	}
+
 	TEST_CASE("Encoding an empty image as PNG fails")
 	{
 		const auto encoded = Image().EncodePng();
@@ -96,6 +118,22 @@ namespace Lodestone {
 
 		REQUIRE_FALSE(decoded.has_value());
 		CHECK(decoded.error().GetCode() == ErrorCode::ParseError);
+	}
+
+	TEST_CASE("An image larger than supported is refused before it's decoded")
+	{
+		// A PNG header claiming 10000x10000 pixels, with no data
+		const Image small(1, 1);
+		auto encoded = small.EncodePng();
+		REQUIRE(encoded.has_value());
+		// IHDR's width and height, big-endian, after the signature and the chunk's length and type
+		const std::array<uint8_t, 8> size = {0, 0, 0x27, 0x10, 0, 0, 0x27, 0x10};
+		std::ranges::copy(size, encoded->begin() + 16);
+
+		const auto decoded = Image::Decode(*encoded);
+
+		REQUIRE_FALSE(decoded.has_value());
+		CHECK(decoded.error().GetCode() == ErrorCode::Unsupported);
 	}
 
 	TEST_CASE("Saving an empty image fails")

@@ -40,23 +40,26 @@ target_compile_definitions(LodestoneTestSupport
 ls_configure_target(LodestoneTestSupport)
 
 # ls_add_test_executable(<target> PREFIX <prefix> LABELS <tier>... SOURCES <file>...
-#                        [LIBRARIES <library>...] [TEST_SPEC <doctest filter>...])
+#                        [LIBRARIES <library>...] [EXCLUDE_SUITE <doctest test suite>])
 #
 # Adds a doctest executable, with the standard test runner (Common/TestMain.cpp), and registers each of its test cases
-# with CTest as "<prefix>.<test case name>". TEST_SPEC limits which test cases are registered.
+# with CTest as "<prefix>.<test case name>". The test cases of EXCLUDE_SUITE are left out of the executable's runs, and
+# so aren't registered. (doctest_discover_tests' TEST_SPEC can't do that: it only matches test case names.)
 function(ls_add_test_executable target)
-	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX" "LABELS;SOURCES;LIBRARIES;TEST_SPEC")
+	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX;EXCLUDE_SUITE" "LABELS;SOURCES;LIBRARIES")
 	if(NOT ARG_PREFIX OR NOT ARG_LABELS OR NOT ARG_SOURCES)
 		message(FATAL_ERROR "ls_add_test_executable(${target}) needs PREFIX, LABELS and SOURCES")
 	endif()
 
 	add_executable(${target} Common/TestMain.cpp ${ARG_SOURCES})
 	target_link_libraries(${target} PRIVATE LodestoneTestSupport ${ARG_LIBRARIES})
+	if(ARG_EXCLUDE_SUITE)
+		target_compile_definitions(${target} PRIVATE LS_TEST_SUITE_EXCLUDE="${ARG_EXCLUDE_SUITE}")
+	endif()
 	ls_configure_target(${target})
 
 	doctest_discover_tests(${target}
 		TEST_PREFIX "${ARG_PREFIX}."
-		TEST_SPEC ${ARG_TEST_SPEC}
 		PROPERTIES LABELS "${ARG_LABELS}"
 	)
 endfunction()
@@ -69,6 +72,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/AssetTests.cpp
 		Core/Base64Tests.cpp
 		Core/BaseTests.cpp
+		Core/BoundingBoxTests.cpp
 		Core/CommandLineTests.cpp
 		Core/ComponentRegistryTests.cpp
 		Core/EntitySerializerTests.cpp
@@ -76,15 +80,19 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/ErrorTests.cpp
 		Core/FileFormatTests.cpp
 		Core/FileSystemTests.cpp
+		Core/HdrImageTests.cpp
 		Core/ImageTests.cpp
 		Core/InputCodesTests.cpp
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/ModelEntitiesTests.cpp
+		Core/ModelImporterTests.cpp
 		Core/PrefabSerializerTests.cpp
 		Core/ProjectTests.cpp
 		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
+		Core/RenderComponentsTests.cpp
 		Core/RunMainTests.cpp
 		Core/SceneSerializerTests.cpp
 		Core/SceneTests.cpp
@@ -95,13 +103,17 @@ ls_add_test_executable(LodestoneCoreTests
 		Lodestone::Lua
 )
 
-# LodestoneClient code that needs no window or GPU
+# LodestoneClient code that needs no window or GPU: input, and the renderer's CPU side
 ls_add_test_executable(LodestoneClientTests
 	PREFIX Client
 	LABELS unit
 	SOURCES
 		Client/DeviceInputTests.cpp
+		Client/ImageBasedLightingTests.cpp
 		Client/InputCommandBuilderTests.cpp
+		Client/MipChainTests.cpp
+		Client/RenderWorldTests.cpp
+		Client/ShadowCascadeTests.cpp
 	LIBRARIES
 		LodestoneClient
 )
@@ -110,23 +122,24 @@ ls_add_test_executable(LodestoneClientTests
 # Without it, only the tests that don't compare against reference images are registered - on macOS, they check that
 # MoltenVK provides a Vulkan device and renders
 if(LS_LAVAPIPE_DRIVER)
-	set(LS_RENDER_TEST_SPEC "")
+	set(LS_RENDER_EXCLUDED_SUITE "")
 else()
-	set(LS_RENDER_TEST_SPEC "--test-suite-exclude=ReferenceImages")
+	set(LS_RENDER_EXCLUDED_SUITE ReferenceImages)
 endif()
 ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
 	LABELS render
 	SOURCES
-		Render/DebugSceneRenderTests.cpp
 		Render/GraphicsDeviceTests.cpp
 		Render/ImGuiRenderTests.cpp
+		Render/LineRendererTests.cpp
 		Render/RenderTestDevice.cpp
 		Render/RenderTestDevice.h
+		Render/SceneRendererTests.cpp
 		Render/TriangleRenderTests.cpp
 	LIBRARIES
 		LodestoneClient
-	TEST_SPEC ${LS_RENDER_TEST_SPEC}
+	EXCLUDE_SUITE ${LS_RENDER_EXCLUDED_SUITE}
 )
 if(LS_LAVAPIPE_DRIVER)
 	target_compile_definitions(LodestoneRenderTests PRIVATE LS_LAVAPIPE_DRIVER="${LS_LAVAPIPE_DRIVER}")
@@ -177,7 +190,8 @@ if(TARGET LodestoneEditorLib)
 	find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter)
 	foreach(transport IN ITEMS stdio http)
 		set(name "Editor.Agent smoke test over ${transport}")
-		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport})
+		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport}
+			--model "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Models/Primitives.glb")
 		if(LS_LAVAPIPE_DRIVER)
 			list(APPEND arguments --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
 		endif()
@@ -207,6 +221,27 @@ if(TARGET LodestoneEditorLib)
 			EXCLUDE_FROM_ALL "$<CONFIG:Dist>")
 	endif()
 endif()
+
+# The renderer's performance benchmark (see docs/Testing.md#performance). Run it locally on a GPU to measure frame
+# times against the baseline; CI runs a short version on lavapipe to check that draw calls haven't risen
+add_executable(LodestoneBenchmark
+	Benchmark/BenchmarkMain.cpp
+	Benchmark/BenchmarkScene.cpp
+	Benchmark/BenchmarkScene.h
+)
+target_include_directories(LodestoneBenchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(LodestoneBenchmark PRIVATE LodestoneClient)
+target_compile_definitions(LodestoneBenchmark PRIVATE LS_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+ls_configure_target(LodestoneBenchmark)
+
+set(LS_BENCHMARK_ARGUMENTS --baseline "${CMAKE_CURRENT_SOURCE_DIR}/Benchmark/Baseline.json" --frames 8 --size 320x180)
+if(LS_LAVAPIPE_DRIVER)
+	list(APPEND LS_BENCHMARK_ARGUMENTS --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
+endif()
+add_test(NAME "Render.Benchmark draw calls stay within the baseline"
+	COMMAND LodestoneBenchmark ${LS_BENCHMARK_ARGUMENTS}
+)
+set_tests_properties("Render.Benchmark draw calls stay within the baseline" PROPERTIES LABELS render TIMEOUT 600)
 
 # Fuzz tests for everything that parses untrusted input (see Common/Fuzzer.h and docs/Testing.md#tests)
 ls_add_test_executable(LodestoneFuzzTests
