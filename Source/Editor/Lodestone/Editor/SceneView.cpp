@@ -40,6 +40,13 @@ namespace Lodestone {
 			return {handle, const_cast<Scene*>(&scene)}; // NOLINT(cppcoreguidelines-pro-type-const-cast)
 		}
 
+		// How far between the latest tick and the next play mode draws entities; editing draws them where they are
+		float GetInterpolationFactor(const EditorContext& context)
+		{
+			const Simulation* simulation = context.GetSimulation();
+			return simulation != nullptr ? simulation->GetInterpolationFactor() : 1.0f;
+		}
+
 		// The mesh an entity draws, if it has one and its model is loaded
 		const ModelMesh* FindMesh(const entt::registry& registry, entt::entity handle, const ModelLookup& models)
 		{
@@ -249,13 +256,15 @@ namespace Lodestone {
 				line == 0 ? AxisColorZ : GridColor);
 		}
 
+		// Where the scene is drawn, which while playing is between ticks
 		const Scene& scene = context.GetScene();
 		const entt::registry& registry = scene.GetRegistry();
 		const UUID selection = context.GetSelection();
+		const float interpolationFactor = GetInterpolationFactor(context);
 		for (const auto [handle, id] : registry.view<const IDComponent>().each())
 		{
 			const bool selected = id.ID == selection;
-			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle));
+			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle), interpolationFactor);
 			if (const ModelMesh* mesh = FindMesh(registry, handle, models))
 			{
 				// Meshes show themselves; the selected one is outlined
@@ -305,13 +314,15 @@ namespace Lodestone {
 		const glm::vec3 origin = glm::vec3(nearPoint) / nearPoint.w;
 		const glm::vec3 direction = glm::normalize(glm::vec3(farPoint) / farPoint.w - origin);
 
+		// Entities are hit where they're drawn, which while playing is between ticks
 		const Scene& scene = context.GetScene();
 		const entt::registry& registry = scene.GetRegistry();
+		const float interpolationFactor = GetInterpolationFactor(context);
 		UUID nearest;
 		float nearestDistance = std::numeric_limits<float>::max();
 		for (const auto [handle, id] : registry.view<const IDComponent>().each())
 		{
-			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle));
+			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle), interpolationFactor);
 			const ModelMesh* mesh = FindMesh(registry, handle, models);
 			const auto distance = mesh != nullptr ? IntersectMesh(*mesh, world, origin, direction)
 												  : MakeMarkerBox(glm::vec3(world[3])).Intersect(origin, direction);
@@ -353,10 +364,12 @@ namespace Lodestone {
 			return;
 		}
 
-		// After a scan, assets whose files changed or went away load again
+		// After a scan, assets whose files changed or went away load again, and those that failed - the scan may
+		// have found them
 		if (registry == nullptr || context.GetAssetGeneration() == m_AssetGeneration)
 			return;
 		m_AssetGeneration = context.GetAssetGeneration();
+		assets.ForgetFailures();
 		for (auto asset = m_AssetWriteTimes.begin(); asset != m_AssetWriteTimes.end();)
 		{
 			const AssetInfo* info = registry->Find(asset->first);
@@ -399,9 +412,7 @@ namespace Lodestone {
 	void SceneView::Render(const EditorContext& context, SceneRenderTarget& target)
 	{
 		SyncAssets(context);
-		const Simulation* simulation = context.GetSimulation();
-		const RenderWorld world =
-			ExtractRenderWorld(context.GetScene(), simulation != nullptr ? simulation->GetInterpolationFactor() : 1.0f);
+		const RenderWorld world = ExtractRenderWorld(context.GetScene(), GetInterpolationFactor(context));
 		const RenderView view = GetRenderView(context);
 		const glm::uvec2 size = target.GetSize();
 

@@ -203,19 +203,28 @@ namespace Lodestone {
 		return {};
 	}
 
-	glm::mat4 Scene::GetWorldMatrix(Entity entity) const
+	glm::mat4 Scene::GetWorldMatrix(Entity entity, float interpolationFactor) const
 	{
 		LS_CORE_ASSERT(entity.GetScene() == this && entity.IsValid(), "The entity isn't in the scene");
 
-		glm::mat4 world = m_Registry.get<TransformComponent>(entity.GetHandle()).GetMatrix();
+		glm::mat4 world = GetInterpolatedTransform(entity.GetHandle(), interpolationFactor).GetMatrix();
 		UUID parent = m_Registry.get<HierarchyComponent>(entity.GetHandle()).Parent;
 		while (!parent.IsNil())
 		{
 			const entt::entity handle = GetHandle(parent);
-			world = m_Registry.get<TransformComponent>(handle).GetMatrix() * world;
+			world = GetInterpolatedTransform(handle, interpolationFactor).GetMatrix() * world;
 			parent = m_Registry.get<HierarchyComponent>(handle).Parent;
 		}
 		return world;
+	}
+
+	TransformComponent Scene::GetInterpolatedTransform(entt::entity handle, float interpolationFactor) const
+	{
+		const TransformComponent& current = m_Registry.get<TransformComponent>(handle);
+		const auto* previous = m_Registry.try_get<PreviousTransformComponent>(handle);
+		if (previous == nullptr || !(interpolationFactor < 1.0f))
+			return current;
+		return InterpolateTransform(previous->Transform, current, std::max(interpolationFactor, 0.0f));
 	}
 
 	SceneSnapshot Scene::SaveSnapshot() const

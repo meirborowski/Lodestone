@@ -24,6 +24,16 @@ When adding a dependency, add it here with its full license text (see [Tech Stac
 | [cpp-httplib](https://github.com/yhirose/cpp-httplib) | 0.59.0 | MIT | The editor's MCP server over HTTP | No |
 | [doctest](https://github.com/doctest/doctest) | 2.5.3 | MIT | Unit tests | No |
 
+Assets from elsewhere, in the repository for tests only:
+
+| Asset | Author | License | Used for | In exported games |
+|---|---|---|---|---|
+| [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), 1k HDR | Greg Zaal (original), Jarod Guest (sky edits), via Poly Haven | CC0 | Image-based lighting tests (`Tests/Fixtures/Environments/PolyHaven`) | No |
+| [Studio Small 09](https://polyhaven.com/a/studio_small_09), 1k HDR | Sergej Majboroda, via Poly Haven | CC0 | Image-based lighting tests | No |
+| [Venice Sunset](https://polyhaven.com/a/venice_sunset), 1k HDR | Greg Zaal, via Poly Haven | CC0 | Image-based lighting tests | No |
+
+CC0 places these in the public domain, so they carry no license text. They're credited here all the same.
+
 ## spdlog
 
 ```

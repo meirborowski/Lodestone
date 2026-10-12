@@ -6,6 +6,7 @@
 #include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Graphics/GraphicsDevice.h"
 #include "Lodestone/Graphics/TextureReadback.h"
+#include "Lodestone/Renderer/ImageBasedLighting.h"
 #include "Render/RenderTestDevice.h"
 
 #include <doctest/doctest.h>
@@ -35,12 +36,20 @@ namespace Lodestone {
 		constexpr UUID TexturedCubeId(0x1000000000004000ull, 0x8000000000000003ull);
 		constexpr UUID AlphaModesId(0x1000000000004000ull, 0x8000000000000004ull);
 		constexpr UUID SkyId(0x1000000000004000ull, 0x8000000000000005ull);
+		// Photographed HDRIs from Poly Haven
+		constexpr UUID OutdoorId(0x1000000000004000ull, 0x8000000000000006ull);
+		constexpr UUID StudioId(0x1000000000004000ull, 0x8000000000000007ull);
+		constexpr UUID SunsetId(0x1000000000004000ull, 0x8000000000000008ull);
 		constexpr UUID MissingId(0x1000000000004000ull, 0x80000000000000FFull);
 
 		// Meshes of Primitives.glb
 		constexpr uint32_t Plane = 0;
 		constexpr uint32_t Cube = 1;
 		constexpr uint32_t Sphere = 2;
+		// Meshes of MaterialSpheres.glb, whose metalness rises with the column and roughness with the row
+		constexpr uint32_t PolishedMetal = 4;
+		constexpr uint32_t SatinMetal = 14;
+		constexpr uint32_t RoughDielectric = 20;
 
 		// Where the sun shines, before it's made unit length
 		constexpr glm::vec3 SunDirection{-0.5f, -1.0f, -0.35f};
@@ -71,8 +80,17 @@ namespace Lodestone {
 				},
 				.LoadEnvironment = [](UUID id) -> std::expected<HdrImage, Error>
 				{
-					if (id == SkyId)
-						return HdrImage::Load(GetFixture("Environments", "Sky.hdr"));
+					const std::array<std::pair<UUID, std::string_view>, 4> environments = {{
+						{SkyId, "Sky.hdr"},
+						{OutdoorId, "PolyHaven/kloofendal_48d_partly_cloudy_puresky_1k.hdr"},
+						{StudioId, "PolyHaven/studio_small_09_1k.hdr"},
+						{SunsetId, "PolyHaven/venice_sunset_1k.hdr"},
+					}};
+					for (const auto& [environmentId, file] : environments)
+					{
+						if (id == environmentId)
+							return HdrImage::Load(GetFixture("Environments", file));
+					}
 					return std::unexpected(Error(ErrorCode::NotFound, fmt::format("No environment has the ID {}", id)));
 				},
 			};
@@ -122,6 +140,11 @@ namespace Lodestone {
 			return (static_cast<float>(pixel.R) + static_cast<float>(pixel.G) + static_cast<float>(pixel.B)) / 3.0f;
 		}
 
+		float Brightness(const glm::vec3& color)
+		{
+			return (color.r + color.g + color.b) / 3.0f;
+		}
+
 		// The average brightness of a square of pixels around a point
 		float AreaBrightness(const Image& image, uint32_t centerX, uint32_t centerY, uint32_t radius = 3)
 		{
@@ -132,6 +155,23 @@ namespace Lodestone {
 				for (uint32_t x = centerX - radius; x <= centerX + radius; ++x)
 				{
 					sum += Brightness(image.GetPixel(x, y));
+					++count;
+				}
+			}
+			return sum / static_cast<float>(count);
+		}
+
+		// The average color (0 to 255 per channel) of a square of pixels around a point
+		glm::vec3 AreaColor(const Image& image, uint32_t centerX, uint32_t centerY, uint32_t radius)
+		{
+			glm::vec3 sum(0.0f);
+			uint32_t count = 0;
+			for (uint32_t y = centerY - radius; y <= centerY + radius; ++y)
+			{
+				for (uint32_t x = centerX - radius; x <= centerX + radius; ++x)
+				{
+					const Rgba8 pixel = image.GetPixel(x, y);
+					sum += glm::vec3(pixel.R, pixel.G, pixel.B);
 					++count;
 				}
 			}
@@ -354,7 +394,86 @@ namespace Lodestone {
 		}
 	}
 
+	TEST_CASE("Photographed environments light the scene and fill the sky: outdoors, a studio and a sunset" *
+		doctest::test_suite("ReferenceImages"))
+	{
+		// Lit by the environment alone: polished metal mirrors it, satin metal blurs it, and a rough dielectric shows
+		// its diffuse light
+		RenderWorld world;
+		world.Meshes.push_back(
+			{.Model = SpheresId, .Mesh = PolishedMetal, .World = Place(glm::vec3(-1.2f, 0.0f, 0.0f))});
+		world.Meshes.push_back({.Model = SpheresId, .Mesh = SatinMetal, .World = Place(glm::vec3(0.0f))});
+		world.Meshes.push_back(
+			{.Model = SpheresId, .Mesh = RoughDielectric, .World = Place(glm::vec3(1.2f, 0.0f, 0.0f))});
+		RendererFixture fixture(glm::uvec2(192, 128));
+		const RenderView view = MakeView(glm::vec3(0.0f, 0.5f, 3.4f), glm::vec3(0.0f, 0.2f, 0.0f), 60.0f);
+
+		for (const auto [environment, name] : {std::pair(OutdoorId, "EnvironmentOutdoor"),
+				 std::pair(StudioId, "EnvironmentStudio"), std::pair(SunsetId, "EnvironmentSunset")})
+		{
+			CAPTURE(name);
+			world.Environment.Environment = environment;
+			Testing::CheckReferenceImage(name, fixture.Render(world, view));
+		}
+	}
+
 	// These run on every driver, including MoltenVK on macOS, where reference images aren't compared
+
+	TEST_CASE("A photographed sunset lights what faces its sun brighter and warmer than what faces away")
+	{
+		// The sun is the brightest pixel of the photograph, low over the horizon
+		const auto photograph = HdrImage::Load(GetFixture("Environments", "PolyHaven/venice_sunset_1k.hdr"));
+		REQUIRE_MESSAGE(photograph.has_value(), Testing::DescribeError(photograph));
+		glm::uvec2 sunPixel(0);
+		float sunLuminance = 0.0f;
+		for (uint32_t y = 0; y < photograph->GetHeight(); ++y)
+		{
+			for (uint32_t x = 0; x < photograph->GetWidth(); ++x)
+			{
+				const float luminance =
+					glm::dot(glm::vec3(photograph->GetPixel(x, y)), glm::vec3(0.2126f, 0.7152f, 0.0722f));
+				if (luminance > sunLuminance)
+				{
+					sunLuminance = luminance;
+					sunPixel = {x, y};
+				}
+			}
+		}
+		const glm::vec3 sun = EquirectangularToDirection(
+			(glm::vec2(sunPixel) + 0.5f) / glm::vec2(photograph->GetWidth(), photograph->GetHeight()));
+		CAPTURE(sun.y);
+		REQUIRE(std::abs(sun.y) < 0.3f);
+		const glm::vec3 towardSun = glm::normalize(glm::vec3(sun.x, 0.0f, sun.z));
+
+		// A grey cube lit by nothing but the sunset, a face turned to the sun, seen head-on from each side. The image
+		// keeps the light's linear ratios: no tonemapping, and exposed so nothing clips
+		RenderWorld world;
+		world.Environment.Environment = SunsetId;
+		world.Settings.Tonemapper = static_cast<uint32_t>(Tonemapper::None);
+		world.Settings.Exposure = -3.0f;
+		world.Meshes.push_back({.Model = PrimitivesId,
+			.Mesh = Cube,
+			.World = Place(glm::vec3(0.0f), glm::vec3(1.5f), glm::degrees(std::atan2(towardSun.x, towardSun.z)))});
+		RendererFixture fixture(glm::uvec2(64, 64));
+		const auto faceColor = [&](const glm::vec3& side)
+		{
+			const Image image = fixture.Render(world, MakeView(side * 3.0f, glm::vec3(0.0f)));
+			return AreaColor(image, 32, 32, 6);
+		};
+
+		const glm::vec3 lit = faceColor(towardSun);
+		const glm::vec3 unlit = faceColor(-towardSun);
+		REQUIRE(fixture.GetRenderer().GetAssets().GetError(SunsetId) == nullptr);
+		CAPTURE(Brightness(lit));
+		CAPTURE(Brightness(unlit));
+		CAPTURE(lit.r / lit.b);
+		CAPTURE(unlit.r / std::max(unlit.b, 1.0f));
+		CHECK(std::max({lit.r, lit.g, lit.b}) < 250.0f);
+		CHECK(Brightness(unlit) > 2.0f);
+		CHECK(Brightness(lit) > 1.5f * Brightness(unlit));
+		// Redder against blue
+		CHECK(lit.r / lit.b > 1.2f * (unlit.r / std::max(unlit.b, 1.0f)));
+	}
 
 	TEST_CASE("The scene renderer draws what the camera sees, front faces out, and culls the rest")
 	{
@@ -502,6 +621,40 @@ namespace Lodestone {
 		CHECK(CountMessages(log, "Can't draw model") == 1);
 		CHECK(CountMessages(log, "Can't light the scene with environment") == 1);
 		CHECK(CountMessages(log, "has no mesh 7") == 1);
+	}
+
+	TEST_CASE("Assets that failed to load are tried again once the renderer forgets the failures")
+	{
+		const Testing::LogCapture log;
+		RenderWorld world;
+		world.Meshes.push_back({.Model = PrimitivesId, .Mesh = Cube, .World = Place(glm::vec3(0.0f))});
+		RendererFixture fixture(glm::uvec2(64, 64));
+		const RenderView view = MakeView(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f));
+		// A source whose model only becomes available later, as when its file is added to a project
+		auto available = std::make_shared<bool>(false);
+		RenderAssets& assets = fixture.GetRenderer().GetAssets();
+		assets.SetSource({
+			.LoadModel = [available](UUID) -> std::expected<Model, Error>
+			{
+				if (!*available)
+					return std::unexpected(Error(ErrorCode::NotFound, "Not added yet"));
+				return ModelImporter::Import(GetFixture("Models", "Primitives.glb"));
+			},
+		});
+
+		static_cast<void>(fixture.Render(world, view));
+		CHECK(fixture.GetStats().PassDrawCalls[static_cast<size_t>(RenderPass::Opaque)] == 0);
+		CHECK(assets.GetError(PrimitivesId) != nullptr);
+
+		// The failure is remembered, and logged once, until it's forgotten
+		*available = true;
+		static_cast<void>(fixture.Render(world, view));
+		CHECK(fixture.GetStats().PassDrawCalls[static_cast<size_t>(RenderPass::Opaque)] == 0);
+		CHECK(CountMessages(log, "Can't draw model") == 1);
+		assets.ForgetFailures();
+		static_cast<void>(fixture.Render(world, view));
+		CHECK(fixture.GetStats().PassDrawCalls[static_cast<size_t>(RenderPass::Opaque)] == 1);
+		CHECK(assets.GetError(PrimitivesId) == nullptr);
 	}
 
 	TEST_CASE("GPU timings arrive once the GPU finishes a frame, where the device can time work")

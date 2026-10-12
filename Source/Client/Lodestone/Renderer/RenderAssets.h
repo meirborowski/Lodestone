@@ -60,6 +60,9 @@ namespace Lodestone {
 		const Error* GetError(UUID id) const;
 		// Forgets an asset, so it's loaded again the next time it's used - after its file changes
 		void Invalidate(UUID id);
+		// Forgets the assets that failed to load, so they're tried again the next time they're used - after the
+		// source's assets change, which may have added or fixed them
+		void ForgetFailures();
 		// Forgets every asset
 		void Clear();
 

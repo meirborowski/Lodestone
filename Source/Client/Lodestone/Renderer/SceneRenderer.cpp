@@ -565,9 +565,7 @@ namespace Lodestone {
 
 		ShaderTypes::FrameConstants frame;
 		frame.View = view.View;
-		frame.Projection = projection;
 		frame.ViewProjection = viewProjection;
-		frame.InverseProjection = glm::inverse(projection);
 		frame.InverseViewProjection = glm::inverse(viewProjection);
 		frame.CameraPosition = glm::vec4(cameraPosition, 1.0f);
 		frame.ViewportSize = glm::vec4(glm::vec2(size), 1.0f / glm::vec2(size));

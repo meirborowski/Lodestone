@@ -350,4 +350,84 @@ namespace Lodestone {
 		CHECK_FALSE(ImportText(text).has_value());
 	}
 
+	TEST_CASE("Limits count all a model makes: meshes sharing data, and the vertices of flat shading")
+	{
+		// Two meshes drawing the same two triangles, without normals: 12 indices, and 12 flat-shaded vertices made
+		// from 3 in the file
+		std::vector<float> floats = {0, 0, 0, 1, 0, 0, 0, 1, 0};
+		std::vector<uint8_t> bytes(36 + 12, 0);
+		std::memcpy(bytes.data(), floats.data(), 36);
+		const std::vector<uint16_t> indices = {0, 1, 2, 0, 2, 1};
+		std::memcpy(bytes.data() + 36, indices.data(), 12);
+		const std::string text = fmt::format(R"({{"asset": {{"version": "2.0"}},
+			"buffers": [{{"uri": "data:application/octet-stream;base64,{}", "byteLength": 48}}],
+			"bufferViews": [{{"buffer": 0, "byteLength": 36}}, {{"buffer": 0, "byteOffset": 36, "byteLength": 12}}],
+			"accessors": [{{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}},
+				{{"bufferView": 1, "componentType": 5123, "count": 6, "type": "SCALAR"}}],
+			"meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0}}, "indices": 1}}]}},
+				{{"primitives": [{{"attributes": {{"POSITION": 0}}, "indices": 1}}]}}]}})",
+			EncodeBase64(bytes));
+		const std::vector<uint8_t> model(text.begin(), text.end());
+		const auto import = [&model](const ModelImportOptions& options)
+		{ return ModelImporter::Import(model, {}, options); };
+
+		const auto fits = import({.MaxVertexCount = 12, .MaxIndexCount = 12});
+		REQUIRE_MESSAGE(fits.has_value(), Testing::DescribeError(fits));
+		CHECK(fits->Meshes.size() == 2);
+		CHECK(fits->Meshes[1].Vertices.size() == 6);
+
+		const auto tooManyIndices = import({.MaxIndexCount = 11});
+		REQUIRE_FALSE(tooManyIndices.has_value());
+		CHECK(tooManyIndices.error().GetCode() == ErrorCode::Unsupported);
+		CHECK(tooManyIndices.error().GetMessageText().contains("indices"));
+		const auto tooManyVertices = import({.MaxVertexCount = 11});
+		REQUIRE_FALSE(tooManyVertices.has_value());
+		CHECK(tooManyVertices.error().GetCode() == ErrorCode::Unsupported);
+		CHECK(tooManyVertices.error().GetMessageText().contains("vertices"));
+		// Limits beyond what 32-bit indices address are refused
+		const auto unaddressable = import({.MaxIndexCount = 1ull << 33});
+		REQUIRE_FALSE(unaddressable.has_value());
+		CHECK(unaddressable.error().GetCode() == ErrorCode::InvalidArgument);
+	}
+
+	TEST_CASE("Images count toward a limit over the whole model, and can be left out")
+	{
+		const auto png = Image(4, 4).EncodePng();
+		REQUIRE(png.has_value());
+		const std::string uri = "data:image/png;base64," + EncodeBase64(*png);
+		// Two textures, each with an image of its own: 32 pixels
+		const std::string text = MakeTriangle(fmt::format(R"("images": [{{"uri": "{0}"}}, {{"uri": "{0}"}}],
+			"textures": [{{"source": 0}}, {{"source": 1}}],
+			"materials": [{{"pbrMetallicRoughness": {{"baseColorTexture": {{"index": 0}}}},
+				"emissiveTexture": {{"index": 1}}}}],)",
+			uri));
+		const std::vector<uint8_t> model(text.begin(), text.end());
+
+		const auto fits = ModelImporter::Import(model, {}, {.MaxImagePixelCount = 32});
+		REQUIRE_MESSAGE(fits.has_value(), Testing::DescribeError(fits));
+		CHECK(fits->Images.size() == 2);
+		const auto tooMany = ModelImporter::Import(model, {}, {.MaxImagePixelCount = 31});
+		REQUIRE_FALSE(tooMany.has_value());
+		CHECK(tooMany.error().GetCode() == ErrorCode::Unsupported);
+
+		// Without textures, nothing is decoded and the materials refer to none
+		const auto withoutTextures = ModelImporter::Import(model, {}, {.MaxImagePixelCount = 0, .LoadTextures = false});
+		REQUIRE_MESSAGE(withoutTextures.has_value(), Testing::DescribeError(withoutTextures));
+		CHECK(withoutTextures->Images.empty());
+		CHECK(withoutTextures->Textures.empty());
+		// The material, and the default one the triangle gets for having none
+		REQUIRE(withoutTextures->Materials.size() == 2);
+		CHECK_FALSE(withoutTextures->Materials[0].BaseColorTexture.has_value());
+		CHECK_FALSE(withoutTextures->Materials[0].EmissiveTexture.has_value());
+	}
+
+	TEST_CASE("A model with more nodes than allowed fails to import")
+	{
+		// Hierarchy.gltf has 5 nodes
+		CHECK(ModelImporter::Import(GetModelPath("Hierarchy.gltf"), {.MaxNodeCount = 5}).has_value());
+		const auto model = ModelImporter::Import(GetModelPath("Hierarchy.gltf"), {.MaxNodeCount = 4});
+		REQUIRE_FALSE(model.has_value());
+		CHECK(model.error().GetCode() == ErrorCode::Unsupported);
+	}
+
 }

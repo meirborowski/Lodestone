@@ -27,9 +27,7 @@ namespace Lodestone::ShaderTypes {
 	struct FrameConstants
 	{
 		glm::mat4 View{1.0f};
-		glm::mat4 Projection{1.0f};
 		glm::mat4 ViewProjection{1.0f};
-		glm::mat4 InverseProjection{1.0f};
 		glm::mat4 InverseViewProjection{1.0f};
 		glm::vec4 CameraPosition{0.0f};
 		glm::vec4 ViewportSize{0.0f};
@@ -44,7 +42,7 @@ namespace Lodestone::ShaderTypes {
 		glm::vec4 Environment{0.0f};
 		glm::vec4 AmbientOcclusion{0.0f};
 	};
-	static_assert(sizeof(FrameConstants) == 992);
+	static_assert(sizeof(FrameConstants) == 864);
 
 	// Common.hlsli
 	struct PunctualLight

@@ -7,6 +7,8 @@
 #include <nvrhi/nvrhi.h>
 
 #include <expected>
+#include <string>
+#include <string_view>
 
 namespace Lodestone {
 
@@ -26,9 +28,15 @@ namespace Lodestone {
 		static constexpr nvrhi::Format DepthFormat = nvrhi::Format::D32;
 
 		[[nodiscard]] static std::expected<Scope<RenderTarget>, Error> Create(
-			nvrhi::IDevice* device, glm::uvec2 size, const char* debugName);
+			nvrhi::IDevice* device, glm::uvec2 size, std::string_view debugName);
 
-		RenderTarget(Passkey passkey, nvrhi::IDevice* device, const char* debugName);
+		RenderTarget(Passkey passkey, nvrhi::IDevice* device, std::string_view debugName);
+
+		RenderTarget(const RenderTarget&) = delete;
+		RenderTarget& operator=(const RenderTarget&) = delete;
+		RenderTarget(RenderTarget&&) = delete;
+		RenderTarget& operator=(RenderTarget&&) = delete;
+		~RenderTarget() = default;
 
 		// Recreates the textures at a new size, if it's different. Anything still using the old ones keeps them alive
 		[[nodiscard]] std::expected<void, Error> Resize(glm::uvec2 size);
@@ -41,7 +49,7 @@ namespace Lodestone {
 
 	private:
 		nvrhi::IDevice* m_Device;
-		const char* m_DebugName;
+		std::string m_DebugName;
 		glm::uvec2 m_Size{0};
 		nvrhi::TextureHandle m_Color;
 		nvrhi::TextureHandle m_Depth;

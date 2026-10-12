@@ -29,7 +29,9 @@ Milestone 5 needs a renderer with PBR materials, image-based lighting from HDRIs
 - **Asynchronous asset streaming** - needed for large worlds; synchronous loading on first use is simple and correct for now
 
 ## Consequences
-- Every feature has a reference image on lavapipe (`Tests/Render/SceneRendererTests.cpp`), with driver-independent checks on every platform. The CPU parts (extraction, cascades, culling, SH, the BRDF table, mips) are unit tests in `LodestoneClientTests`
+- Every feature has a reference image on lavapipe (`Tests/Render/SceneRendererTests.cpp`), with driver-independent checks on every platform. Image-based lighting is checked with generated environments and with three photographed CC0 HDRIs from Poly Haven (outdoors, a studio, a sunset), committed at 1k through Git LFS. The CPU parts (extraction, cascades, culling, SH, the BRDF table, mips) are unit tests in `LodestoneClientTests`
 - The benchmark (`LodestoneBenchmark`) measures the frame on a real GPU against a recorded baseline; CI gates its draw calls and reports its CPU time (see [Testing](../Testing.md#performance))
 - Loading a large model stalls the frame that first uses it. Shadows from point and spot lights, light clustering, MSAA or TAA, bloom, auto-exposure and skinned meshes (Milestone 6) are later additions; the passes and descriptor sets leave room for them
 - Hot reload of textures and models is coarse: an asset reloads when its own file's time changes after a scan, not when a texture it refers to does
+- Each draw's light list tests every visible punctual light against its bounds, which costs draws times lights on the CPU each frame - fine for the benchmark's dozens of lights, and what light clustering will replace when scenes need hundreds
+- A loaded model keeps its CPU vertices and indices next to the GPU buffers, for the editor's picking and outlines. The runtime, which doesn't pick, can drop them once it has its own loading path (Milestone 12's packed assets)

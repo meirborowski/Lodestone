@@ -266,7 +266,8 @@ namespace Lodestone {
 		}
 		if (asset == nullptr)
 			return std::unexpected(Error(ErrorCode::NotFound, fmt::format("The project has no model '{}'", path)));
-		auto model = ModelImporter::Import(*resolved);
+		// Only the nodes and meshes are needed: the renderer loads the textures when it draws the model
+		auto model = ModelImporter::Import(*resolved, {.LoadTextures = false});
 		if (!model)
 			return std::unexpected(model.error());
 

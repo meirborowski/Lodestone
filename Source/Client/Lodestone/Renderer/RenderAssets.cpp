@@ -158,6 +158,12 @@ namespace Lodestone {
 		m_Environments.erase(id);
 	}
 
+	void RenderAssets::ForgetFailures()
+	{
+		std::erase_if(m_Models, [](const auto& entry) { return entry.second.Failure.has_value(); });
+		std::erase_if(m_Environments, [](const auto& entry) { return entry.second.Failure.has_value(); });
+	}
+
 	void RenderAssets::Clear()
 	{
 		m_Models.clear();

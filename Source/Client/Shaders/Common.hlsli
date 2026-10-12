@@ -22,9 +22,7 @@ struct DirectionalLight
 struct FrameConstants
 {
 	float4x4 View;
-	float4x4 Projection;
 	float4x4 ViewProjection;
-	float4x4 InverseProjection;
 	float4x4 InverseViewProjection;
 	// xyz: the camera's position in world space
 	float4 CameraPosition;
@@ -105,14 +103,6 @@ float3 EvaluateIrradiance(float3 normal)
 	result += sh[7].rgb * (1.092548 * n.x * n.z);
 	result += sh[8].rgb * (0.546274 * (n.x * n.x - n.y * n.y));
 	return max(result, 0.0);
-}
-
-// Noise from 0 to 1 that changes from pixel to pixel but repeats in a 4x4 tile, so a 4x4 blur removes it
-float TileNoise(uint2 pixel)
-{
-	static const float Pattern[16] = {0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0,
-		13.0, 5.0};
-	return (Pattern[(pixel.y & 3) * 4 + (pixel.x & 3)] + 0.5) / 16.0;
 }
 
 // Interleaved gradient noise (Jimenez 2014): from 0 to 1, without visible patterns

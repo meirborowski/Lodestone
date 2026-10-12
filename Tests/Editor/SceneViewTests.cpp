@@ -203,6 +203,36 @@ namespace Lodestone {
 		CHECK(SceneView::PickEntity(EditorContext(), ImageSize, Center, Loaded).IsNil());
 	}
 
+	TEST_CASE("While playing, picking and the overlay find entities where they're drawn, between ticks")
+	{
+		Fixture fixture;
+		const Entity mover = fixture.CreateEntity("Mover", glm::vec3(0.0f));
+		// Moves 4 m along X each tick
+		fixture.Context.AddPlaySystem("Move",
+			[](SimulationContext& simulation)
+			{
+				for (const auto [handle, transform] :
+					simulation.GetScene().GetRegistry().view<TransformComponent>().each())
+					transform.Position.x += 4.0f;
+			});
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		// A tick and a half at 60 ticks per second: drawn halfway from x = 0 to x = 4
+		fixture.Context.Update(1.5 / 60.0);
+		REQUIRE(fixture.Context.GetSimulation()->GetTick() == 1);
+		REQUIRE(fixture.Context.GetSimulation()->GetInterpolationFactor() == doctest::Approx(0.5f).epsilon(1e-3));
+
+		CHECK(fixture.Pick(fixture.Project(glm::vec3(2.0f, 0.0f, 0.0f))) == mover.GetId());
+		CHECK(fixture.Pick(fixture.Project(glm::vec3(4.0f, 0.0f, 0.0f))).IsNil());
+		const float half = SceneView::MarkerSize * 0.5f;
+		const SceneOverlay overlay = SceneView::BuildOverlay(fixture.Context, Loaded);
+		CHECK(HasVertexAt(overlay.DepthTested, glm::vec3(2.0f - half, -half, -half)));
+		CHECK_FALSE(HasVertexAt(overlay.DepthTested, glm::vec3(4.0f - half, -half, -half)));
+
+		// Editing shows the scene as it is
+		REQUIRE(fixture.Context.StopPlay().has_value());
+		CHECK(fixture.Pick(fixture.Project(glm::vec3(0.0f))) == mover.GetId());
+	}
+
 	TEST_CASE("The render view is the editor camera's")
 	{
 		Fixture fixture;

@@ -84,9 +84,11 @@ namespace Lodestone {
 		static RenderView GetRenderView(const EditorContext& context);
 		// The editor camera's view and projection for an image of a size, as the gizmo and picking use them
 		static glm::mat4 GetViewProjection(const EditorContext& context, glm::uvec2 size);
-		// What the overlay draws for the open document. Meshes whose models aren't loaded get markers
+		// What the overlay draws for the open document, where the scene is drawn (between ticks, while playing). Meshes
+		// whose models aren't loaded get markers
 		static SceneOverlay BuildOverlay(const EditorContext& context, const ModelLookup& models);
-		// The entity under a point: the nearest mesh it hits, triangle by triangle, or the nearest marker
+		// The entity under a point: the nearest mesh it hits, triangle by triangle, or the nearest marker - where the
+		// scene is drawn
 		static UUID PickEntity(
 			const EditorContext& context, glm::uvec2 size, glm::vec2 point, const ModelLookup& models);
 

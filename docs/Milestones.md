@@ -17,7 +17,7 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 Keep this section current, so a new session can pick up where the last one stopped.
 
 - **Active milestone:** 5. 3D renderer
-- **In progress:** Milestone 5 is built on `milestone-5-renderer`: glTF import (`ModelImporter`, with fuzz tests for it and the image and HDR decoders), the render components, and the scene renderer (`Source/Client/Lodestone/Renderer`) - forward PBR over a depth and normal prepass, cascaded shadow maps with PCSS, GTAO, split-sum image-based lighting with a sky, transparency, and ACES, Khronos PBR Neutral or no tonemapping - with a reference image for every feature. The editor's viewport, screenshots and picking use it, with a line overlay (grid, markers, selection), a stats overlay with CPU and GPU timings, model instancing (`model_instantiate`) and `render_stats` (40 MCP tools). `LodestoneBenchmark` measures it - 2.3 ms GPU and 1.6 ms CPU per 1080p frame on an RTX 3050 Ti Laptop GPU, in Release - and CI gates its draw calls. What remains: the CC0 HDRIs from Poly Haven that [3D Renderer](Features/Renderer.md) asks for, which need the user's go-ahead to download (the tests use generated environments meanwhile), then review, the pull request and CI
+- **In progress:** Milestone 5 is built on `milestone-5-renderer`: glTF import (`ModelImporter`, with fuzz tests for it and the image and HDR decoders), the render components, and the scene renderer (`Source/Client/Lodestone/Renderer`) - forward PBR over a depth and normal prepass, cascaded shadow maps with PCSS, GTAO, split-sum image-based lighting with a sky, transparency, and ACES, Khronos PBR Neutral or no tonemapping - with a reference image for every feature. The editor's viewport, screenshots and picking use it, with a line overlay (grid, markers, selection), a stats overlay with CPU and GPU timings, model instancing (`model_instantiate`) and `render_stats` (40 MCP tools). `LodestoneBenchmark` measures it - 2.3 ms GPU and 1.6 ms CPU per 1080p frame on an RTX 3050 Ti Laptop GPU, in Release - and CI gates its draw calls. Three CC0 HDRIs from Poly Haven (1k, in `Tests/Fixtures/Environments/PolyHaven`) have reference images and a sunlight check. Every item is done and reviewed; what remains is the pull request and CI on all three platforms
 - **Next:** Milestone 6, animation: skeletons, skins and clips from glTF (extend `Model` and `ModelImporter`), the Animator component, and GPU skinning in the mesh shaders (a skinned vertex layout and pipeline variant)
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
@@ -95,7 +95,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 ### 5. 3D renderer
 - [x] glTF import (meshes, materials and textures)
 - [x] PBR materials
-- [ ] IBL with HDRIs
+- [x] IBL with HDRIs
 - [x] Soft shadows
 - [x] SSAO
 - [x] HDR pipeline and tonemapping

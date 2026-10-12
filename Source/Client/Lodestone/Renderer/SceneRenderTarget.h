@@ -38,7 +38,14 @@ namespace Lodestone {
 
 		SceneRenderTarget(Passkey passkey, nvrhi::IDevice* device, std::string_view debugName);
 
-		// Recreates the images at a new size, if it's different. Anything still using the old ones keeps them alive
+		SceneRenderTarget(const SceneRenderTarget&) = delete;
+		SceneRenderTarget& operator=(const SceneRenderTarget&) = delete;
+		SceneRenderTarget(SceneRenderTarget&&) = delete;
+		SceneRenderTarget& operator=(SceneRenderTarget&&) = delete;
+		~SceneRenderTarget() = default;
+
+		// Recreates the images at a new size, if it's different. Anything still using the old ones keeps them alive.
+		// If it fails, the target keeps its old images
 		[[nodiscard]] std::expected<void, Error> Resize(glm::uvec2 size);
 
 		glm::uvec2 GetSize() const { return m_Output->GetSize(); }

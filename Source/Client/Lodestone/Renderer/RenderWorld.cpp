@@ -88,11 +88,8 @@ namespace Lodestone {
 			if (handle == entt::null)
 				continue;
 
-			TransformComponent local = registry.get<TransformComponent>(handle);
-			if (const auto* previous = registry.try_get<PreviousTransformComponent>(handle);
-				previous != nullptr && interpolationFactor < 1.0f)
-				local = InterpolateTransform(previous->Transform, local, std::max(interpolationFactor, 0.0f));
-			const glm::mat4 transform = visit.ParentWorld * local.GetMatrix();
+			const glm::mat4 transform =
+				visit.ParentWorld * scene.GetInterpolatedTransform(handle, interpolationFactor).GetMatrix();
 
 			if (const auto* mesh = registry.try_get<MeshRendererComponent>(handle);
 				mesh != nullptr && !mesh->Model.IsNil())

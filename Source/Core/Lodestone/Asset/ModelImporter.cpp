@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -123,16 +124,21 @@ namespace Lodestone {
 			return name != nullptr && *name != '\0' ? std::string(name) : fmt::format("{} {}", fallback, index);
 		}
 
-		// Reads an accessor's elements as floats, checking they have the expected type
+		Error MakeLimitError(std::string_view what, uint64_t limit)
+		{
+			return Error(
+				ErrorCode::Unsupported, fmt::format("The model has more than the {} {} supported", limit, what));
+		}
+
+		// Reads an accessor's elements as floats, checking they have the expected type and aren't too many
 		std::expected<std::vector<float>, Error> ReadFloats(
-			const cgltf_accessor& accessor, cgltf_type type, std::string_view context)
+			const cgltf_accessor& accessor, cgltf_type type, uint64_t maxCount, std::string_view context)
 		{
 			if (accessor.type != type)
 				return std::unexpected(MakeError(fmt::format("{} has the wrong element type", context)));
-			if (accessor.count > ModelImporter::MaxVertexCount)
+			if (accessor.count > maxCount)
 				return std::unexpected(Error(ErrorCode::Unsupported,
-					fmt::format("{} has {} elements, more than the {} supported", context, accessor.count,
-						ModelImporter::MaxVertexCount)));
+					fmt::format("{} has {} elements, more than the {} supported", context, accessor.count, maxCount)));
 			const cgltf_size floatCount = accessor.count * cgltf_num_components(type);
 			std::vector<float> values(floatCount);
 			if (cgltf_accessor_unpack_floats(&accessor, values.data(), floatCount) != floatCount)
@@ -143,12 +149,11 @@ namespace Lodestone {
 		}
 
 		std::expected<std::vector<uint32_t>, Error> ReadIndices(
-			const cgltf_accessor& accessor, size_t vertexCount, std::string_view context)
+			const cgltf_accessor& accessor, size_t vertexCount, uint64_t maxCount, std::string_view context)
 		{
-			if (accessor.count > ModelImporter::MaxIndexCount)
+			if (accessor.count > maxCount)
 				return std::unexpected(Error(ErrorCode::Unsupported,
-					fmt::format("{} has {} indices, more than the {} supported", context, accessor.count,
-						ModelImporter::MaxIndexCount)));
+					fmt::format("{} has {} indices, more than the {} supported", context, accessor.count, maxCount)));
 			std::vector<uint32_t> indices(accessor.count);
 			if (cgltf_accessor_unpack_indices(&accessor, indices.data(), sizeof(uint32_t), accessor.count) !=
 				accessor.count)
@@ -156,6 +161,14 @@ namespace Lodestone {
 			if (std::ranges::any_of(indices, [vertexCount](uint32_t index) { return index >= vertexCount; }))
 				return std::unexpected(MakeError(fmt::format("{} refer to vertices that don't exist", context)));
 			return indices;
+		}
+
+		// How many indices ToTriangleList() makes from a primitive's
+		uint64_t GetTriangleListSize(cgltf_primitive_type type, uint64_t indexCount)
+		{
+			if (type == cgltf_primitive_type_triangles)
+				return indexCount / 3 * 3;
+			return indexCount < 3 ? 0 : (indexCount - 2) * 3;
 		}
 
 		// Triangle lists from strips and fans
@@ -278,8 +291,9 @@ namespace Lodestone {
 		class Importer
 		{
 		public:
-			Importer(const cgltf_data& data, const ModelImporter::FileReader& readFile)
-				: m_Data(&data), m_ReadFile(&readFile)
+			Importer(
+				const cgltf_data& data, const ModelImporter::FileReader& readFile, const ModelImportOptions& options)
+				: m_Data(&data), m_ReadFile(&readFile), m_Options(&options)
 			{
 			}
 
@@ -347,6 +361,9 @@ namespace Lodestone {
 				// Images are decoded once, however many textures use them, and only if a texture does
 				std::vector<std::optional<uint32_t>> imageIndices(m_Data->images_count);
 				m_TextureIndices.assign(m_Data->textures_count, std::nullopt);
+				if (!m_Options->LoadTextures)
+					return {};
+				uint64_t pixelCount = 0;
 				for (size_t textureIndex = 0; textureIndex < m_Data->textures_count; ++textureIndex)
 				{
 					const cgltf_texture& texture = m_Data->textures[textureIndex];
@@ -359,6 +376,9 @@ namespace Lodestone {
 						auto image = LoadImage(*texture.image, fmt::format("images[{}]", imageIndex));
 						if (!image)
 							return std::unexpected(image.error());
+						pixelCount += static_cast<uint64_t>(image->GetWidth()) * image->GetHeight();
+						if (pixelCount > m_Options->MaxImagePixelCount)
+							return std::unexpected(MakeLimitError("image pixels", m_Options->MaxImagePixelCount));
 						imageIndices[imageIndex] = static_cast<uint32_t>(m_Model.Images.size());
 						m_Model.Images.push_back(std::move(*image));
 					}
@@ -488,15 +508,24 @@ namespace Lodestone {
 				if (positions == nullptr)
 					return std::unexpected(MakeError(fmt::format("{} has no POSITION attribute", context)));
 
-				const auto positionValues = ReadFloats(*positions, cgltf_type_vec3, context + " POSITION");
+				// What the primitive makes counts toward the model's limits before anything is read: its triangles'
+				// indices, and its vertices - one for every index when it has no normals and is shaded flat
+				const uint64_t vertexCount = positions->count;
+				const uint64_t indexCount = GetTriangleListSize(
+					primitive.type, primitive.indices != nullptr ? primitive.indices->count : vertexCount);
+				const uint64_t producedVertices = normals != nullptr ? vertexCount : indexCount;
+				if (vertexCount > m_Options->MaxVertexCount ||
+					m_VertexCount + producedVertices > m_Options->MaxVertexCount)
+					return std::unexpected(MakeLimitError("vertices", m_Options->MaxVertexCount));
+				if (m_IndexCount + indexCount > m_Options->MaxIndexCount)
+					return std::unexpected(MakeLimitError("indices", m_Options->MaxIndexCount));
+				m_VertexCount += producedVertices;
+				m_IndexCount += indexCount;
+
+				const auto positionValues =
+					ReadFloats(*positions, cgltf_type_vec3, m_Options->MaxVertexCount, context + " POSITION");
 				if (!positionValues)
 					return std::unexpected(positionValues.error());
-				const size_t vertexCount = positions->count;
-				if (m_VertexCount + vertexCount > ModelImporter::MaxVertexCount)
-					return std::unexpected(Error(ErrorCode::Unsupported,
-						fmt::format(
-							"The model has more than the {} vertices supported", ModelImporter::MaxVertexCount)));
-				m_VertexCount += vertexCount;
 
 				std::vector<MeshVertex> vertices(vertexCount);
 				for (size_t index = 0; index < vertexCount; ++index)
@@ -506,7 +535,7 @@ namespace Lodestone {
 				}
 				if (normals != nullptr)
 				{
-					const auto values = ReadFloats(*normals, cgltf_type_vec3, context + " NORMAL");
+					const auto values = ReadFloats(*normals, cgltf_type_vec3, vertexCount, context + " NORMAL");
 					if (!values)
 						return std::unexpected(values.error());
 					for (size_t index = 0; index < vertexCount; ++index)
@@ -519,7 +548,7 @@ namespace Lodestone {
 				}
 				if (texCoords != nullptr)
 				{
-					const auto values = ReadFloats(*texCoords, cgltf_type_vec2, context + " TEXCOORD_0");
+					const auto values = ReadFloats(*texCoords, cgltf_type_vec2, vertexCount, context + " TEXCOORD_0");
 					if (!values)
 						return std::unexpected(values.error());
 					for (size_t index = 0; index < vertexCount; ++index)
@@ -529,7 +558,8 @@ namespace Lodestone {
 				std::vector<uint32_t> indices;
 				if (primitive.indices != nullptr)
 				{
-					auto read = ReadIndices(*primitive.indices, vertexCount, context + " indices");
+					auto read =
+						ReadIndices(*primitive.indices, vertexCount, m_Options->MaxIndexCount, context + " indices");
 					if (!read)
 						return std::unexpected(read.error());
 					indices = std::move(*read);
@@ -550,7 +580,7 @@ namespace Lodestone {
 				}
 				else if (tangents != nullptr)
 				{
-					const auto values = ReadFloats(*tangents, cgltf_type_vec4, context + " TANGENT");
+					const auto values = ReadFloats(*tangents, cgltf_type_vec4, vertexCount, context + " TANGENT");
 					if (!values)
 						return std::unexpected(values.error());
 					for (size_t index = 0; index < vertexCount; ++index)
@@ -566,9 +596,6 @@ namespace Lodestone {
 				}
 				if (!hasTangents)
 					GenerateTangents(vertices, indices);
-				if (mesh.Indices.size() + indices.size() > ModelImporter::MaxIndexCount)
-					return std::unexpected(Error(ErrorCode::Unsupported,
-						fmt::format("The model has more than the {} indices supported", ModelImporter::MaxIndexCount)));
 
 				MeshPrimitive imported;
 				imported.FirstIndex = static_cast<uint32_t>(mesh.Indices.size());
@@ -590,10 +617,8 @@ namespace Lodestone {
 
 			std::expected<void, Error> ImportNodes()
 			{
-				if (m_Data->nodes_count > ModelImporter::MaxNodeCount)
-					return std::unexpected(Error(ErrorCode::Unsupported,
-						fmt::format("The model has {} nodes, more than the {} supported", m_Data->nodes_count,
-							ModelImporter::MaxNodeCount)));
+				if (m_Data->nodes_count > m_Options->MaxNodeCount)
+					return std::unexpected(MakeLimitError("nodes", m_Options->MaxNodeCount));
 				for (size_t index = 0; index < m_Data->nodes_count; ++index)
 				{
 					const cgltf_node& node = m_Data->nodes[index];
@@ -674,35 +699,46 @@ namespace Lodestone {
 		private:
 			const cgltf_data* m_Data;
 			const ModelImporter::FileReader* m_ReadFile;
+			const ModelImportOptions* m_Options;
 			Model m_Model;
 			// glTF texture index to Model::Textures index, for textures with an image
 			std::vector<std::optional<uint32_t>> m_TextureIndices;
 			std::optional<uint32_t> m_DefaultMaterial;
-			size_t m_VertexCount = 0;
+			// What the model holds so far, against the limits
+			uint64_t m_VertexCount = 0;
+			uint64_t m_IndexCount = 0;
 		};
 
 	}
 
-	std::expected<Model, Error> ModelImporter::Import(const std::filesystem::path& path)
+	std::expected<Model, Error> ModelImporter::Import(
+		const std::filesystem::path& path, const ModelImportOptions& options)
 	{
 		const auto data = ReadBinaryFile(path, MaxFileSize);
 		if (!data)
 			return std::unexpected(data.error().WithContext(fmt::format("Importing model {}", path)));
-		return Import(*data, MakeDirectoryReader(path.parent_path()))
+		return Import(*data, MakeDirectoryReader(path.parent_path()), options)
 			.transform_error(
 				[&path](const Error& error) { return error.WithContext(fmt::format("Importing model {}", path)); });
 	}
 
-	std::expected<Model, Error> ModelImporter::Import(std::span<const uint8_t> data, const FileReader& readFile)
+	std::expected<Model, Error> ModelImporter::Import(
+		std::span<const uint8_t> data, const FileReader& readFile, const ModelImportOptions& options)
 	{
+		// Vertices and indices are addressed with 32 bits
+		constexpr uint64_t addressable = std::numeric_limits<uint32_t>::max();
+		if (options.MaxVertexCount > addressable || options.MaxIndexCount > addressable)
+			return std::unexpected(Error(ErrorCode::InvalidArgument,
+				fmt::format("Models can't hold more than {} vertices or indices", addressable)));
+
 		ReadContext readContext{.Reader = &readFile};
-		cgltf_options options{};
-		options.file.read = &ReadModelFile;
-		options.file.release = &ReleaseModelFile;
-		options.file.user_data = &readContext;
+		cgltf_options parseOptions{};
+		parseOptions.file.read = &ReadModelFile;
+		parseOptions.file.release = &ReleaseModelFile;
+		parseOptions.file.user_data = &readContext;
 
 		cgltf_data* parsed = nullptr;
-		if (const cgltf_result result = cgltf_parse(&options, data.data(), data.size(), &parsed);
+		if (const cgltf_result result = cgltf_parse(&parseOptions, data.data(), data.size(), &parsed);
 			result != cgltf_result_success)
 			return std::unexpected(MakeError(fmt::format("The model can't be read: {}", DescribeResult(result))));
 		const GltfData gltf(parsed, &cgltf_free);
@@ -716,7 +752,7 @@ namespace Lodestone {
 		}
 
 		// Without a slash in the "model path", cgltf hands each buffer's URI to the reader on its own
-		if (const cgltf_result result = cgltf_load_buffers(&options, gltf.get(), "model");
+		if (const cgltf_result result = cgltf_load_buffers(&parseOptions, gltf.get(), "model");
 			result != cgltf_result_success)
 		{
 			if (readContext.Failure)
@@ -727,7 +763,7 @@ namespace Lodestone {
 		if (const cgltf_result result = cgltf_validate(gltf.get()); result != cgltf_result_success)
 			return std::unexpected(MakeError(fmt::format("The model isn't valid: {}", DescribeResult(result))));
 
-		return Importer(*gltf, readFile).Run();
+		return Importer(*gltf, readFile, options).Run();
 	}
 
 	ModelImporter::FileReader ModelImporter::MakeDirectoryReader(const std::filesystem::path& directory)

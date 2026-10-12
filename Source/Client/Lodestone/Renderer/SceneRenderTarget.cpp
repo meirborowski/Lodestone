@@ -56,17 +56,10 @@ namespace Lodestone {
 			return std::unexpected(Error(ErrorCode::InvalidArgument,
 				fmt::format("A scene render target can't be {}x{} pixels", size.x, size.y)));
 
-		if (!m_Output)
-		{
-			auto output = RenderTarget::Create(m_Device, size, m_DebugName.c_str());
-			if (!output)
-				return std::unexpected(output.error());
-			m_Output = std::move(*output);
-		}
-		else if (auto resized = m_Output->Resize(size); !resized)
-		{
-			return std::unexpected(resized.error());
-		}
+		// Everything is created before anything is replaced, so a target that fails to resize keeps its old images
+		auto output = RenderTarget::Create(m_Device, size, m_DebugName);
+		if (!output)
+			return std::unexpected(output.error());
 
 		const std::string hdrName = fmt::format("{} HDR color", m_DebugName);
 		const std::string normalName = fmt::format("{} normals", m_DebugName);
@@ -80,7 +73,7 @@ namespace Lodestone {
 			return std::unexpected(Error(ErrorCode::DeviceError,
 				fmt::format("Creating the {}x{} images of '{}' failed", size.x, size.y, m_DebugName)));
 
-		nvrhi::ITexture* depth = m_Output->GetDepth();
+		nvrhi::ITexture* depth = (*output)->GetDepth();
 		nvrhi::FramebufferHandle prepass =
 			m_Device->createFramebuffer(nvrhi::FramebufferDesc().addColorAttachment(normals).setDepthAttachment(depth));
 		nvrhi::FramebufferHandle occlusionPass =
@@ -110,6 +103,7 @@ namespace Lodestone {
 				return std::unexpected(reserved.error());
 		}
 
+		m_Output = std::move(*output);
 		m_Hdr = std::move(hdr);
 		m_Normals = std::move(normals);
 		m_RawOcclusion = std::move(rawOcclusion);

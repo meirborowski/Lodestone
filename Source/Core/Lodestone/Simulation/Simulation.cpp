@@ -79,13 +79,8 @@ namespace Lodestone {
 
 	TransformComponent Simulation::GetInterpolatedTransform(Entity entity) const
 	{
-		const TransformComponent& current = entity.GetTransform();
-		const auto* previous = entity.TryGet<PreviousTransformComponent>();
-		// Entities created during the latest tick have nowhere to come from
-		if (previous == nullptr)
-			return current;
-
-		return InterpolateTransform(previous->Transform, current, GetInterpolationFactor());
+		LS_CORE_ASSERT(entity.GetScene() == m_Scene && entity.IsValid(), "The entity isn't in the simulated scene");
+		return m_Scene->GetInterpolatedTransform(entity.GetHandle(), GetInterpolationFactor());
 	}
 
 	SimulationState Simulation::SaveState() const
