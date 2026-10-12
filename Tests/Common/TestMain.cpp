@@ -10,6 +10,11 @@ int main(int argc, char** argv)
 		[argc, argv]
 		{
 			doctest::Context context(argc, argv);
+#if defined(LS_TEST_SUITE_EXCLUDE)
+			// A suite this build can't run (see ls_add_test_executable()), left out of runs and listings alike - so
+			// CTest's test discovery doesn't register it either
+			context.addFilter("test-suite-exclude", LS_TEST_SUITE_EXCLUDE);
+#endif
 			return context.run();
 		});
 }

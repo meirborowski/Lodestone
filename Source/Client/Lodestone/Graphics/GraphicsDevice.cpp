@@ -231,6 +231,9 @@ namespace Lodestone {
 				return std::unexpected("it doesn't support dynamic rendering");
 			if (features13.synchronization2 == VK_FALSE)
 				return std::unexpected("it doesn't support synchronization2");
+			// The shader compiler turns HLSL's discard into demote to helper invocation for Vulkan 1.3
+			if (features13.shaderDemoteToHelperInvocation == VK_FALSE)
+				return std::unexpected("it doesn't support demoting to helper invocations");
 			candidate.CoreFeatures = features.features;
 			candidate.HasBufferDeviceAddress = features12.bufferDeviceAddress == VK_TRUE;
 			candidate.HasMaintenance4 = features13.maintenance4 == VK_TRUE;
@@ -528,6 +531,7 @@ namespace Lodestone {
 		features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
 		features13.dynamicRendering = VK_TRUE;
 		features13.synchronization2 = VK_TRUE;
+		features13.shaderDemoteToHelperInvocation = VK_TRUE;
 		features13.maintenance4 = best->HasMaintenance4 ? VK_TRUE : VK_FALSE;
 		VkPhysicalDeviceVulkan12Features features12{};
 		features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;

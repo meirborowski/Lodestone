@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -161,6 +162,42 @@ namespace Lodestone {
 			if (std::ranges::any_of(indices, [vertexCount](uint32_t index) { return index >= vertexCount; }))
 				return std::unexpected(MakeError(fmt::format("{} refer to vertices that don't exist", context)));
 			return indices;
+		}
+
+		// Whether data in a buffer view starts at an address, and steps by a stride, that are multiples of a
+		// component's size. Views whose buffers aren't loaded are left for cgltf_validate() to refuse
+		bool IsAligned(const cgltf_buffer_view* view, cgltf_size offset, cgltf_size componentSize, cgltf_size stride)
+		{
+			if (view == nullptr || view->buffer == nullptr || view->buffer->data == nullptr || componentSize == 0)
+				return true;
+			const uintptr_t address = reinterpret_cast<uintptr_t>(view->buffer->data) + view->offset + offset;
+			return address % componentSize == 0 && stride % componentSize == 0;
+		}
+
+		// glTF requires accessors to start, and their elements to step, at multiples of their component size. cgltf
+		// reads them as arrays of their component type - cgltf_validate() too - which is undefined behavior when they
+		// don't, so a model that breaks the rule is refused before cgltf reads anything
+		std::expected<void, Error> CheckAlignment(const cgltf_data& data)
+		{
+			for (size_t index = 0; index < data.accessors_count; ++index)
+			{
+				const cgltf_accessor& accessor = data.accessors[index];
+				const cgltf_size componentSize = cgltf_component_size(accessor.component_type);
+				const cgltf_size stride = accessor.buffer_view != nullptr ? accessor.buffer_view->stride : 0;
+				bool aligned = IsAligned(accessor.buffer_view, accessor.offset, componentSize, stride);
+				if (accessor.is_sparse)
+				{
+					const cgltf_accessor_sparse& sparse = accessor.sparse;
+					aligned = aligned &&
+						IsAligned(sparse.indices_buffer_view, sparse.indices_byte_offset,
+							cgltf_component_size(sparse.indices_component_type), 0) &&
+						IsAligned(sparse.values_buffer_view, sparse.values_byte_offset, componentSize, 0);
+				}
+				if (!aligned)
+					return std::unexpected(MakeError(fmt::format(
+						"accessors[{}] isn't aligned to the {}-byte size of its components", index, componentSize)));
+			}
+			return {};
 		}
 
 		// How many indices ToTriangleList() makes from a primitive's
@@ -763,6 +800,8 @@ namespace Lodestone {
 			return std::unexpected(
 				MakeError(fmt::format("The model's buffers can't be loaded: {}", DescribeResult(result))));
 		}
+		if (auto aligned = CheckAlignment(*gltf); !aligned)
+			return std::unexpected(aligned.error());
 		if (const cgltf_result result = cgltf_validate(gltf.get()); result != cgltf_result_success)
 			return std::unexpected(MakeError(fmt::format("The model isn't valid: {}", DescribeResult(result))));
 

@@ -358,6 +358,47 @@ namespace Lodestone {
 		CHECK_FALSE(ImportText(text).has_value());
 	}
 
+	TEST_CASE("Accessors that aren't aligned to their component size fail to import")
+	{
+		// Three float positions, then three 16-bit indices one byte past where they could start
+		std::vector<uint8_t> bytes(36 + 1 + 6, 0);
+		const std::vector<uint16_t> indices = {0, 1, 2};
+		std::memcpy(bytes.data() + 37, indices.data(), 6);
+		const auto makeModel = [&bytes](std::string_view views)
+		{
+			return fmt::format(R"({{"asset": {{"version": "2.0"}},
+				"buffers": [{{"uri": "data:application/octet-stream;base64,{}", "byteLength": 43}}],
+				"bufferViews": [{}],
+				"accessors": [{{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}},
+					{{"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}}],
+				"meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0}}, "indices": 1}}]}}]}})",
+				EncodeBase64(bytes), views);
+		};
+
+		SUBCASE("Indices")
+		{
+			const auto model = ImportText(
+				makeModel(R"({"buffer": 0, "byteLength": 36}, {"buffer": 0, "byteOffset": 37, "byteLength": 6})"));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetCode() == ErrorCode::ParseError);
+			CHECK(model.error().GetMessageText().contains("accessors[1] isn't aligned"));
+		}
+		SUBCASE("Positions")
+		{
+			const auto model = ImportText(makeModel(
+				R"({"buffer": 0, "byteOffset": 1, "byteLength": 36}, {"buffer": 0, "byteOffset": 36, "byteLength": 6})"));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("accessors[0] isn't aligned"));
+		}
+		SUBCASE("A stride")
+		{
+			const auto model = ImportText(makeModel(
+				R"({"buffer": 0, "byteLength": 36, "byteStride": 13}, {"buffer": 0, "byteOffset": 36, "byteLength": 6})"));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("accessors[0] isn't aligned"));
+		}
+	}
+
 	TEST_CASE("Limits count all a model makes: meshes sharing data, and the vertices of flat shading")
 	{
 		// Two meshes drawing the same two triangles, without normals: 12 indices, and 12 flat-shaded vertices made

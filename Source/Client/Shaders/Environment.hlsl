@@ -30,7 +30,8 @@ Texture2D<float4> g_Equirectangular : register(t0);
 Texture2DArray<float4> g_SourceFaces : register(t1);
 TextureCube<float4> g_SourceCube : register(t2);
 SamplerState g_Sampler : register(s0);
-RWTexture2DArray<float4> g_Destination : register(u0);
+// The cube maps are RGBA16F (EnvironmentMap.cpp). Vulkan needs a storage image's format declared to match it
+[[vk::image_format("rgba16f")]] RWTexture2DArray<float4> g_Destination : register(u0);
 
 float2 FacePoint(uint2 texel)
 {

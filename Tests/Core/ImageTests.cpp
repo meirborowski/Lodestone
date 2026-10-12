@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <fstream>
 
 namespace Lodestone {
@@ -66,6 +67,26 @@ namespace Lodestone {
 		REQUIRE(encoded->size() > 8);
 		CHECK((*encoded)[0] == 0x89);
 		CHECK((*encoded)[1] == 'P');
+		const auto decoded = Image::Decode(*encoded);
+
+		REQUIRE(decoded.has_value());
+		CHECK(*decoded == image);
+	}
+
+	TEST_CASE("Empty data chunks in a PNG are skipped")
+	{
+		Image image(3, 3);
+		image.SetPixel(1, 1, {.R = 10, .G = 20, .B = 30, .A = 255});
+		auto encoded = image.EncodePng();
+		REQUIRE(encoded.has_value());
+		// An IDAT chunk with no data, and its CRC (over its type)
+		const std::array<uint8_t, 12> emptyData = {0, 0, 0, 0, 'I', 'D', 'A', 'T', 0x35, 0xAF, 0x06, 0x1E};
+		// The first IDAT follows the signature and the IHDR chunk; the last chunk is the 12-byte IEND
+		constexpr ptrdiff_t firstDataChunk = 8 + 12 + 13;
+		REQUIRE(std::equal(encoded->begin() + firstDataChunk + 4, encoded->begin() + firstDataChunk + 8, "IDAT"));
+		encoded->insert(encoded->end() - 12, emptyData.begin(), emptyData.end());
+		encoded->insert(encoded->begin() + firstDataChunk, emptyData.begin(), emptyData.end());
+
 		const auto decoded = Image::Decode(*encoded);
 
 		REQUIRE(decoded.has_value());

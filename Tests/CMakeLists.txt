@@ -40,23 +40,26 @@ target_compile_definitions(LodestoneTestSupport
 ls_configure_target(LodestoneTestSupport)
 
 # ls_add_test_executable(<target> PREFIX <prefix> LABELS <tier>... SOURCES <file>...
-#                        [LIBRARIES <library>...] [TEST_SPEC <doctest filter>...])
+#                        [LIBRARIES <library>...] [EXCLUDE_SUITE <doctest test suite>])
 #
 # Adds a doctest executable, with the standard test runner (Common/TestMain.cpp), and registers each of its test cases
-# with CTest as "<prefix>.<test case name>". TEST_SPEC limits which test cases are registered.
+# with CTest as "<prefix>.<test case name>". The test cases of EXCLUDE_SUITE are left out of the executable's runs, and
+# so aren't registered. (doctest_discover_tests' TEST_SPEC can't do that: it only matches test case names.)
 function(ls_add_test_executable target)
-	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX" "LABELS;SOURCES;LIBRARIES;TEST_SPEC")
+	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "PREFIX;EXCLUDE_SUITE" "LABELS;SOURCES;LIBRARIES")
 	if(NOT ARG_PREFIX OR NOT ARG_LABELS OR NOT ARG_SOURCES)
 		message(FATAL_ERROR "ls_add_test_executable(${target}) needs PREFIX, LABELS and SOURCES")
 	endif()
 
 	add_executable(${target} Common/TestMain.cpp ${ARG_SOURCES})
 	target_link_libraries(${target} PRIVATE LodestoneTestSupport ${ARG_LIBRARIES})
+	if(ARG_EXCLUDE_SUITE)
+		target_compile_definitions(${target} PRIVATE LS_TEST_SUITE_EXCLUDE="${ARG_EXCLUDE_SUITE}")
+	endif()
 	ls_configure_target(${target})
 
 	doctest_discover_tests(${target}
 		TEST_PREFIX "${ARG_PREFIX}."
-		TEST_SPEC ${ARG_TEST_SPEC}
 		PROPERTIES LABELS "${ARG_LABELS}"
 	)
 endfunction()
@@ -119,9 +122,9 @@ ls_add_test_executable(LodestoneClientTests
 # Without it, only the tests that don't compare against reference images are registered - on macOS, they check that
 # MoltenVK provides a Vulkan device and renders
 if(LS_LAVAPIPE_DRIVER)
-	set(LS_RENDER_TEST_SPEC "")
+	set(LS_RENDER_EXCLUDED_SUITE "")
 else()
-	set(LS_RENDER_TEST_SPEC "--test-suite-exclude=ReferenceImages")
+	set(LS_RENDER_EXCLUDED_SUITE ReferenceImages)
 endif()
 ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
@@ -136,7 +139,7 @@ ls_add_test_executable(LodestoneRenderTests
 		Render/TriangleRenderTests.cpp
 	LIBRARIES
 		LodestoneClient
-	TEST_SPEC ${LS_RENDER_TEST_SPEC}
+	EXCLUDE_SUITE ${LS_RENDER_EXCLUDED_SUITE}
 )
 if(LS_LAVAPIPE_DRIVER)
 	target_compile_definitions(LodestoneRenderTests PRIVATE LS_LAVAPIPE_DRIVER="${LS_LAVAPIPE_DRIVER}")
