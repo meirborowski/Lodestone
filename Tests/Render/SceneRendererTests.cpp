@@ -675,13 +675,25 @@ namespace Lodestone {
 			return;
 		}
 		const RenderStats& stats = fixture.GetStats();
+#if defined(LS_LAVAPIPE_DRIVER)
+		// lavapipe times work, so its timings arrive
 		REQUIRE(stats.GpuPassTimes.has_value());
+#endif
+		// Some devices have timer queries whose timestamps don't advance within a frame (MoltenVK without GPU
+		// counters). They report no timings, rather than timings of nothing
 		if (stats.GpuPassTimes)
 		{
 			for (const double time : *stats.GpuPassTimes)
 				CHECK(time >= 0.0);
+			CHECK(stats.GetGpuTime().value_or(0.0) > 0.0);
 		}
-		CHECK(stats.GetGpuTime().value_or(0.0) > 0.0);
+		else
+		{
+			// Once a device shows it can't time work, it stays untimed
+			static_cast<void>(fixture.Render(world, view));
+			static_cast<void>(fixture.Render(world, view));
+			CHECK_FALSE(fixture.GetStats().GpuPassTimes.has_value());
+		}
 	}
 
 	TEST_CASE("Scene render targets resize, and refuse empty sizes")

@@ -46,7 +46,7 @@ namespace Lodestone {
 		double CpuTime = 0.0;
 		// Milliseconds the GPU spent on each pass (indexed by RenderPass), from the latest frame it has finished - a
 		// frame or more behind, as the GPU works after the CPU records. Empty until a frame finishes, and where the
-		// device can't time work
+		// device can't time work - it has no timer queries, or they measure no time at all
 		std::optional<std::array<double, RenderPassCount>> GpuPassTimes;
 
 		// The GPU's time for all the passes, if it's known

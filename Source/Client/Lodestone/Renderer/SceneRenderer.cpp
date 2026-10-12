@@ -524,8 +524,19 @@ namespace Lodestone {
 			std::array<double, RenderPassCount> times{};
 			for (size_t pass = 0; pass < RenderPassCount; ++pass)
 				times[pass] = static_cast<double>(m_Device->getTimerQueryTime(frame.Queries[pass])) * 1000.0;
-			stats.GpuPassTimes = times;
 			frame.InFlight = false;
+			// Every frame does work (tonemapping covers the image), so a device that measures none has timestamps that
+			// don't advance within a command list - MoltenVK's without GPU counters. Its timings mean nothing, so the
+			// renderer stops timing, and reports none
+			if (std::ranges::all_of(times, [](double time) { return time <= 0.0; }))
+			{
+				if (m_TimerQueriesSupported)
+					LS_CORE_INFO("The GPU measures no time for a frame, so its timestamps can't time work, and GPU "
+								 "timings aren't available");
+				m_TimerQueriesSupported = false;
+				continue;
+			}
+			stats.GpuPassTimes = times;
 		}
 		// This frame's queries, unless the next ones are all still in flight
 		TimerFrame& timers = target.m_TimerFrames[target.m_NextTimerFrame];

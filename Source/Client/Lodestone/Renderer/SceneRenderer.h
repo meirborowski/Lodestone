@@ -125,6 +125,7 @@ namespace Lodestone {
 	private:
 		nvrhi::IDevice* m_Device;
 		SceneRendererConfig m_Config;
+		// Whether frames are timed: where the device has timer queries, until a frame shows they measure nothing
 		bool m_TimerQueriesSupported;
 		Scope<RenderResources> m_Resources;
 		Scope<RenderAssets> m_Assets;
