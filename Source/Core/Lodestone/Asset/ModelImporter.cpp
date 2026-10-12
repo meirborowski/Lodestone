@@ -352,8 +352,10 @@ namespace Lodestone {
 				{
 					return std::unexpected(MakeError(fmt::format("{} has neither a URI nor a buffer view", context)));
 				}
-				return Image::Decode(encoded).transform_error(
-					[context](const Error& error) { return error.WithContext(context); });
+				auto decoded = Image::Decode(encoded);
+				if (!decoded)
+					return std::unexpected(decoded.error().WithContext(context));
+				return decoded;
 			}
 
 			std::expected<void, Error> ImportTextures()
@@ -371,7 +373,8 @@ namespace Lodestone {
 					if (texture.image == nullptr)
 						continue;
 					const size_t imageIndex = cgltf_image_index(m_Data, texture.image);
-					if (!imageIndices[imageIndex])
+					std::optional<uint32_t>& modelImage = imageIndices[imageIndex];
+					if (!modelImage)
 					{
 						auto image = LoadImage(*texture.image, fmt::format("images[{}]", imageIndex));
 						if (!image)
@@ -379,11 +382,11 @@ namespace Lodestone {
 						pixelCount += static_cast<uint64_t>(image->GetWidth()) * image->GetHeight();
 						if (pixelCount > m_Options->MaxImagePixelCount)
 							return std::unexpected(MakeLimitError("image pixels", m_Options->MaxImagePixelCount));
-						imageIndices[imageIndex] = static_cast<uint32_t>(m_Model.Images.size());
+						modelImage = static_cast<uint32_t>(m_Model.Images.size());
 						m_Model.Images.push_back(std::move(*image));
 					}
 
-					ModelTexture imported{.Image = *imageIndices[imageIndex]};
+					ModelTexture imported{.Image = *modelImage};
 					if (const cgltf_sampler* sampler = texture.sampler)
 					{
 						imported.WrapU = ToWrap(sampler->wrap_s);

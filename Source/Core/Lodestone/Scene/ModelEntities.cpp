@@ -8,6 +8,7 @@
 
 #include <spdlog/fmt/fmt.h>
 
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,8 +27,8 @@ namespace Lodestone {
 		std::vector<bool> placed(model.Nodes.size(), false);
 		// Depth first, so each node's entity follows its parent's and siblings keep the model's order
 		std::vector<std::pair<uint32_t, UUID>> stack;
-		for (auto node = model.RootNodes.rbegin(); node != model.RootNodes.rend(); ++node)
-			stack.emplace_back(*node, root.GetId());
+		for (const uint32_t node : std::views::reverse(model.RootNodes))
+			stack.emplace_back(node, root.GetId());
 		while (!stack.empty())
 		{
 			const auto [index, parent] = stack.back();
@@ -47,8 +48,8 @@ namespace Lodestone {
 			entities.push_back(entity);
 			parents.push_back(parent);
 
-			for (auto child = node.Children.rbegin(); child != node.Children.rend(); ++child)
-				stack.emplace_back(*child, entity.GetId());
+			for (const uint32_t child : std::views::reverse(node.Children))
+				stack.emplace_back(child, entity.GetId());
 		}
 
 		// The entities were all created as roots, so arranging them can't fail

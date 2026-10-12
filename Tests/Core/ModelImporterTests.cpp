@@ -13,6 +13,7 @@
 #include <cstring>
 #include <filesystem>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,13 @@ namespace Lodestone {
 		bool IsNear(const glm::vec3& a, const glm::vec3& b, float tolerance = 1e-4f)
 		{
 			return glm::length(a - b) <= tolerance;
+		}
+
+		// The image a material's texture shows, or a failed test if there's none
+		const Image& GetTextureImage(const Model& model, const std::optional<uint32_t>& texture)
+		{
+			REQUIRE(texture.has_value());
+			return model.Images.at(model.Textures.at(texture.value_or(std::numeric_limits<uint32_t>::max())).Image);
 		}
 
 		// A glTF document with one triangle, its buffer embedded as a data URI. The JSON's parts can be replaced to
@@ -96,7 +104,7 @@ namespace Lodestone {
 			CHECK(image.GetWidth() == 64);
 			CHECK(image.GetHeight() == 64);
 		}
-		const Image& checker = model.Images[model.Textures[*material.BaseColorTexture].Image];
+		const Image& checker = GetTextureImage(model, material.BaseColorTexture);
 		CHECK(checker.GetPixel(2, 2).R > 150);
 		CHECK(checker.GetPixel(10, 2).R < 100);
 		CHECK(model.Textures[0].WrapU == TextureWrap::Repeat);
@@ -220,7 +228,7 @@ namespace Lodestone {
 		CHECK(alpha.Materials[3].DoubleSided);
 		// The mask's texture is a PNG embedded in the binary file
 		REQUIRE(alpha.Materials[1].BaseColorTexture.has_value());
-		const Image& leaf = alpha.Images[alpha.Textures[*alpha.Materials[1].BaseColorTexture].Image];
+		const Image& leaf = GetTextureImage(alpha, alpha.Materials[1].BaseColorTexture);
 		CHECK(leaf.GetWidth() == 32);
 		CHECK(leaf.GetPixel(16, 16).A == 255);
 		CHECK(leaf.GetPixel(0, 0).A == 0);

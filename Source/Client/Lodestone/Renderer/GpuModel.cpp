@@ -149,9 +149,10 @@ namespace Lodestone {
 					return std::unexpected(texture.error());
 				nvrhi::ISampler* sampler =
 					resources.GetMaterialSampler(TextureWrap::Repeat, TextureWrap::Repeat, false);
-				if (slots[slot].Texture && *slots[slot].Texture < cpu.Textures.size())
+				if (const std::optional<uint32_t> textureIndex = slots[slot].Texture;
+					textureIndex && *textureIndex < cpu.Textures.size())
 				{
-					const ModelTexture& modelTexture = cpu.Textures[*slots[slot].Texture];
+					const ModelTexture& modelTexture = cpu.Textures[*textureIndex];
 					sampler =
 						resources.GetMaterialSampler(modelTexture.WrapU, modelTexture.WrapV, modelTexture.Nearest);
 				}

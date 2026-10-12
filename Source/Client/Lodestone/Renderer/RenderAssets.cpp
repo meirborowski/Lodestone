@@ -145,10 +145,16 @@ namespace Lodestone {
 
 	const Error* RenderAssets::GetError(UUID id) const
 	{
-		if (const auto found = m_Models.find(id); found != m_Models.end() && found->second.Failure)
-			return &*found->second.Failure;
-		if (const auto found = m_Environments.find(id); found != m_Environments.end() && found->second.Failure)
-			return &*found->second.Failure;
+		if (const auto found = m_Models.find(id); found != m_Models.end())
+		{
+			if (const std::optional<Error>& failure = found->second.Failure)
+				return &*failure;
+		}
+		if (const auto found = m_Environments.find(id); found != m_Environments.end())
+		{
+			if (const std::optional<Error>& failure = found->second.Failure)
+				return &*failure;
+		}
 		return nullptr;
 	}
 

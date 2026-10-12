@@ -52,7 +52,7 @@ namespace Lodestone {
 
 		const auto hit = box.Intersect(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, -1.0f));
 		REQUIRE(hit.has_value());
-		CHECK(*hit == doctest::Approx(4.0f));
+		CHECK(hit.value_or(-1.0f) == doctest::Approx(4.0f));
 		// From inside: at once
 		CHECK(box.Intersect(glm::vec3(0.0f), glm::vec3(1.0f, 0.0f, 0.0f)) == 0.0f);
 		CHECK_FALSE(box.Intersect(glm::vec3(0.0f, 3.0f, 5.0f), glm::vec3(0.0f, 0.0f, -1.0f)).has_value());

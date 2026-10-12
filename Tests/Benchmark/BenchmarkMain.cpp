@@ -162,9 +162,10 @@ namespace Lodestone::Benchmark {
 				cpu.push_back(stats.CpuTime);
 				wall.push_back(milliseconds);
 				// The GPU's timings are of the frame before, which finished before this one began
-				if (frame > 0 && stats.GpuPassTimes)
+				if (const std::optional<double> gpuTime = stats.GetGpuTime();
+					frame > 0 && gpuTime && stats.GpuPassTimes)
 				{
-					gpu.push_back(*stats.GetGpuTime());
+					gpu.push_back(*gpuTime);
 					for (size_t pass = 0; pass < RenderPassCount; ++pass)
 						passes[pass].push_back((*stats.GpuPassTimes)[pass]);
 				}

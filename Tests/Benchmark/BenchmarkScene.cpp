@@ -30,7 +30,6 @@ namespace Lodestone::Benchmark {
 		// Meshes of Primitives.glb and AlphaModes.glb
 		constexpr uint32_t Plane = 0;
 		constexpr uint32_t Cube = 1;
-		constexpr uint32_t Sphere = 2;
 		constexpr uint32_t MaskedQuad = 1;
 		constexpr uint32_t BlendedQuad = 2;
 
@@ -92,7 +91,10 @@ namespace Lodestone::Benchmark {
 
 			Entity lamp = scene.CreateEntity("Lamp");
 			lamp.GetTransform().Position = center + glm::vec3(-0.8f, 2.0f, 0.8f);
-			const glm::vec3 color(0.5f + 0.5f * Hash(seed++), 0.5f + 0.5f * Hash(seed++), 0.5f + 0.5f * Hash(seed++));
+			// One channel at a time: the order a constructor's arguments are evaluated in is unspecified
+			glm::vec3 color;
+			for (int channel = 0; channel < 3; ++channel)
+				color[channel] = 0.5f + 0.5f * Hash(seed++);
 			lamp.Add<PointLightComponent>(PointLightComponent{.Color = color, .Intensity = 25.0f, .Range = 8.0f});
 
 			Entity spot = scene.CreateEntity("Spot");

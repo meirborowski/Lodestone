@@ -385,7 +385,7 @@ namespace Lodestone {
 		RendererFixture fixture(glm::uvec2(192, 128));
 		const RenderView view = MakeView(glm::vec3(0.5f, 1.6f, 3.0f), glm::vec3(0.5f, 0.4f, 0.0f));
 
-		for (const auto [tonemapper, name] : {std::pair(Tonemapper::Aces, "TonemapAces"),
+		for (const auto& [tonemapper, name] : {std::pair(Tonemapper::Aces, "TonemapAces"),
 				 std::pair(Tonemapper::Neutral, "TonemapNeutral"), std::pair(Tonemapper::None, "TonemapNone")})
 		{
 			CAPTURE(name);
@@ -408,7 +408,7 @@ namespace Lodestone {
 		RendererFixture fixture(glm::uvec2(192, 128));
 		const RenderView view = MakeView(glm::vec3(0.0f, 0.5f, 3.4f), glm::vec3(0.0f, 0.2f, 0.0f), 60.0f);
 
-		for (const auto [environment, name] : {std::pair(OutdoorId, "EnvironmentOutdoor"),
+		for (const auto& [environment, name] : {std::pair(OutdoorId, "EnvironmentOutdoor"),
 				 std::pair(StudioId, "EnvironmentStudio"), std::pair(SunsetId, "EnvironmentSunset")})
 		{
 			CAPTURE(name);
@@ -674,10 +674,14 @@ namespace Lodestone {
 			CHECK_FALSE(fixture.GetStats().GpuPassTimes.has_value());
 			return;
 		}
-		REQUIRE(fixture.GetStats().GpuPassTimes.has_value());
-		for (const double time : *fixture.GetStats().GpuPassTimes)
-			CHECK(time >= 0.0);
-		CHECK(*fixture.GetStats().GetGpuTime() > 0.0);
+		const RenderStats& stats = fixture.GetStats();
+		REQUIRE(stats.GpuPassTimes.has_value());
+		if (stats.GpuPassTimes)
+		{
+			for (const double time : *stats.GpuPassTimes)
+				CHECK(time >= 0.0);
+		}
+		CHECK(stats.GetGpuTime().value_or(0.0) > 0.0);
 	}
 
 	TEST_CASE("Scene render targets resize, and refuse empty sizes")
