@@ -30,19 +30,20 @@ namespace Lodestone {
 
 		constexpr glm::uvec2 ImageSize{256, 256};
 
-		const UUID PrimitivesId(0x1000000000004000ull, 0x8000000000000001ull);
-		const UUID SpheresId(0x1000000000004000ull, 0x8000000000000002ull);
-		const UUID TexturedCubeId(0x1000000000004000ull, 0x8000000000000003ull);
-		const UUID AlphaModesId(0x1000000000004000ull, 0x8000000000000004ull);
-		const UUID SkyId(0x1000000000004000ull, 0x8000000000000005ull);
-		const UUID MissingId(0x1000000000004000ull, 0x80000000000000FFull);
+		constexpr UUID PrimitivesId(0x1000000000004000ull, 0x8000000000000001ull);
+		constexpr UUID SpheresId(0x1000000000004000ull, 0x8000000000000002ull);
+		constexpr UUID TexturedCubeId(0x1000000000004000ull, 0x8000000000000003ull);
+		constexpr UUID AlphaModesId(0x1000000000004000ull, 0x8000000000000004ull);
+		constexpr UUID SkyId(0x1000000000004000ull, 0x8000000000000005ull);
+		constexpr UUID MissingId(0x1000000000004000ull, 0x80000000000000FFull);
 
 		// Meshes of Primitives.glb
 		constexpr uint32_t Plane = 0;
 		constexpr uint32_t Cube = 1;
 		constexpr uint32_t Sphere = 2;
 
-		const glm::vec3 SunDirection = glm::normalize(glm::vec3(-0.5f, -1.0f, -0.35f));
+		// Where the sun shines, before it's made unit length
+		constexpr glm::vec3 SunDirection{-0.5f, -1.0f, -0.35f};
 
 		std::filesystem::path GetFixture(std::string_view directory, std::string_view file)
 		{
@@ -98,7 +99,7 @@ namespace Lodestone {
 		RenderWorld MakeSunlitWorld()
 		{
 			RenderWorld world;
-			world.DirectionalLights.push_back({.Direction = SunDirection, .Color = glm::vec3(3.0f)});
+			world.DirectionalLights.push_back({.Direction = glm::normalize(SunDirection), .Color = glm::vec3(3.0f)});
 			world.Environment.Environment = SkyId;
 			return world;
 		}
@@ -112,8 +113,8 @@ namespace Lodestone {
 		size_t CountMessages(const Testing::LogCapture& log, std::string_view text)
 		{
 			const std::vector<std::string> messages = log.GetMessages();
-			return static_cast<size_t>(std::ranges::count_if(
-				messages, [text](const std::string& message) { return message.find(text) != std::string::npos; }));
+			return static_cast<size_t>(
+				std::ranges::count_if(messages, [text](const std::string& message) { return message.contains(text); }));
 		}
 
 		float Brightness(Rgba8 pixel)
@@ -160,6 +161,8 @@ namespace Lodestone {
 
 			RendererFixture(const RendererFixture&) = delete;
 			RendererFixture& operator=(const RendererFixture&) = delete;
+			RendererFixture(RendererFixture&&) = delete;
+			RendererFixture& operator=(RendererFixture&&) = delete;
 
 			~RendererFixture() { CHECK(m_Device->GetValidationErrorCount() == 0); }
 
@@ -449,14 +452,14 @@ namespace Lodestone {
 		RenderWorld world;
 		world.Environment.Environment = SkyId;
 		world.Meshes.push_back({.Model = PrimitivesId, .Mesh = Sphere, .World = Place(glm::vec3(0.0f))});
-		constexpr glm::uvec2 Size{128, 128};
-		RendererFixture fixture(Size);
+		constexpr glm::uvec2 size{128, 128};
+		RendererFixture fixture(size);
 		const RenderView view = MakeView(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.5f, 0.0f), 70.0f);
 		// Sky.hdr's sun is 35 degrees up, 45 degrees from -Z toward +X. Turned 45 degrees, it's straight ahead
 		const glm::vec3 turnedSun(0.0f, std::sin(glm::radians(35.0f)), -std::cos(glm::radians(35.0f)));
 		const glm::vec4 clip = view.GetProjection(1.0f) * view.View * glm::vec4(view.GetPosition() + turnedSun, 1.0f);
-		const auto sunX = static_cast<uint32_t>((clip.x / clip.w * 0.5f + 0.5f) * static_cast<float>(Size.x));
-		const auto sunY = static_cast<uint32_t>((0.5f - clip.y / clip.w * 0.5f) * static_cast<float>(Size.y));
+		const auto sunX = static_cast<uint32_t>((clip.x / clip.w * 0.5f + 0.5f) * static_cast<float>(size.x));
+		const auto sunY = static_cast<uint32_t>((0.5f - clip.y / clip.w * 0.5f) * static_cast<float>(size.y));
 
 		const Image normal = fixture.Render(world, view);
 		world.Settings.Exposure = 1.0f;
@@ -480,7 +483,7 @@ namespace Lodestone {
 
 	TEST_CASE("Assets that can't load draw nothing, are reported once, and fall back to the default environment")
 	{
-		Testing::LogCapture log;
+		const Testing::LogCapture log;
 		RenderWorld world;
 		world.Environment.Environment = MissingId;
 		world.Meshes.push_back({.Model = MissingId, .World = Place(glm::vec3(0.0f))});

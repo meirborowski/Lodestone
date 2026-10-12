@@ -18,6 +18,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <tuple>
 
 namespace Lodestone {
@@ -318,9 +319,13 @@ namespace Lodestone {
 					.addBindingLayout(m_Resources->GetEnvironmentLayout())
 					.addBindingLayout(m_Resources->GetMaterialLayout());
 				if (alpha == AlphaMode::Opaque)
+				{
 					desc.setPixelShader(m_ForwardPixelShader);
+				}
 				else if (alpha == AlphaMode::Mask)
+				{
 					desc.setPixelShader(m_ForwardMaskedPixelShader);
+				}
 				else
 				{
 					desc.setPixelShader(m_ForwardBlendedPixelShader);
@@ -535,7 +540,8 @@ namespace Lodestone {
 			target.m_NextTimerFrame = (target.m_NextTimerFrame + 1) % SceneRenderTarget::TimerFrameCount;
 		const auto beginPass = [&](RenderPass pass)
 		{
-			commandList->beginMarker(ToString(pass).data());
+			const std::string name(ToString(pass));
+			commandList->beginMarker(name.c_str());
 			if (timing)
 				commandList->beginTimerQuery(timers.Queries[static_cast<size_t>(pass)]);
 		};
@@ -768,8 +774,10 @@ namespace Lodestone {
 
 			ShaderTypes::DrawConstants constants;
 			if (shadowViewProjection != nullptr)
+			{
 				// The shadow pass takes the whole transform to the shadow map, and needs nothing else
 				constants.World = *shadowViewProjection * draw.World;
+			}
 			else
 			{
 				constants = MakeDrawConstants(draw.World, draw.Mirrored);

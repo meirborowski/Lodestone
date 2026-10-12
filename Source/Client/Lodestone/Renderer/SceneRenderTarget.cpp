@@ -64,7 +64,9 @@ namespace Lodestone {
 			m_Output = std::move(*output);
 		}
 		else if (auto resized = m_Output->Resize(size); !resized)
+		{
 			return std::unexpected(resized.error());
+		}
 
 		const std::string hdrName = fmt::format("{} HDR color", m_DebugName);
 		const std::string normalName = fmt::format("{} normals", m_DebugName);
@@ -124,25 +126,25 @@ namespace Lodestone {
 	{
 		const auto capacity = [](const nvrhi::BufferHandle& buffer, uint32_t stride)
 		{ return buffer ? static_cast<size_t>(buffer->getDesc().byteSize) / stride : 0; };
-		constexpr auto LightStride = static_cast<uint32_t>(sizeof(ShaderTypes::PunctualLight));
-		constexpr auto IndexStride = static_cast<uint32_t>(sizeof(uint32_t));
+		constexpr auto lightStride = static_cast<uint32_t>(sizeof(ShaderTypes::PunctualLight));
+		constexpr auto indexStride = static_cast<uint32_t>(sizeof(uint32_t));
 
-		if (capacity(m_PunctualLights, LightStride) < lightCount)
+		if (capacity(m_PunctualLights, lightStride) < lightCount)
 		{
 			const std::string name = fmt::format("{} punctual lights", m_DebugName);
 			nvrhi::BufferHandle buffer = CreateStructuredBuffer(
-				m_Device, std::bit_ceil(std::max(lightCount, MinLightCapacity)), LightStride, name.c_str());
+				m_Device, std::bit_ceil(std::max(lightCount, MinLightCapacity)), lightStride, name.c_str());
 			if (!buffer)
 				return std::unexpected(Error(
 					ErrorCode::DeviceError, fmt::format("Creating the light buffer of '{}' failed", m_DebugName)));
 			m_PunctualLights = std::move(buffer);
 			m_BindingsValid = false;
 		}
-		if (capacity(m_LightIndices, IndexStride) < indexCount)
+		if (capacity(m_LightIndices, indexStride) < indexCount)
 		{
 			const std::string name = fmt::format("{} light indices", m_DebugName);
 			nvrhi::BufferHandle buffer = CreateStructuredBuffer(
-				m_Device, std::bit_ceil(std::max(indexCount, MinLightIndexCapacity)), IndexStride, name.c_str());
+				m_Device, std::bit_ceil(std::max(indexCount, MinLightIndexCapacity)), indexStride, name.c_str());
 			if (!buffer)
 				return std::unexpected(Error(ErrorCode::DeviceError,
 					fmt::format("Creating the light index buffer of '{}' failed", m_DebugName)));

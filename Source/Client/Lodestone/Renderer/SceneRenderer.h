@@ -151,9 +151,10 @@ namespace Lodestone {
 		nvrhi::GraphicsPipelineHandle m_BlurPipeline;
 		nvrhi::GraphicsPipelineHandle m_SkyPipeline;
 		nvrhi::GraphicsPipelineHandle m_TonemapPipeline;
-		// By pass, alpha mode, double-sidedness and mirroring
-		std::array<nvrhi::GraphicsPipelineHandle, 3 * 3 * 2 * 2> m_MeshPipelines;
-		std::array<bool, 3 * 3 * 2 * 2> m_MeshPipelineFailed{};
+		// By pass (3), alpha mode (3), double-sidedness (2) and mirroring (2)
+		static constexpr size_t MeshPipelineCount = 36;
+		std::array<nvrhi::GraphicsPipelineHandle, MeshPipelineCount> m_MeshPipelines;
+		std::array<bool, MeshPipelineCount> m_MeshPipelineFailed{};
 
 		nvrhi::TextureHandle m_ShadowMap;
 		std::vector<nvrhi::FramebufferHandle> m_ShadowFramebuffers;

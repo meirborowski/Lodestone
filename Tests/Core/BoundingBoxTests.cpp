@@ -5,6 +5,8 @@
 #include <glm/ext/scalar_constants.hpp>
 #include <glm/geometric.hpp>
 
+#include <numbers>
+
 namespace Lodestone {
 
 	TEST_CASE("A bounding box starts empty and grows around what's added")
@@ -37,7 +39,7 @@ namespace Lodestone {
 
 		const BoundingBox transformed = box.Transform(matrix);
 
-		const float diagonal = std::sqrt(2.0f);
+		const float diagonal = std::numbers::sqrt2_v<float>;
 		CHECK(transformed.Min.x == doctest::Approx(10.0f - diagonal));
 		CHECK(transformed.Max.x == doctest::Approx(10.0f + diagonal));
 		CHECK(transformed.Min.y == doctest::Approx(-1.0f));

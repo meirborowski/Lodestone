@@ -16,7 +16,8 @@ namespace Lodestone {
 	namespace {
 
 		constexpr float AspectRatio = 16.0f / 9.0f;
-		const glm::vec3 LightDirection = glm::normalize(glm::vec3(-0.4f, -1.0f, -0.3f));
+		// normalize(-0.4, -1, -0.3)
+		constexpr glm::vec3 LightDirection{-0.36380f, -0.90951f, -0.27285f};
 
 		RenderView MakeView(const glm::vec3& position, const glm::vec3& target)
 		{

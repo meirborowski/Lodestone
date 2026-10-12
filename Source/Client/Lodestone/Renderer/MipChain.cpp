@@ -24,14 +24,14 @@ namespace Lodestone {
 
 		const std::array<float, 256>& GetSrgbToLinearTable()
 		{
-			static const std::array<float, 256> table = []
+			static const std::array<float, 256> Table = []
 			{
 				std::array<float, 256> values{};
 				for (size_t i = 0; i < values.size(); ++i)
 					values[i] = SrgbToLinear(static_cast<float>(i) / 255.0f);
 				return values;
 			}();
-			return table;
+			return Table;
 		}
 
 		uint8_t ToByte(float value)

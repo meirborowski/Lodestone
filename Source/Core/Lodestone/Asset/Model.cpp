@@ -14,6 +14,7 @@ namespace Lodestone {
 		// Depth-first without recursion; a node is visited at most once, whatever the hierarchy claims
 		std::vector<bool> visited(Nodes.size(), false);
 		std::vector<std::pair<uint32_t, glm::mat4>> pending;
+		pending.reserve(RootNodes.size());
 		for (const uint32_t root : RootNodes)
 			pending.emplace_back(root, glm::mat4(1.0f));
 		while (!pending.empty())

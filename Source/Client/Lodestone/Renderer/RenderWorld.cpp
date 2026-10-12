@@ -11,7 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <span>
+#include <ranges>
 #include <vector>
 
 namespace Lodestone {
@@ -40,7 +40,7 @@ namespace Lodestone {
 			if (!forward)
 				return std::nullopt;
 			// The up direction, made perpendicular to the forward one
-			glm::vec3 up = glm::vec3(world[1]);
+			auto up = glm::vec3(world[1]);
 			up -= *forward * glm::dot(up, *forward);
 			if (!(glm::length(up) > MinDirectionLength))
 				return std::nullopt;
@@ -77,9 +77,8 @@ namespace Lodestone {
 			glm::mat4 ParentWorld;
 		};
 		std::vector<Visit> stack;
-		const std::span<const UUID> roots = scene.GetRootEntities();
-		for (auto root = roots.rbegin(); root != roots.rend(); ++root)
-			stack.push_back({*root, glm::mat4(1.0f)});
+		for (const UUID root : std::views::reverse(scene.GetRootEntities()))
+			stack.push_back({.Entity = root, .ParentWorld = glm::mat4(1.0f)});
 
 		while (!stack.empty())
 		{
@@ -174,9 +173,8 @@ namespace Lodestone {
 				}
 			}
 
-			const auto& children = registry.get<HierarchyComponent>(handle).Children;
-			for (auto child = children.rbegin(); child != children.rend(); ++child)
-				stack.push_back({*child, transform});
+			for (const UUID child : std::views::reverse(registry.get<HierarchyComponent>(handle).Children))
+				stack.push_back({.Entity = child, .ParentWorld = transform});
 		}
 		return world;
 	}

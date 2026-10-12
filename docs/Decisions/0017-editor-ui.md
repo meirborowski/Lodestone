@@ -1,7 +1,7 @@
 # 0017 - Editor UI: Dear ImGui on NVRHI, and a Debug Scene View
 
 ## Status
-Accepted
+Accepted. The debug scene view was replaced, as planned, by the scene renderer and the editor's line overlay (see [Decision 0018](0018-scene-renderer.md))
 
 ## Context
 Milestone 4 needs a docked editor - viewport, hierarchy, inspector, content browser, console - with a gizmo, before the scene renderer exists (Milestone 5). The UI renders through NVRHI on Vulkan (see [Decision 0007](0007-rendering-backend.md)), must be testable without a GPU where possible, and its asserts must never open dialogs that hang CI or agents.

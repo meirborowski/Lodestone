@@ -172,7 +172,9 @@ namespace Lodestone {
 			m_Viewport = std::move(*target);
 		}
 		else if (auto resized = m_Viewport->Resize(size); !resized)
+		{
 			return std::unexpected(resized.error());
+		}
 		return m_Viewport->GetColor();
 	}
 
@@ -194,7 +196,9 @@ namespace Lodestone {
 			m_Capture = std::move(*target);
 		}
 		else if (auto resized = m_Capture->Resize(size); !resized)
+		{
 			return std::unexpected(resized.error());
+		}
 		Render(context, *m_Capture);
 		m_CaptureRendered = true;
 		return ReadTexture(m_Device->GetNvrhiDevice(), m_Capture->GetColor());
@@ -235,13 +239,13 @@ namespace Lodestone {
 	SceneOverlay SceneView::BuildOverlay(const EditorContext& context, const ModelLookup& models)
 	{
 		SceneOverlay overlay;
-		constexpr auto Extent = static_cast<float>(GridHalfSize);
+		constexpr auto extent = static_cast<float>(GridHalfSize);
 		for (int line = -GridHalfSize; line <= GridHalfSize; ++line)
 		{
 			const auto offset = static_cast<float>(line);
-			AddLine(overlay.DepthTested, glm::vec3(-Extent, GridHeight, offset), glm::vec3(Extent, GridHeight, offset),
+			AddLine(overlay.DepthTested, glm::vec3(-extent, GridHeight, offset), glm::vec3(extent, GridHeight, offset),
 				line == 0 ? AxisColorX : GridColor);
-			AddLine(overlay.DepthTested, glm::vec3(offset, GridHeight, -Extent), glm::vec3(offset, GridHeight, Extent),
+			AddLine(overlay.DepthTested, glm::vec3(offset, GridHeight, -extent), glm::vec3(offset, GridHeight, extent),
 				line == 0 ? AxisColorZ : GridColor);
 		}
 
@@ -268,7 +272,9 @@ namespace Lodestone {
 				directed = true;
 			}
 			else if (registry.all_of<PointLightComponent>(handle))
+			{
 				color = LightColor;
+			}
 			else if (registry.all_of<CameraComponent>(handle))
 			{
 				color = CameraColor;
@@ -364,7 +370,9 @@ namespace Lodestone {
 				asset = m_AssetWriteTimes.erase(asset);
 			}
 			else
+			{
 				++asset;
+			}
 		}
 	}
 

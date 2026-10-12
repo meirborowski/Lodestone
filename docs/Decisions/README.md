@@ -29,3 +29,5 @@ Record every significant design decision here - especially ones made without ask
 - [0015 - Editor commands, undo and play mode](0015-editor-commands.md)
 - [0016 - The editor's MCP server](0016-mcp-server.md)
 - [0017 - Editor UI: Dear ImGui on NVRHI, and a debug scene view](0017-editor-ui.md)
+- [0018 - The scene renderer: forward PBR with a prepass, CSM and PCSS, GTAO and split-sum IBL](0018-scene-renderer.md)
+- [0019 - Model import: glTF 2.0 with cgltf, into a CPU model, instanced as entities](0019-model-import.md)

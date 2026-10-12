@@ -100,8 +100,8 @@ namespace Lodestone {
 		const glm::mat4& viewProjection, std::span<const LineVertex> depthTested, std::span<const LineVertex> onTop)
 	{
 		// Whole segments only
-		depthTested = depthTested.first(depthTested.size() & ~size_t(1));
-		onTop = onTop.first(onTop.size() & ~size_t(1));
+		depthTested = depthTested.first(depthTested.size() & ~static_cast<size_t>(1));
+		onTop = onTop.first(onTop.size() & ~static_cast<size_t>(1));
 		const size_t count = depthTested.size() + onTop.size();
 		if (count == 0)
 			return;

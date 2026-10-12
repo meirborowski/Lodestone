@@ -83,8 +83,8 @@ namespace Lodestone {
 		nvrhi::BindingLayoutHandle m_EnvironmentLayout;
 		nvrhi::BindingLayoutHandle m_MaterialLayout;
 
-		// By wrap U, wrap V and filtering (TextureWrap has three modes)
-		std::array<nvrhi::SamplerHandle, 3 * 3 * 2> m_MaterialSamplers;
+		// By wrap U and wrap V (TextureWrap has three modes each) and filtering (linear or nearest): 3 x 3 x 2
+		std::array<nvrhi::SamplerHandle, 18> m_MaterialSamplers;
 		nvrhi::SamplerHandle m_LinearClampSampler;
 		nvrhi::SamplerHandle m_PointClampSampler;
 		nvrhi::SamplerHandle m_ShadowSampler;

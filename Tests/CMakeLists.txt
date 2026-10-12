@@ -219,6 +219,27 @@ if(TARGET LodestoneEditorLib)
 	endif()
 endif()
 
+# The renderer's performance benchmark (see docs/Testing.md#performance). Run it locally on a GPU to measure frame
+# times against the baseline; CI runs a short version on lavapipe to check that draw calls haven't risen
+add_executable(LodestoneBenchmark
+	Benchmark/BenchmarkMain.cpp
+	Benchmark/BenchmarkScene.cpp
+	Benchmark/BenchmarkScene.h
+)
+target_include_directories(LodestoneBenchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(LodestoneBenchmark PRIVATE LodestoneClient)
+target_compile_definitions(LodestoneBenchmark PRIVATE LS_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures")
+ls_configure_target(LodestoneBenchmark)
+
+set(LS_BENCHMARK_ARGUMENTS --baseline "${CMAKE_CURRENT_SOURCE_DIR}/Benchmark/Baseline.json" --frames 8 --size 320x180)
+if(LS_LAVAPIPE_DRIVER)
+	list(APPEND LS_BENCHMARK_ARGUMENTS --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
+endif()
+add_test(NAME "Render.Benchmark draw calls stay within the baseline"
+	COMMAND LodestoneBenchmark ${LS_BENCHMARK_ARGUMENTS}
+)
+set_tests_properties("Render.Benchmark draw calls stay within the baseline" PROPERTIES LABELS render TIMEOUT 600)
+
 # Fuzz tests for everything that parses untrusted input (see Common/Fuzzer.h and docs/Testing.md#tests)
 ls_add_test_executable(LodestoneFuzzTests
 	PREFIX Fuzz

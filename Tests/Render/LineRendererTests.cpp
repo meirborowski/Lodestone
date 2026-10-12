@@ -69,10 +69,10 @@ namespace Lodestone {
 
 	TEST_CASE("Depth-tested lines hide behind the scene; the others draw over everything")
 	{
-		constexpr uint32_t Green = LineVertex::MakeColor(0, 255, 0);
+		constexpr uint32_t green = LineVertex::MakeColor(0, 255, 0);
 		// Depth is reversed: larger is nearer
-		std::vector<LineVertex> depthTested = MakeLine(10, 0.8f, Green);
-		const std::vector<LineVertex> hidden = MakeLine(20, 0.2f, Green);
+		std::vector<LineVertex> depthTested = MakeLine(10, 0.8f, green);
+		const std::vector<LineVertex> hidden = MakeLine(20, 0.2f, green);
 		depthTested.insert(depthTested.end(), hidden.begin(), hidden.end());
 		const std::vector<LineVertex> onTop = MakeLine(30, 0.2f, LineVertex::MakeColor(0, 0, 255));
 

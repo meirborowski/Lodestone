@@ -18,7 +18,7 @@ namespace Lodestone {
 
 	namespace {
 
-		const UUID ModelAsset(0x3000000000004000ull, 0x8000000000000001ull);
+		constexpr UUID ModelAsset(0x3000000000004000ull, 0x8000000000000001ull);
 
 		// Copies a model's entities into a scene, and returns its root
 		Entity Instantiate(Scene& scene, const Model& model)

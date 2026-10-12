@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 4. Editor and AI control
-- **In progress:** Milestone 4 is complete and in review (pull request from `milestone-4-editor`): the editor library and executable (windowed and `--headless`, `--mcp-stdio`), the editor context with commands, undo and play mode, prefabs, the Dear ImGui UI with the gizmo and a debug scene view, the MCP server over stdio and HTTP with 38 tools, `.mcp.json`, and the agent smoke test, which passes over both transports. A ThreadSanitizer CI job joins the sanitizers now that the editor runs threads. Once CI is green on every platform and it's merged, tick Milestone 4 in Progress
-- **Next:** Milestone 5, the 3D renderer: it replaces `DebugSceneRenderer` behind `SceneView` (viewport, screenshots and picking keep their interfaces - see [Decision 0017](Decisions/0017-editor-ui.md)), and adds MCP tools for its editor-facing features (materials, lights, environment, post-processing)
+- **Active milestone:** 5. 3D renderer
+- **In progress:** Milestone 5 is built on `milestone-5-renderer`: glTF import (`ModelImporter`, with fuzz tests for it and the image and HDR decoders), the render components, and the scene renderer (`Source/Client/Lodestone/Renderer`) - forward PBR over a depth and normal prepass, cascaded shadow maps with PCSS, GTAO, split-sum image-based lighting with a sky, transparency, and ACES, Khronos PBR Neutral or no tonemapping - with a reference image for every feature. The editor's viewport, screenshots and picking use it, with a line overlay (grid, markers, selection), a stats overlay with CPU and GPU timings, model instancing (`model_instantiate`) and `render_stats` (40 MCP tools). `LodestoneBenchmark` measures it - 2.3 ms GPU and 1.6 ms CPU per 1080p frame on an RTX 3050 Ti Laptop GPU, in Release - and CI gates its draw calls. What remains: the CC0 HDRIs from Poly Haven that [3D Renderer](Features/Renderer.md) asks for, which need the user's go-ahead to download (the tests use generated environments meanwhile), then review, the pull request and CI
+- **Next:** Milestone 6, animation: skeletons, skins and clips from glTF (extend `Model` and `ModelImporter`), the Animator component, and GPU skinning in the mesh shaders (a skinned vertex layout and pipeline variant)
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -28,7 +28,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 - [x] [1. Foundation](#1-foundation)
 - [x] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
 - [x] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
-- [ ] [4. Editor and AI control](#4-editor-and-ai-control)
+- [x] [4. Editor and AI control](#4-editor-and-ai-control)
 - [ ] [5. 3D renderer](#5-3d-renderer)
 - [ ] [6. Animation](#6-animation)
 - [ ] [7. Physics](#7-physics)
@@ -93,15 +93,15 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** an automated agent smoke test builds a scene using only MCP tools - create entities, set components, instance a prefab, save, reload, screenshot - and checks the result.
 
 ### 5. 3D renderer
-- [ ] glTF import (meshes, materials and textures)
-- [ ] PBR materials
+- [x] glTF import (meshes, materials and textures)
+- [x] PBR materials
 - [ ] IBL with HDRIs
-- [ ] Soft shadows
-- [ ] SSAO
-- [ ] HDR pipeline and tonemapping
-- [ ] Stats overlay with frame time, CPU/GPU timings and draw calls
-- [ ] Fuzz tests for the glTF, image and HDRI importers
-- [ ] Benchmark scene, local performance benchmark with a recorded baseline, and CI tracking of the GPU-independent proxies (see [Performance](Testing.md#performance))
+- [x] Soft shadows
+- [x] SSAO
+- [x] HDR pipeline and tonemapping
+- [x] Stats overlay with frame time, CPU/GPU timings and draw calls
+- [x] Fuzz tests for the glTF, image and HDRI importers
+- [x] Benchmark scene, local performance benchmark with a recorded baseline, and CI tracking of the GPU-independent proxies (see [Performance](Testing.md#performance))
 
 **Acceptance:** reference-image tests cover every renderer feature; the benchmark scene sustains 60 fps at 1920x1080 on an RTX 3060-class GPU with every feature enabled.
 

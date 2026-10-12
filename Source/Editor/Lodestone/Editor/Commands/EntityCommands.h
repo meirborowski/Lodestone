@@ -98,6 +98,7 @@ namespace Lodestone {
 	protected:
 		InstantiateEntitiesCommand(UUID parent, std::optional<size_t> index);
 
+	private:
 		// Creates the entities the first time the command runs, under parent at index among its children, and returns
 		// their root
 		[[nodiscard]] virtual std::expected<Entity, Error> InstantiateFirst(

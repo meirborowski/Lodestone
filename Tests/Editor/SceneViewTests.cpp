@@ -17,31 +17,38 @@ namespace Lodestone {
 
 		constexpr glm::uvec2 ImageSize{800, 600};
 		constexpr glm::vec2 Center(400.0f, 300.0f);
-		const UUID PrimitivesId(0x2000000000004000ull, 0x8000000000000001ull);
+		constexpr UUID PrimitivesId(0x2000000000004000ull, 0x8000000000000001ull);
 		// Meshes of Primitives.glb
 		constexpr uint32_t Cube = 1;
 		constexpr uint32_t Sphere = 2;
 		// The overlay's grid: a line each way for every meter across it
-		constexpr size_t GridVertexCount = (SceneView::GridHalfSize * 2 + 1) * 2 * 2;
+		constexpr auto GridVertexCount = static_cast<size_t>(SceneView::GridHalfSize * 2 + 1) * 2 * 2;
 		// A marker is a box: 12 lines
 		constexpr size_t MarkerVertexCount = 24;
 
 		const Model& GetPrimitives()
 		{
-			static const Model model = []
+			static const Model Primitives = []
 			{
 				auto imported =
 					ModelImporter::Import(std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "Primitives.glb");
 				REQUIRE_MESSAGE(imported.has_value(), Testing::DescribeError(imported));
 				return std::move(*imported);
 			}();
-			return model;
+			return Primitives;
 		}
 
 		// The primitives model, as if the renderer had loaded it
-		const ModelLookup Loaded = [](UUID id) { return id == PrimitivesId ? &GetPrimitives() : nullptr; };
+		const Model* Loaded(UUID id)
+		{
+			return id == PrimitivesId ? &GetPrimitives() : nullptr;
+		}
+
 		// No models loaded
-		const ModelLookup Unloaded = [](UUID) -> const Model* { return nullptr; };
+		const Model* Unloaded(UUID /*id*/)
+		{
+			return nullptr;
+		}
 
 		// An editor looking down -Z at the origin from 10 m away
 		struct Fixture
@@ -99,7 +106,7 @@ namespace Lodestone {
 		const SceneOverlay overlay = SceneView::BuildOverlay(fixture.Context, Loaded);
 
 		// Markers, plus a line showing which way the directional light and the camera face
-		CHECK(overlay.DepthTested.size() == GridVertexCount + 4 * MarkerVertexCount + 2 * 2);
+		CHECK(overlay.DepthTested.size() == GridVertexCount + 4 * MarkerVertexCount + 4);
 		CHECK(overlay.OnTop.empty());
 		const float half = SceneView::MarkerSize * 0.5f;
 		CHECK(HasVertexAt(overlay.DepthTested, glm::vec3(1.0f - half, 2.0f - half, 3.0f - half)));

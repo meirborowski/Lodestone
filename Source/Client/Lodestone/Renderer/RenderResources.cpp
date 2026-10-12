@@ -46,7 +46,7 @@ namespace Lodestone {
 		// The table as 16-bit floats, computed the first time it's needed
 		const std::vector<uint16_t>& GetBrdfLutTexels()
 		{
-			static const std::vector<uint16_t> texels = []
+			static const std::vector<uint16_t> Texels = []
 			{
 				const std::vector<glm::vec2> table = ComputeBrdfLut(RenderResources::BrdfLutSize, BrdfLutSampleCount);
 				std::vector<uint16_t> halves;
@@ -58,7 +58,7 @@ namespace Lodestone {
 				}
 				return halves;
 			}();
-			return texels;
+			return Texels;
 		}
 
 	}
@@ -129,11 +129,11 @@ namespace Lodestone {
 
 	std::expected<void, Error> RenderResources::CreateSamplers()
 	{
-		constexpr std::array<TextureWrap, 3> Wraps = {
+		constexpr std::array<TextureWrap, 3> wraps = {
 			TextureWrap::Repeat, TextureWrap::ClampToEdge, TextureWrap::MirroredRepeat};
-		for (const TextureWrap wrapU : Wraps)
+		for (const TextureWrap wrapU : wraps)
 		{
-			for (const TextureWrap wrapV : Wraps)
+			for (const TextureWrap wrapV : wraps)
 			{
 				for (const bool nearest : {false, true})
 				{
@@ -192,11 +192,12 @@ namespace Lodestone {
 		if (!m_WhiteTexture || !m_BrdfLut || !commandList)
 			return std::unexpected(Error(ErrorCode::DeviceError, "Creating the scene renderer's textures failed"));
 
-		constexpr uint32_t WhiteTexel = 0xFFFFFFFF;
+		constexpr uint32_t whiteTexel = 0xFFFFFFFF;
 		const std::vector<uint16_t>& lutTexels = GetBrdfLutTexels();
 		commandList->open();
-		commandList->writeTexture(m_WhiteTexture, 0, 0, &WhiteTexel, sizeof(WhiteTexel));
-		commandList->writeTexture(m_BrdfLut, 0, 0, lutTexels.data(), BrdfLutSize * 2 * sizeof(uint16_t));
+		commandList->writeTexture(m_WhiteTexture, 0, 0, &whiteTexel, sizeof(whiteTexel));
+		commandList->writeTexture(
+			m_BrdfLut, 0, 0, lutTexels.data(), static_cast<size_t>(BrdfLutSize) * 2 * sizeof(uint16_t));
 		commandList->close();
 		m_Device->executeCommandList(commandList);
 		return {};

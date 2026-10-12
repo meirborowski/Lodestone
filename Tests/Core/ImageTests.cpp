@@ -102,12 +102,12 @@ namespace Lodestone {
 	TEST_CASE("An image larger than supported is refused before it's decoded")
 	{
 		// A PNG header claiming 10000x10000 pixels, with no data
-		Image small(1, 1);
+		const Image small(1, 1);
 		auto encoded = small.EncodePng();
 		REQUIRE(encoded.has_value());
 		// IHDR's width and height, big-endian, after the signature and the chunk's length and type
 		const std::array<uint8_t, 8> size = {0, 0, 0x27, 0x10, 0, 0, 0x27, 0x10};
-		std::copy(size.begin(), size.end(), encoded->begin() + 16);
+		std::ranges::copy(size, encoded->begin() + 16);
 
 		const auto decoded = Image::Decode(*encoded);
 

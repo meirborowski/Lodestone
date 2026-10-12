@@ -134,11 +134,11 @@ namespace Lodestone {
 
 			// In Mesh.hlsl's slot order
 			const std::array<TextureSlot, RenderResources::MaterialTextureCount> slots = {{
-				{material.BaseColorTexture, true},
-				{material.MetallicRoughnessTexture, false},
-				{material.NormalTexture, false},
-				{material.OcclusionTexture, false},
-				{material.EmissiveTexture, true},
+				{.Texture = material.BaseColorTexture, .Srgb = true},
+				{.Texture = material.MetallicRoughnessTexture, .Srgb = false},
+				{.Texture = material.NormalTexture, .Srgb = false},
+				{.Texture = material.OcclusionTexture, .Srgb = false},
+				{.Texture = material.EmissiveTexture, .Srgb = true},
 			}};
 			nvrhi::BindingSetDesc bindings;
 			bindings.addItem(nvrhi::BindingSetItem::ConstantBuffer(0, gpuMaterial.Constants));
@@ -182,7 +182,7 @@ namespace Lodestone {
 		const Image& source = m_Model.Images[image];
 		if (source.IsEmpty())
 			return std::unexpected(Error(ErrorCode::InvalidArgument, fmt::format("Image {} is empty", image)));
-		std::vector<Image> mips = GenerateMipChain(source, srgb);
+		const std::vector<Image> mips = GenerateMipChain(source, srgb);
 
 		// The levels to upload: from the first that fits the size limit
 		std::vector<const Image*> levels;

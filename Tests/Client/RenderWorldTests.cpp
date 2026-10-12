@@ -17,7 +17,7 @@ namespace Lodestone {
 
 	namespace {
 
-		const UUID ModelId(0x1111111111114111ull, 0x8111111111111111ull);
+		constexpr UUID ModelId(0x1111111111114111ull, 0x8111111111111111ull);
 
 		bool Near(const glm::vec3& a, const glm::vec3& b, float tolerance = 1e-5f)
 		{
@@ -37,9 +37,9 @@ namespace Lodestone {
 	TEST_CASE("Extraction collects meshes in hierarchy order, with world transforms")
 	{
 		Scene scene;
-		Entity first = CreateMesh(scene, "First", glm::vec3(1.0f, 0.0f, 0.0f), 0);
-		Entity second = CreateMesh(scene, "Second", glm::vec3(-5.0f, 0.0f, 0.0f), 1);
-		Entity child = CreateMesh(scene, "Child", glm::vec3(0.0f, 2.0f, 0.0f), 2);
+		const Entity first = CreateMesh(scene, "First", glm::vec3(1.0f, 0.0f, 0.0f), 0);
+		const Entity second = CreateMesh(scene, "Second", glm::vec3(-5.0f, 0.0f, 0.0f), 1);
+		const Entity child = CreateMesh(scene, "Child", glm::vec3(0.0f, 2.0f, 0.0f), 2);
 		REQUIRE(scene.SetParent(child, first).has_value());
 		// A mesh renderer without a model draws nothing
 		scene.CreateEntity("Empty").Add<MeshRendererComponent>();
@@ -63,7 +63,7 @@ namespace Lodestone {
 		Entity parent = scene.CreateEntity("Parent");
 		parent.GetTransform().Position = glm::vec3(10.0f, 0.0f, 0.0f);
 		parent.Add<PreviousTransformComponent>(PreviousTransformComponent{.Transform = TransformComponent{}});
-		Entity mesh = CreateMesh(scene, "Mesh", glm::vec3(0.0f, 1.0f, 0.0f));
+		const Entity mesh = CreateMesh(scene, "Mesh", glm::vec3(0.0f, 1.0f, 0.0f));
 		REQUIRE(scene.SetParent(mesh, parent).has_value());
 
 		const RenderWorld quarter = ExtractRenderWorld(scene, 0.25f);
@@ -142,16 +142,17 @@ namespace Lodestone {
 		CHECK(world.Environment.Intensity == 2.0f);
 		CHECK(world.Settings.Exposure == 1.5f);
 		REQUIRE(world.Camera.has_value());
-		CHECK(world.Camera->FieldOfView == doctest::Approx(glm::radians(90.0f)));
-		CHECK(world.Camera->NearPlane == 0.5f);
-		CHECK(world.Camera->FarPlane == 50.0f);
-		CHECK(Near(world.Camera->GetPosition(), glm::vec3(0.0f, 0.0f, 5.0f)));
-		CHECK(Near(glm::vec3(world.Camera->View * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), glm::vec3(0.0f, 0.0f, -5.0f)));
+		const RenderView view = world.Camera.value_or(RenderView());
+		CHECK(view.FieldOfView == doctest::Approx(glm::radians(90.0f)));
+		CHECK(view.NearPlane == 0.5f);
+		CHECK(view.FarPlane == 50.0f);
+		CHECK(Near(view.GetPosition(), glm::vec3(0.0f, 0.0f, 5.0f)));
+		CHECK(Near(glm::vec3(view.View * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)), glm::vec3(0.0f, 0.0f, -5.0f)));
 	}
 
 	TEST_CASE("A scene without an environment or render settings gets the defaults")
 	{
-		Scene scene;
+		const Scene scene;
 
 		const RenderWorld world = ExtractRenderWorld(scene);
 

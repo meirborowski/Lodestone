@@ -88,7 +88,7 @@ namespace Lodestone {
 		{
 			for (uint32_t x = 0; x < 16; ++x)
 			{
-				const float value = static_cast<float>(x * 3 + y * 7 % 5);
+				const auto value = static_cast<float>(x * 3 + y * 7 % 5);
 				image.SetPixel(x, y, glm::vec4(value, 1.0f, 0.0f, 1.0f));
 				sum += value;
 			}
@@ -110,10 +110,10 @@ namespace Lodestone {
 
 	TEST_CASE("The BRDF lookup table conserves energy and reflects everything from smooth surfaces head on")
 	{
-		constexpr uint32_t Size = 16;
-		const std::vector<glm::vec2> table = ComputeBrdfLut(Size, 256);
-		REQUIRE(table.size() == Size * Size);
-		const auto at = [&](uint32_t column, uint32_t row) { return table[row * Size + column]; };
+		constexpr uint32_t size = 16;
+		const std::vector<glm::vec2> table = ComputeBrdfLut(size, 256);
+		REQUIRE(table.size() == size * size);
+		const auto at = [&](uint32_t column, uint32_t row) { return table[row * size + column]; };
 
 		for (const glm::vec2 value : table)
 		{
@@ -123,13 +123,13 @@ namespace Lodestone {
 			CHECK(value.x + value.y <= 1.001f);
 		}
 		// Smooth, looking straight on: F0 is reflected as is
-		const glm::vec2 smooth = at(Size - 1, 0);
+		const glm::vec2 smooth = at(size - 1, 0);
 		CHECK(smooth.x == doctest::Approx(1.0f).epsilon(0.03));
 		CHECK(smooth.y < 0.02f);
 		// Smooth, at a grazing angle: Fresnel brightens reflections, adding bias
-		CHECK(at(0, 0).y > at(Size - 1, 0).y);
+		CHECK(at(0, 0).y > at(size - 1, 0).y);
 		// Rough surfaces lose energy to light that scatters more than once, which this single-scattering model drops
-		CHECK(at(Size / 2, Size - 1).x + at(Size / 2, Size - 1).y < smooth.x + smooth.y);
+		CHECK(at(size / 2, size - 1).x + at(size / 2, size - 1).y < smooth.x + smooth.y);
 	}
 
 	TEST_CASE("The default environment is a grey sky, brighter above than below")

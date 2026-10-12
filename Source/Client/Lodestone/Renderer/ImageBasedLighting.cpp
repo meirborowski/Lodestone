@@ -16,6 +16,16 @@ namespace Lodestone {
 	namespace {
 
 		constexpr float Pi = glm::pi<float>();
+		// Convolving with the cosine lobe scales each band of the harmonics (pi, 2pi/3, pi/4); dividing by pi gives
+		// the light a white diffuse surface reflects
+		constexpr std::array<double, 9> BandScales = {
+			1.0, 2.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0, 0.25, 0.25, 0.25, 0.25, 0.25};
+		// The default environment's size and colors
+		constexpr uint32_t DefaultEnvironmentWidth = 64;
+		constexpr uint32_t DefaultEnvironmentHeight = 32;
+		constexpr glm::vec3 DefaultZenith{0.42f, 0.45f, 0.5f};
+		constexpr glm::vec3 DefaultHorizon{0.62f, 0.62f, 0.62f};
+		constexpr glm::vec3 DefaultGround{0.2f, 0.19f, 0.18f};
 
 		// The real spherical harmonics basis functions, in the order of SphericalHarmonics
 		std::array<float, 9> EvaluateBasis(const glm::vec3& d)
@@ -94,9 +104,6 @@ namespace Lodestone {
 			}
 		}
 
-		// Convolving with the cosine lobe scales each band (pi, 2pi/3, pi/4); dividing by pi gives reflected light
-		constexpr std::array<double, 9> BandScales = {
-			1.0, 2.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0, 0.25, 0.25, 0.25, 0.25, 0.25};
 		const double normalization = 4.0 * glm::pi<double>() / totalSolidAngle;
 		SphericalHarmonics irradiance{};
 		for (size_t i = 0; i < irradiance.size(); ++i)
@@ -183,22 +190,16 @@ namespace Lodestone {
 
 	HdrImage MakeDefaultEnvironment()
 	{
-		constexpr uint32_t Width = 64;
-		constexpr uint32_t Height = 32;
-		constexpr glm::vec3 Zenith{0.42f, 0.45f, 0.5f};
-		constexpr glm::vec3 Horizon{0.62f, 0.62f, 0.62f};
-		constexpr glm::vec3 Ground{0.2f, 0.19f, 0.18f};
-
-		HdrImage image(Width, Height);
-		for (uint32_t y = 0; y < Height; ++y)
+		HdrImage image(DefaultEnvironmentWidth, DefaultEnvironmentHeight);
+		for (uint32_t y = 0; y < DefaultEnvironmentHeight; ++y)
 		{
-			const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(Height);
+			const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(DefaultEnvironmentHeight);
 			const float elevation = std::sin((0.5f - v) * Pi);
 			// A soft step at the horizon, so the ground doesn't show a hard line
 			const float sky = glm::smoothstep(-0.08f, 0.08f, elevation);
-			const glm::vec3 above = glm::mix(Horizon, Zenith, std::sqrt(std::max(elevation, 0.0f)));
-			const glm::vec3 color = glm::mix(Ground, above, sky);
-			for (uint32_t x = 0; x < Width; ++x)
+			const glm::vec3 above = glm::mix(DefaultHorizon, DefaultZenith, std::sqrt(std::max(elevation, 0.0f)));
+			const glm::vec3 color = glm::mix(DefaultGround, above, sky);
+			for (uint32_t x = 0; x < DefaultEnvironmentWidth; ++x)
 				image.SetPixel(x, y, glm::vec4(color, 1.0f));
 		}
 		return image;

@@ -80,7 +80,9 @@ namespace Lodestone {
 				entry.Failure = gpuModel.error();
 		}
 		else
+		{
 			entry.Failure = model.error();
+		}
 
 		if (entry.Failure)
 			LS_CORE_ERROR("Can't draw model {}: {}", id, *entry.Failure);
@@ -113,7 +115,9 @@ namespace Lodestone {
 				entry.Failure = map.error();
 		}
 		else
+		{
 			entry.Failure = image.error();
+		}
 
 		if (entry.Failure)
 		{

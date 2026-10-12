@@ -3,6 +3,8 @@
 #include <glm/geometric.hpp>
 #include <glm/matrix.hpp>
 
+#include <algorithm>
+
 namespace Lodestone {
 
 	Frustum::Frustum(const glm::mat4& viewProjection)
@@ -30,15 +32,14 @@ namespace Lodestone {
 	{
 		if (box.IsEmpty())
 			return false;
-		for (const glm::vec4& plane : m_Planes)
-		{
-			// The box's corner furthest along the plane's normal: if even that is outside, all of the box is
-			const glm::vec3 corner(plane.x >= 0.0f ? box.Max.x : box.Min.x, plane.y >= 0.0f ? box.Max.y : box.Min.y,
-				plane.z >= 0.0f ? box.Max.z : box.Min.z);
-			if (glm::dot(glm::vec3(plane), corner) + plane.w < 0.0f)
-				return false;
-		}
-		return true;
+		return std::ranges::all_of(m_Planes,
+			[&box](const glm::vec4& plane)
+			{
+				// The box's corner furthest along the plane's normal: if even that is outside, all of the box is
+				const glm::vec3 corner(plane.x >= 0.0f ? box.Max.x : box.Min.x, plane.y >= 0.0f ? box.Max.y : box.Min.y,
+					plane.z >= 0.0f ? box.Max.z : box.Min.z);
+				return glm::dot(glm::vec3(plane), corner) + plane.w >= 0.0f;
+			});
 	}
 
 }
