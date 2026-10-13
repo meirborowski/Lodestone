@@ -21,9 +21,9 @@ namespace Lodestone {
 		if (const auto found = m_Models.find(id); found != m_Models.end())
 		{
 			const Entry& entry = found->second;
-			if (entry.Failure)
-				return std::unexpected(*entry.Failure);
-			return &*entry.Model;
+			if (const std::optional<Model>& loaded = entry.Loaded)
+				return &*loaded;
+			return std::unexpected(entry.Failure.value_or(Error(ErrorCode::Unknown, "The model failed to load")));
 		}
 
 		Entry& entry = m_Models[id];
@@ -48,8 +48,7 @@ namespace Lodestone {
 			entry.Failure = model.error();
 			return std::unexpected(*entry.Failure);
 		}
-		entry.Model = std::move(*model);
-		return &*entry.Model;
+		return &entry.Loaded.emplace(std::move(*model));
 	}
 
 	void ModelCache::Refresh()

@@ -33,7 +33,7 @@ namespace Lodestone {
 	private:
 		struct Entry
 		{
-			std::optional<Model> Model;
+			std::optional<Model> Loaded;
 			std::optional<Error> Failure;
 			// When the file last changed, as it was imported
 			std::filesystem::file_time_type WriteTime;

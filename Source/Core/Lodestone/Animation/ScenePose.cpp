@@ -81,11 +81,11 @@ namespace Lodestone {
 		if (root == entt::null || registry.get<ModelInstanceComponent>(root).Model != renderer->Model)
 			return {};
 		const Instance& instance = GetInstance(root);
-		if (instance.Model == nullptr || skin->Skin >= instance.Model->Skins.size() ||
-			renderer->Mesh >= instance.Model->Meshes.size())
+		if (instance.Asset == nullptr || skin->Skin >= instance.Asset->Skins.size() ||
+			renderer->Mesh >= instance.Asset->Meshes.size())
 			return {};
-		const ModelSkin& modelSkin = instance.Model->Skins[skin->Skin];
-		const ModelMesh& mesh = instance.Model->Meshes[renderer->Mesh];
+		const ModelSkin& modelSkin = instance.Asset->Skins[skin->Skin];
+		const ModelMesh& mesh = instance.Asset->Meshes[renderer->Mesh];
 		if (!mesh.IsSkinned() || mesh.SkinJointCount > modelSkin.Joints.size())
 			return {};
 
@@ -113,13 +113,13 @@ namespace Lodestone {
 		const auto* component = registry.try_get<ModelInstanceComponent>(root);
 		if (component == nullptr || !m_Options.Models)
 			return instance;
-		instance.Model = m_Options.Models(component->Model);
-		if (instance.Model == nullptr)
+		instance.Asset = m_Options.Models(component->Model);
+		if (instance.Asset == nullptr)
 			return instance;
 
 		// The root's descendants with a ModelNode, down to the roots of other instances. The first entity found for a
 		// node is the one used
-		instance.Nodes.assign(instance.Model->Nodes.size(), entt::null);
+		instance.Nodes.assign(instance.Asset->Nodes.size(), entt::null);
 		std::vector<entt::entity> stack = {root};
 		while (!stack.empty())
 		{
@@ -156,12 +156,12 @@ namespace Lodestone {
 		if (!m_Scene->GetRegistry().all_of<ModelInstanceComponent>(root))
 			return;
 		const Instance& instance = GetInstance(root);
-		if (instance.Model == nullptr || animator.Clip >= instance.Model->Animations.size())
+		if (instance.Asset == nullptr || animator.Clip >= instance.Asset->Animations.size())
 			return;
-		const AnimationClip& clip = instance.Model->Animations[animator.Clip];
+		const AnimationClip& clip = instance.Asset->Animations[animator.Clip];
 		const AnimationClip* fading =
-			animator.FadeDuration > 0.0f && animator.FadeClip < instance.Model->Animations.size()
-			? &instance.Model->Animations[animator.FadeClip]
+			animator.FadeDuration > 0.0f && animator.FadeClip < instance.Asset->Animations.size()
+			? &instance.Asset->Animations[animator.FadeClip]
 			: nullptr;
 
 		// The rest pose: each node's transform in the scene. A playing animator is drawn as far behind its latest time

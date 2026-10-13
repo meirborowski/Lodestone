@@ -71,7 +71,7 @@ namespace Lodestone {
 		// A model instance: its model, and the entity of each of its nodes (null where there's none)
 		struct Instance
 		{
-			const Model* Model = nullptr;
+			const Model* Asset = nullptr;
 			std::vector<entt::entity> Nodes;
 		};
 
