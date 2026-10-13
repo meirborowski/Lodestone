@@ -36,6 +36,8 @@ namespace Lodestone {
 	namespace {
 
 		constexpr glm::uvec2 ImageSize{256, 256};
+		// For checks that only need a few pixels
+		constexpr glm::uvec2 SmallImageSize{128, 128};
 
 		constexpr UUID PrimitivesId(0x1000000000004000ull, 0x8000000000000001ull);
 		constexpr UUID SpheresId(0x1000000000004000ull, 0x8000000000000002ull);
@@ -493,8 +495,7 @@ namespace Lodestone {
 			{.Direction = glm::normalize(glm::vec3(0.05f, -1.0f, 0.05f)), .Color = glm::vec3(3.0f)});
 		world.Environment.Intensity = 0.2f;
 		AddGround(world);
-		constexpr glm::uvec2 size(128, 128);
-		RendererFixture fixture(size);
+		RendererFixture fixture(SmallImageSize);
 		// Looking under the bent arm, at the ground below it
 		const RenderView view = MakeView(glm::vec3(-0.6f, 3.0f, 4.0f), glm::vec3(-0.6f, 0.0f, 0.0f));
 		const glm::mat4 viewProjection = view.GetProjection(1.0f) * view.View;
@@ -502,8 +503,8 @@ namespace Lodestone {
 		{
 			const glm::vec4 clip = viewProjection * glm::vec4(point, 1.0f);
 			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
-			return glm::uvec2(
-				(ndc.x * 0.5f + 0.5f) * static_cast<float>(size.x), (0.5f - ndc.y * 0.5f) * static_cast<float>(size.y));
+			return glm::uvec2((ndc.x * 0.5f + 0.5f) * static_cast<float>(SmallImageSize.x),
+				(0.5f - ndc.y * 0.5f) * static_cast<float>(SmallImageSize.y));
 		};
 
 		const Image image = fixture.Render(world, view);
@@ -696,14 +697,13 @@ namespace Lodestone {
 		RenderWorld world;
 		world.Environment.Environment = SkyId;
 		world.Meshes.push_back({.Model = PrimitivesId, .Mesh = Sphere, .World = Place(glm::vec3(0.0f))});
-		constexpr glm::uvec2 size{128, 128};
-		RendererFixture fixture(size);
+		RendererFixture fixture(SmallImageSize);
 		const RenderView view = MakeView(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.5f, 0.0f), 70.0f);
 		// Sky.hdr's sun is 35 degrees up, 45 degrees from -Z toward +X. Turned 45 degrees, it's straight ahead
 		const glm::vec3 turnedSun(0.0f, std::sin(glm::radians(35.0f)), -std::cos(glm::radians(35.0f)));
 		const glm::vec4 clip = view.GetProjection(1.0f) * view.View * glm::vec4(view.GetPosition() + turnedSun, 1.0f);
-		const auto sunX = static_cast<uint32_t>((clip.x / clip.w * 0.5f + 0.5f) * static_cast<float>(size.x));
-		const auto sunY = static_cast<uint32_t>((0.5f - clip.y / clip.w * 0.5f) * static_cast<float>(size.y));
+		const auto sunX = static_cast<uint32_t>((clip.x / clip.w * 0.5f + 0.5f) * static_cast<float>(SmallImageSize.x));
+		const auto sunY = static_cast<uint32_t>((0.5f - clip.y / clip.w * 0.5f) * static_cast<float>(SmallImageSize.y));
 
 		const Image normal = fixture.Render(world, view);
 		world.Settings.Exposure = 1.0f;
