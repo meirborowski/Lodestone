@@ -2,11 +2,14 @@
 
 #include "Lodestone/Animation/ScenePose.h"
 #include "Lodestone/Graphics/TextureReadback.h"
+#include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Renderer/RenderAssets.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/RenderComponents.h"
 
 #include <glm/geometric.hpp>
+#include <glm/gtc/constants.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <glm/mat3x3.hpp>
 #include <glm/matrix.hpp>
 
@@ -28,6 +31,9 @@ namespace Lodestone {
 		constexpr uint32_t LightColor = LineVertex::MakeColor(255, 210, 80);
 		constexpr uint32_t CameraColor = LineVertex::MakeColor(110, 180, 255);
 		constexpr uint32_t SelectionColor = LineVertex::MakeColor(255, 140, 40);
+		constexpr uint32_t ColliderColor = LineVertex::MakeColor(90, 220, 110);
+		// Circles of colliders are drawn with this many lines
+		constexpr int CircleSegments = 32;
 		// The grid floats a millimeter above the ground, so it isn't lost in a floor at height 0
 		constexpr float GridHeight = 0.001f;
 		// How long the line showing which way a light or camera faces is, in meters
@@ -80,13 +86,11 @@ namespace Lodestone {
 			lines.push_back({.Position = to, .Color = color});
 		}
 
-		void AddBox(std::vector<LineVertex>& lines, const BoundingBox& box, uint32_t color)
+		// A box's twelve edges, from a function giving its eight corners by index: bits 0, 1 and 2 of an index pick
+		// the corner's side along X, Y and Z
+		template <typename CornerFunction>
+		void AddBoxEdges(std::vector<LineVertex>& lines, const CornerFunction& corner, uint32_t color)
 		{
-			const auto corner = [&box](int index)
-			{
-				return glm::vec3((index & 1) != 0 ? box.Max.x : box.Min.x, (index & 2) != 0 ? box.Max.y : box.Min.y,
-					(index & 4) != 0 ? box.Max.z : box.Min.z);
-			};
 			// Each edge joins corners that differ in one axis
 			for (int index = 0; index < 8; ++index)
 			{
@@ -94,6 +98,146 @@ namespace Lodestone {
 				{
 					if ((index & axis) == 0)
 						AddLine(lines, corner(index), corner(index | axis), color);
+				}
+			}
+		}
+
+		void AddBox(std::vector<LineVertex>& lines, const BoundingBox& box, uint32_t color)
+		{
+			AddBoxEdges(
+				lines,
+				[&box](int index)
+				{
+					return glm::vec3((index & 1) != 0 ? box.Max.x : box.Min.x, (index & 2) != 0 ? box.Max.y : box.Min.y,
+						(index & 4) != 0 ? box.Max.z : box.Min.z);
+				},
+				color);
+		}
+
+		// A unit cube centered on the origin, moved by the transform
+		void AddTransformedBox(std::vector<LineVertex>& lines, const glm::mat4& transform, uint32_t color)
+		{
+			AddBoxEdges(
+				lines,
+				[&transform](int index)
+				{
+					return glm::vec3(transform *
+						glm::vec4((index & 1) != 0 ? 0.5f : -0.5f, (index & 2) != 0 ? 0.5f : -0.5f,
+							(index & 4) != 0 ? 0.5f : -0.5f, 1.0f));
+				},
+				color);
+		}
+
+		// An arc in the plane of two perpendicular unit axes, between two angles from the first toward the second
+		void AddArc(std::vector<LineVertex>& lines, const glm::vec3& center, const glm::vec3& first,
+			const glm::vec3& second, float radius, float from, float to, uint32_t color)
+		{
+			const int segments =
+				std::max(1, static_cast<int>(std::ceil(CircleSegments * (to - from) / glm::two_pi<float>())));
+			const auto point = [&](float angle)
+			{ return center + radius * (std::cos(angle) * first + std::sin(angle) * second); };
+			for (int segment = 0; segment < segments; ++segment)
+			{
+				const float start = from + (to - from) * static_cast<float>(segment) / static_cast<float>(segments);
+				const float end = from + (to - from) * static_cast<float>(segment + 1) / static_cast<float>(segments);
+				AddLine(lines, point(start), point(end), color);
+			}
+		}
+
+		// A capsule along an axis: rings around its cylinder's ends, lines down its sides, and its hemispheres' arcs
+		void AddCapsule(std::vector<LineVertex>& lines, const glm::vec3& center, const glm::vec3& up,
+			const glm::vec3& side, const glm::vec3& front, float radius, float halfHeight, uint32_t color)
+		{
+			const glm::vec3 top = center + up * halfHeight;
+			const glm::vec3 bottom = center - up * halfHeight;
+			AddArc(lines, top, side, front, radius, 0.0f, glm::two_pi<float>(), color);
+			AddArc(lines, bottom, side, front, radius, 0.0f, glm::two_pi<float>(), color);
+			for (const glm::vec3& direction : {side, -side, front, -front})
+				AddLine(lines, top + direction * radius, bottom + direction * radius, color);
+			for (const glm::vec3& across : {side, front})
+			{
+				AddArc(lines, top, across, up, radius, 0.0f, glm::pi<float>(), color);
+				AddArc(lines, bottom, across, -up, radius, 0.0f, glm::pi<float>(), color);
+			}
+		}
+
+		// The entity's colliders, as physics shapes them: scaled with the entity, spheres and capsules by the average
+		// of its scale, and a character's capsule standing upright on its position
+		void AddColliders(std::vector<LineVertex>& lines, const entt::registry& registry, entt::entity handle,
+			const glm::mat4& world, const ModelLookup& models)
+		{
+			const glm::vec3 position(world[3]);
+			const glm::vec3 scale(
+				glm::length(glm::vec3(world[0])), glm::length(glm::vec3(world[1])), glm::length(glm::vec3(world[2])));
+			// The entity's axes in the world; a world axis where the matrix squashes it flat
+			const auto axis = [&world](glm::length_t column)
+			{
+				const glm::vec3 direction(world[column]);
+				const float length = glm::length(direction);
+				if (length > 0.0f)
+					return direction / length;
+				glm::vec3 unit(0.0f);
+				unit[column] = 1.0f;
+				return unit;
+			};
+			const float averageScale = (scale.x + scale.y + scale.z) / 3.0f;
+
+			if (const auto* box = registry.try_get<BoxColliderComponent>(handle))
+				AddTransformedBox(lines,
+					world * glm::translate(glm::mat4(1.0f), box->Center) * glm::scale(glm::mat4(1.0f), box->Size),
+					ColliderColor);
+			if (const auto* sphere = registry.try_get<SphereColliderComponent>(handle))
+			{
+				const glm::vec3 center(world * glm::vec4(sphere->Center, 1.0f));
+				const float radius = sphere->Radius * averageScale;
+				AddArc(lines, center, axis(0), axis(1), radius, 0.0f, glm::two_pi<float>(), ColliderColor);
+				AddArc(lines, center, axis(1), axis(2), radius, 0.0f, glm::two_pi<float>(), ColliderColor);
+				AddArc(lines, center, axis(0), axis(2), radius, 0.0f, glm::two_pi<float>(), ColliderColor);
+			}
+			if (const auto* capsule = registry.try_get<CapsuleColliderComponent>(handle))
+			{
+				const float radius = capsule->Radius * averageScale;
+				const float halfHeight = std::max(0.5f * capsule->Height * averageScale - radius, 0.0f);
+				AddCapsule(lines, glm::vec3(world * glm::vec4(capsule->Center, 1.0f)), axis(1), axis(0), axis(2),
+					radius, halfHeight, ColliderColor);
+			}
+			if (const auto* mesh = registry.try_get<MeshColliderComponent>(handle))
+			{
+				const Model* model = models && !mesh->Model.IsNil() ? models(mesh->Model) : nullptr;
+				if (model != nullptr && mesh->Mesh < model->Meshes.size() &&
+					!model->Meshes[mesh->Mesh].Bounds.IsEmpty())
+					AddBox(lines, model->Meshes[mesh->Mesh].Bounds.Transform(world), ColliderColor);
+			}
+			if (const auto* character = registry.try_get<CharacterControllerComponent>(handle))
+			{
+				const float radius = std::min(character->Radius, 0.5f * character->Height);
+				AddCapsule(lines, position + glm::vec3(0.0f, 0.5f * character->Height, 0.0f),
+					glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), radius,
+					std::max(0.5f * character->Height - radius, 0.0f), ColliderColor);
+			}
+		}
+
+		// The colliders that make up the entity's body, as physics gathers them: its own, and if it's a body, those
+		// of its descendants without a body of their own (see docs/Decisions/0021-physics.md)
+		void AddBodyColliders(std::vector<LineVertex>& lines, const Scene& scene, entt::entity handle,
+			const ScenePose& pose, const ModelLookup& models)
+		{
+			const entt::registry& registry = scene.GetRegistry();
+			AddColliders(lines, registry, handle, pose.GetWorldMatrix(handle), models);
+			if (!registry.all_of<RigidBodyComponent>(handle))
+				return;
+			std::vector<entt::entity> pending{handle};
+			while (!pending.empty())
+			{
+				const entt::entity parent = pending.back();
+				pending.pop_back();
+				for (const UUID childId : registry.get<HierarchyComponent>(parent).Children)
+				{
+					const entt::entity child = scene.FindHandle(childId);
+					if (child == entt::null || registry.any_of<RigidBodyComponent, CharacterControllerComponent>(child))
+						continue;
+					AddColliders(lines, registry, child, pose.GetWorldMatrix(child), models);
+					pending.push_back(child);
 				}
 			}
 		}
@@ -314,6 +458,9 @@ namespace Lodestone {
 		{
 			const bool selected = id.ID == selection;
 			const glm::mat4 world = pose.GetWorldMatrix(handle);
+			// The selection's colliders show over everything, like its outline
+			if (selected)
+				AddBodyColliders(overlay.OnTop, context.GetScene(), handle, pose, models);
 			if (const ModelMesh* mesh = FindMesh(registry, handle, models))
 			{
 				// Meshes show themselves; the selected one is outlined

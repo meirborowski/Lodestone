@@ -4,6 +4,7 @@
 #include "Lodestone/Scene/Components.h"
 #include "Lodestone/Scene/Scene.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <span>
@@ -51,11 +52,33 @@ namespace Lodestone {
 
 	using SystemFunction = std::function<void(SimulationContext& context)>;
 
+	// A system with state of its own beside the scene's components, such as the physics world. The simulation saves
+	// and restores its state with the scene's, so rolling back restores it too
+	class StatefulSystem
+	{
+	public:
+		StatefulSystem() = default;
+		virtual ~StatefulSystem() = default;
+
+		StatefulSystem(const StatefulSystem&) = delete;
+		StatefulSystem& operator=(const StatefulSystem&) = delete;
+		StatefulSystem(StatefulSystem&&) = delete;
+		StatefulSystem& operator=(StatefulSystem&&) = delete;
+
+		virtual void Update(SimulationContext& context) = 0;
+		// Appends the system's state after the latest tick to the buffer
+		virtual void SaveState(std::vector<std::byte>& state) const = 0;
+		// Resumes from state saved by SaveState(). The scene has been restored to the snapshot saved with it
+		virtual void RestoreState(std::span<const std::byte> state) = 0;
+	};
+
 	// Everything needed to resume a simulation from a tick (see Simulation::SaveState)
 	struct SimulationState
 	{
 		uint64_t Tick = 0;
 		SceneSnapshot Scene;
+		// Each stateful system's state, in the order the systems were added
+		std::vector<std::vector<std::byte>> Systems;
 	};
 
 	// Runs a scene's game logic on a fixed tick, independent of the frame rate (see
@@ -74,6 +97,8 @@ namespace Lodestone {
 
 		// Systems run in the order they're added
 		void AddSystem(std::string name, SystemFunction system);
+		// A system whose state is saved and restored with the scene's. It must outlive the simulation
+		void AddSystem(std::string name, StatefulSystem& system);
 
 		// Runs one tick with its input commands, at most one per player
 		void Step(std::span<const InputCommand> inputs);
@@ -102,6 +127,8 @@ namespace Lodestone {
 		{
 			std::string Name;
 			SystemFunction Function;
+			// Set for stateful systems
+			StatefulSystem* State = nullptr;
 		};
 
 	private:

@@ -173,8 +173,15 @@ ls_declare_dependency(httplib POPULATE_ONLY
 	SHA256 7c8cc7df044abb837d75f7c1e56333305acb40335c3788b8f5fbf5927e63e148
 )
 
+# Jolt Physics - rigid bodies, collision queries and the character controller (MIT). Its own CMake project changes
+# global compiler flags and adds samples, so the library target is defined from its source list below
+ls_declare_dependency(jolt POPULATE_ONLY
+	URL https://github.com/jrouwe/JoltPhysics/archive/refs/tags/v5.6.0.tar.gz
+	SHA256 6e069ee0172478cc78182047aac87e5310ba14a67a53348ae14cc37801fd3f8e
+)
+
 FetchContent_MakeAvailable(
-	spdlog doctest lua sol2 glm stb cgltf glfw vulkan_headers nvrhi entt nlohmann_json imgui imguizmo httplib)
+	spdlog doctest lua sol2 glm stb cgltf glfw vulkan_headers nvrhi entt nlohmann_json imgui imguizmo httplib jolt)
 
 # NVRHI's Vulkan backend calls into NVRHI's common library without declaring it. Linkers that resolve symbols in one
 # pass (GNU ld) need the common library after the backend on the command line, which this dependency guarantees
@@ -245,6 +252,37 @@ target_include_directories(httplib SYSTEM INTERFACE "${httplib_SOURCE_DIR}")
 target_link_libraries(httplib INTERFACE Threads::Threads $<$<PLATFORM_ID:Windows>:ws2_32>)
 # Plain HTTP on the loopback interface only: no TLS, compression or other optional features
 target_compile_definitions(httplib INTERFACE $<$<PLATFORM_ID:Windows>:_WIN32_WINNT=0x0A00>)
+
+# Jolt, configured the way Lodestone uses it (see docs/Decisions/0021-physics.md). Jolt.cmake reads its options from
+# variables and sets the language standard for its own code, so it's included in a function, where neither leaks
+# into the rest of the build. Everything optional is off: compute shaders, object streams, the debug renderer and the
+# profiler. LodestoneCore links it privately, so its headers and instruction set flags stay inside Core
+function(ls_add_jolt)
+	set(PHYSICS_REPO_ROOT "${jolt_SOURCE_DIR}")
+	# On x86-64, SSE4.2 and POPCNT, which every x86-64 CPU of the last fifteen years has. AVX2 would be a little faster,
+	# but a game built with it crashes on CPUs without it. FMA stays off: it changes floating point results
+	set(USE_SSE4_1 ON)
+	set(USE_SSE4_2 ON)
+	# Compiler caches can't cache compilations that use precompiled headers
+	set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+	include("${jolt_SOURCE_DIR}/Jolt/Jolt.cmake")
+
+	# Jolt's headers are system headers to Lodestone, so they don't trigger its warnings
+	set_target_properties(Jolt PROPERTIES SYSTEM ON)
+	# Jolt sets the instruction set from Visual Studio's platform name, which Ninja builds don't have
+	if(MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64)$")
+		target_compile_definitions(Jolt PUBLIC JPH_USE_SSE4_1 JPH_USE_SSE4_2)
+	endif()
+	# Jolt's asserts go through the engine's (see Source/Core/Lodestone/Physics/JoltRuntime.cpp), in the configurations
+	# with asserts
+	target_compile_definitions(Jolt PUBLIC $<$<CONFIG:Debug,Release>:JPH_ENABLE_ASSERTS>)
+	# Under sanitizers, Jolt allocates with the system allocator, so every allocation is checked
+	if(LS_ENABLE_SANITIZERS OR LS_ENABLE_THREAD_SANITIZER)
+		target_compile_definitions(Jolt PUBLIC JPH_DISABLE_TEMP_ALLOCATOR JPH_DISABLE_CUSTOM_ALLOCATOR)
+	endif()
+endfunction()
+ls_add_jolt()
+set_target_properties(Jolt PROPERTIES EXCLUDE_FROM_ALL ON)
 
 # Lua is compiled as C++, so Lua errors unwind C++ stack frames with exceptions (running destructors) instead of
 # longjmp. See docs/Decisions/0003-lua-compiled-as-cpp.md

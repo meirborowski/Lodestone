@@ -3,6 +3,7 @@
 #include "Common/DescribeError.h"
 #include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Asset/ModelImporter.h"
+#include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 #include "Lodestone/Scene/ModelEntities.h"
@@ -156,6 +157,70 @@ namespace Lodestone {
 		CHECK(meshSelected.OnTop[0].Color != meshSelected.DepthTested.back().Color);
 	}
 
+	TEST_CASE("The selection's colliders are drawn over everything, shaped as physics shapes them")
+	{
+		Fixture fixture;
+		Entity crate = fixture.CreateEntity("Crate", glm::vec3(3.0f, 0.0f, 0.0f), glm::vec3(2.0f));
+		crate.Add<BoxColliderComponent>(
+			BoxColliderComponent{.Size = glm::vec3(1.0f, 2.0f, 1.0f), .Center = glm::vec3(0.0f, 0.5f, 0.0f)});
+		Entity ball = fixture.CreateEntity("Ball", glm::vec3(-3.0f, 0.0f, 0.0f), glm::vec3(1.0f, 2.0f, 3.0f));
+		ball.Add<SphereColliderComponent>();
+		Entity pill = fixture.CreateEntity("Pill", glm::vec3(0.0f, 5.0f, 0.0f));
+		pill.Add<CapsuleColliderComponent>();
+		Entity player = fixture.CreateEntity("Player", glm::vec3(0.0f, 0.0f, -4.0f));
+		player.Add<CharacterControllerComponent>();
+
+		// Nothing is drawn for colliders that aren't selected
+		CHECK(SceneView::BuildOverlay(fixture.Context, Loaded).OnTop.empty());
+
+		fixture.Context.Select(crate.GetId());
+		const SceneOverlay box = SceneView::BuildOverlay(fixture.Context, Loaded);
+		// Its marker, and its box: 1 x 2 x 1 around (0, 0.5, 0), doubled with the entity
+		CHECK(box.OnTop.size() == 2 * MarkerVertexCount);
+		CHECK(HasVertexAt(box.OnTop, glm::vec3(2.0f, -1.0f, -1.0f)));
+		CHECK(HasVertexAt(box.OnTop, glm::vec3(4.0f, 3.0f, 1.0f)));
+
+		// Spheres are scaled by the average of the entity's scale, as physics scales them
+		fixture.Context.Select(ball.GetId());
+		CHECK(HasVertexAt(SceneView::BuildOverlay(fixture.Context, Loaded).OnTop, glm::vec3(-2.0f, 0.0f, 0.0f)));
+
+		// A capsule 2 m tall: its top at 1 m above its center
+		fixture.Context.Select(pill.GetId());
+		const SceneOverlay capsule = SceneView::BuildOverlay(fixture.Context, Loaded);
+		CHECK(HasVertexAt(capsule.OnTop, glm::vec3(0.0f, 6.0f, 0.0f)));
+		CHECK(HasVertexAt(capsule.OnTop, glm::vec3(0.5f, 5.5f, 0.0f)));
+
+		// A character's capsule stands on its position
+		fixture.Context.Select(player.GetId());
+		const SceneOverlay character = SceneView::BuildOverlay(fixture.Context, Loaded);
+		CHECK(HasVertexAt(character.OnTop, glm::vec3(0.0f, 1.8f, -4.0f)));
+		CHECK(HasVertexAt(character.OnTop, glm::vec3(0.0f, 0.0f, -4.0f)));
+		// Colliders in a color of their own; the marker in the selection's, after them
+		CHECK(character.OnTop.front().Color != character.OnTop.back().Color);
+	}
+
+	TEST_CASE("A selected body shows the colliders of its descendants that make up its shape")
+	{
+		Fixture fixture;
+		Entity body = fixture.CreateEntity("Body", glm::vec3(0.0f));
+		body.Add<RigidBodyComponent>();
+		Entity piece = fixture.CreateEntity("Piece", glm::vec3(2.0f, 0.0f, 0.0f));
+		piece.Add<BoxColliderComponent>();
+		REQUIRE(fixture.Context.GetScene().SetParent(piece, body).has_value());
+		// A body of its own below it isn't part of it
+		Entity separate = fixture.CreateEntity("Separate", glm::vec3(5.0f, 0.0f, 0.0f));
+		separate.Add<RigidBodyComponent>();
+		separate.Add<BoxColliderComponent>();
+		REQUIRE(fixture.Context.GetScene().SetParent(separate, piece).has_value());
+
+		fixture.Context.Select(body.GetId());
+		const SceneOverlay overlay = SceneView::BuildOverlay(fixture.Context, Loaded);
+		CHECK(HasVertexAt(overlay.OnTop, glm::vec3(2.5f, 0.5f, 0.5f)));
+		CHECK_FALSE(HasVertexAt(overlay.OnTop, glm::vec3(7.5f, 0.5f, 0.5f)));
+		// A collider entity that isn't a body shows only its own
+		fixture.Context.Select(piece.GetId());
+		CHECK_FALSE(HasVertexAt(SceneView::BuildOverlay(fixture.Context, Loaded).OnTop, glm::vec3(7.5f, 0.5f, 0.5f)));
+	}
 	TEST_CASE("Picking finds the marker under a point, the nearest when they overlap")
 	{
 		Fixture fixture;

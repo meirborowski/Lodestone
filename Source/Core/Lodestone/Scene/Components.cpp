@@ -1,6 +1,7 @@
 #include "Lodestone/Scene/Components.h"
 
 #include "Lodestone/Animation/AnimationComponents.h"
+#include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Reflection/ComponentRegistry.h"
 #include "Lodestone/Scene/RenderComponents.h"
 
@@ -72,6 +73,7 @@ namespace Lodestone {
 			RegisterCoreComponents(*registry);
 			RegisterRenderComponents(*registry);
 			RegisterAnimationComponents(*registry);
+			RegisterPhysicsComponents(*registry);
 			return registry;
 		}();
 		return *s_Registry;

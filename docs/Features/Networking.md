@@ -17,7 +17,7 @@
 - Animation state replicates (see [Animation](Animation.md))
 
 ## Prediction
-Confirm this scope before Milestone 7 and record it as a decision - physics and the character controller are built around it.
+Confirmed in [Decision 0021](../Decisions/0021-physics.md) - physics and the character controller are built around it.
 - What's predicted: the locally controlled character's movement, through the built-in character controller component (see [Physics](Physics.md)) driven by per-tick input commands
 - The client keeps a history of its input commands and predicted states. When a server snapshot arrives, it restores the server's state for that tick and re-simulates the input commands the server hasn't processed yet
 - Scripts aren't re-simulated: scripted gameplay runs authoritatively on the server and reaches clients through replication

@@ -23,14 +23,14 @@ namespace Lodestone {
 	namespace {
 
 		// Every tool the editor offers. A new tool is added here deliberately, with its tests
-		constexpr std::array<std::string_view, 42> ToolNames = {"project_info", "project_create", "project_open",
+		constexpr std::array<std::string_view, 44> ToolNames = {"project_info", "project_create", "project_open",
 			"scene_new", "scene_open", "prefab_open", "document_save", "scene_hierarchy", "entity_create",
 			"entity_delete", "entity_duplicate", "entity_set_parent", "entity_get", "entity_find", "selection_set",
 			"component_types", "component_add", "component_remove", "component_set", "prefab_create",
 			"prefab_instantiate", "model_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start",
 			"play_stop", "play_pause", "play_step", "play_status", "input_send", "animation_clips", "animation_preview",
-			"viewport_screenshot", "render_stats", "camera_set", "camera_frame", "log_read", "asset_list",
-			"asset_import", "asset_rescan", "editor_quit"};
+			"physics_raycast", "physics_events", "viewport_screenshot", "render_stats", "camera_set", "camera_frame",
+			"log_read", "asset_list", "asset_import", "asset_rescan", "editor_quit"};
 
 		UUID ToId(const std::string& text)
 		{
@@ -180,7 +180,8 @@ namespace Lodestone {
 				{"index", -1}, {"components", "x"}, {"fields", 1}, {"component", 2}, {"ticks", "many"}, {"hold", "W"},
 				{"width", 1e9}, {"height", -5}, {"position", {1}}, {"target", "here"}, {"after", -3}, {"level", "loud"},
 				{"max", 0}, {"type", "Mesh"}, {"source", 5}, {"paused", "yes"}, {"discardChanges", "no"},
-				{"contains", 1}, {"overwrite", "x"}},
+				{"contains", 1}, {"overwrite", "x"}, {"origin", "here"}, {"direction", 5}, {"maxDistance", -1},
+				{"includeTriggers", 1}, {"ignore", 3}, {"all", "yes"}, {"sinceTick", -2}},
 			{{"entity", "not-a-uuid"}, {"parent", "also-not"}, {"path", "../outside.lscene"}, {"name", ""}}};
 		for (const std::string_view name : ToolNames)
 		{
@@ -745,6 +746,102 @@ namespace Lodestone {
 		CHECK(fixture.Context.GetPlayState() == PlayState::Editing);
 	}
 
+	TEST_CASE("physics_raycast hits the document's colliders while editing, and the running world while playing")
+	{
+		Fixture fixture;
+		const std::string floor = fixture.CreateEntity("Floor", Json::Value(),
+			{{"Transform", {{"Position", {0.0, -0.5, 0.0}}}}, {"BoxCollider", {{"Size", {20.0, 1.0, 20.0}}}}});
+		const std::string box = fixture.CreateEntity("Box", Json::Value(),
+			{{"Transform", {{"Position", {0.0, 5.0, 0.0}}}}, {"RigidBody", Json::Value::object()},
+				{"BoxCollider", Json::Value::object()}});
+		const std::string trigger = fixture.CreateEntity("Zone", Json::Value(),
+			{{"Transform", {{"Position", {0.0, 8.0, 0.0}}}}, {"RigidBody", {{"Type", 0}, {"IsTrigger", true}}},
+				{"BoxCollider", Json::Value::object()}});
+		const Json::Value down = {{"origin", {0.0, 20.0, 0.0}}, {"direction", {0.0, -2.0, 0.0}}};
+
+		const Json::Value editing = fixture.Ok("physics_raycast", down)["hit"];
+		CHECK(editing["entity"] == box);
+		CHECK(editing["name"] == "Box");
+		CHECK(editing["point"][1].get<double>() == doctest::Approx(5.5));
+		CHECK(editing["normal"] == Json::Value{0.0, 1.0, 0.0});
+		CHECK(editing["distance"].get<double>() == doctest::Approx(14.5));
+
+		Json::Value options = down;
+		options["includeTriggers"] = true;
+		CHECK(fixture.Ok("physics_raycast", options)["hit"]["entity"] == trigger);
+		options["includeTriggers"] = false;
+		options["ignore"] = box;
+		CHECK(fixture.Ok("physics_raycast", options)["hit"]["entity"] == floor);
+		options["maxDistance"] = 5.0;
+		CHECK(fixture.Ok("physics_raycast", options)["hit"].is_null());
+		options.erase("maxDistance");
+		options.erase("ignore");
+		options["all"] = true;
+		const Json::Value all = fixture.Ok("physics_raycast", options)["hits"];
+		REQUIRE(all.size() == 2);
+		CHECK(all[0]["entity"] == box);
+		CHECK(all[1]["entity"] == floor);
+
+		// While playing, the box falls onto the floor
+		fixture.Ok("play_start", {{"paused", true}});
+		fixture.Ok("play_step", {{"ticks", 120}});
+		CHECK(
+			fixture.Ok("physics_raycast", down)["hit"]["point"][1].get<double>() == doctest::Approx(1.0).epsilon(0.03));
+		fixture.Ok("play_stop");
+		CHECK(fixture.Ok("physics_raycast", down)["hit"]["point"][1].get<double>() == doctest::Approx(5.5));
+
+		fixture.Fails("physics_raycast", {{"origin", {0.0, 0.0, 0.0}}, {"direction", {0.0, 0.0, 0.0}}});
+		fixture.Fails(
+			"physics_raycast", {{"origin", {0.0, 0.0, 0.0}}, {"direction", {0.0, -1.0, 0.0}}, {"maxDistance", 0}});
+		fixture.Fails("physics_raycast", {{"direction", {0.0, -1.0, 0.0}}});
+		fixture.Fails("physics_raycast", {{"origin", {0.0, 0.0}}, {"direction", {0.0, -1.0, 0.0}}});
+	}
+
+	TEST_CASE("physics_events reports play mode's collisions and trigger events, with their ticks")
+	{
+		Fixture fixture;
+		const std::string floor = fixture.CreateEntity("Floor", Json::Value(),
+			{{"Transform", {{"Position", {0.0, -0.5, 0.0}}}}, {"BoxCollider", {{"Size", {20.0, 1.0, 20.0}}}}});
+		const std::string zone = fixture.CreateEntity("Zone", Json::Value(),
+			{{"Transform", {{"Position", {0.0, 3.0, 0.0}}}}, {"RigidBody", {{"Type", 0}, {"IsTrigger", true}}},
+				{"BoxCollider", {{"Size", {4.0, 1.0, 4.0}}}}});
+		const std::string box = fixture.CreateEntity("Box", Json::Value(),
+			{{"Transform", {{"Position", {0.0, 6.0, 0.0}}}}, {"RigidBody", Json::Value::object()},
+				{"BoxCollider", Json::Value::object()}});
+		const Json::Value idle = fixture.Ok("physics_events");
+		CHECK(idle["playState"] == "Editing");
+		CHECK(idle["tick"].is_null());
+		CHECK(idle["events"].empty());
+
+		fixture.Ok("play_start", {{"paused", true}});
+		fixture.Ok("play_step", {{"ticks", 120}});
+		const Json::Value played = fixture.Ok("physics_events");
+		CHECK(played["playState"] == "Paused");
+		CHECK(played["tick"] == 120);
+		std::vector<std::string> types;
+		for (const Json::Value& event : played["events"])
+			types.push_back(event["type"].get<std::string>());
+		CHECK(types == std::vector<std::string>{"TriggerEnter", "TriggerExit", "CollisionBegin"});
+		const Json::Value& enter = played["events"][0];
+		CHECK(enter["first"]["id"] == zone);
+		CHECK(enter["first"]["name"] == "Zone");
+		CHECK(enter["second"]["id"] == box);
+		const Json::Value& landed = played["events"][2];
+		CHECK(landed["tick"].get<uint64_t>() > played["events"][1]["tick"].get<uint64_t>());
+		CHECK(std::set<std::string>{landed["first"]["id"].get<std::string>(),
+				  landed["second"]["id"].get<std::string>()} == std::set<std::string>{floor, box});
+
+		const uint64_t landingTick = landed["tick"].get<uint64_t>();
+		CHECK(fixture.Ok("physics_events", {{"sinceTick", landingTick}})["events"].size() == 1);
+		CHECK(fixture.Ok("physics_events", {{"sinceTick", landingTick + 1}})["events"].empty());
+		fixture.Fails("physics_events", {{"sinceTick", "soon"}});
+
+		// Kept after play mode stops, until it starts again
+		fixture.Ok("play_stop");
+		CHECK(fixture.Ok("physics_events")["events"].size() == 3);
+		fixture.Ok("play_start", {{"paused", true}});
+		CHECK(fixture.Ok("physics_events")["events"].empty());
+	}
 	TEST_CASE("input_send queues held, tapped and clicked input for the coming ticks")
 	{
 		Fixture fixture;
