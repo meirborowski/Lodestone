@@ -80,8 +80,10 @@ namespace Lodestone::ShaderTypes {
 		std::array<glm::vec4, 3> NormalMatrix{};
 		uint32_t LightOffset = 0;
 		uint32_t LightCount = 0;
+		// Skinned meshes: where their joints' matrices start in the frame's joint buffer
+		uint32_t JointOffset = 0;
 	};
-	static_assert(sizeof(DrawConstants) == 120);
+	static_assert(sizeof(DrawConstants) == 124);
 	static_assert(sizeof(DrawConstants) <= 128, "Push constants beyond 128 bytes aren't guaranteed");
 
 	// AmbientOcclusion.hlsl, in push constants

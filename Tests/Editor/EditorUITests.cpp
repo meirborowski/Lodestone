@@ -2,6 +2,7 @@
 
 #include "Common/DescribeError.h"
 #include "Common/TemporaryDirectory.h"
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Scene/Entity.h"
 
@@ -14,6 +15,8 @@
 namespace Lodestone {
 
 	namespace {
+
+		constexpr UUID AnimatedModelId(0x6000000000004000ull, 0x8000000000000001ull);
 
 		// A component with a field of every reflected type, so the inspector draws every kind of widget
 		struct EverythingComponent
@@ -191,6 +194,43 @@ namespace Lodestone {
 		fixture.Frame(2);
 		REQUIRE(fixture.Context.StopPlay().has_value());
 		fixture.Frame();
+	}
+
+	TEST_CASE("The animation panel draws the selected model's timeline, previewed or playing")
+	{
+		static const Model Animated = []
+		{
+			Model model;
+			model.Nodes.emplace_back();
+			model.Animations.push_back({.Name = "Walk", .Duration = 1.0f});
+			model.Animations.push_back({.Name = "", .Duration = 0.5f});
+			return model;
+		}();
+		Fixture fixture;
+		const UUID root = fixture.CreateEntity("Walker");
+		const UUID node = fixture.CreateEntity("Node", root);
+		Entity entity = fixture.Context.GetScene().FindEntity(root);
+		entity.Add<ModelInstanceComponent>(ModelInstanceComponent{.Model = AnimatedModelId});
+		entity.Add<AnimatorComponent>(AnimatorComponent{.FadeClip = 1, .FadeDuration = 0.5f, .FadeElapsed = 0.25f});
+		// Selecting a node of the model shows its instance's animator; first, before the model is loaded
+		fixture.Context.Select(node);
+		fixture.Frame(2);
+
+		fixture.Context.SetModelLookup(
+			[](UUID id) -> const Model* { return id == AnimatedModelId ? &Animated : nullptr; });
+		fixture.Frame(2);
+		REQUIRE(fixture.Context.SetAnimationPreview(root, 1, 0.25f, true).has_value());
+		fixture.Frame(2);
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		fixture.Frame(2);
+		REQUIRE(fixture.Context.StopPlay().has_value());
+
+		// Nothing to show: no selection, or an entity without an animator
+		fixture.Context.Select(UUID());
+		fixture.Frame();
+		fixture.Context.Select(fixture.CreateEntity("Plain"));
+		fixture.Frame();
+		fixture.Context.SetModelLookup({});
 	}
 
 	TEST_CASE("The window title names the project and document, and marks unsaved changes")

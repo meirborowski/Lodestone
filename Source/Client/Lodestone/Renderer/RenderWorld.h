@@ -14,6 +14,7 @@
 namespace Lodestone {
 
 	class Scene;
+	class ScenePose;
 
 	// Where a view is seen from: a camera's placement and lens. The renderer makes the projection from it and the
 	// image's aspect ratio
@@ -38,8 +39,16 @@ namespace Lodestone {
 		UUID Entity;
 		UUID Model;
 		uint32_t Mesh = 0;
+		// From the mesh's space to the world: the entity's world matrix. Skinned meshes are placed by their joints
+		// instead, and by this only if they can't be skinned
 		glm::mat4 World{1.0f};
 		bool CastShadows = true;
+		// For a skinned mesh, its joints' matrices: JointCount of RenderWorld::JointMatrices from FirstJoint. A mesh
+		// without joints isn't skinned
+		uint32_t FirstJoint = 0;
+		uint32_t JointCount = 0;
+
+		bool IsSkinned() const { return JointCount > 0; }
 	};
 
 	struct RenderDirectionalLight
@@ -72,6 +81,9 @@ namespace Lodestone {
 	struct RenderWorld
 	{
 		std::vector<RenderMesh> Meshes;
+		// The joint matrices of every skinned mesh, from the mesh's bind pose to the world
+		// (ScenePose::GetJointMatrices())
+		std::vector<glm::mat4> JointMatrices;
 		std::vector<RenderDirectionalLight> DirectionalLights;
 		std::vector<RenderPunctualLight> PunctualLights;
 		EnvironmentComponent Environment;
@@ -80,13 +92,16 @@ namespace Lodestone {
 		std::optional<RenderView> Camera;
 	};
 
-	// Collects what the renderer draws from a scene. Transforms are interpolated between the start and the end of the
-	// latest simulation tick by the factor (Simulation::GetInterpolationFactor()); 1 takes the current transforms.
+	// Collects what the renderer draws from a posed scene: entities where the pose puts them - between simulation
+	// ticks, and moved by animators - and skinned meshes with their joints' matrices.
 	//
 	// Entities are visited in hierarchy order - roots in order, each followed by its children - so the result doesn't
 	// depend on how the ECS stores them. A scene should have at most one environment, one render settings component
 	// and one primary camera; with several, the first wins. Directional lights, spot lights and cameras whose world
 	// transform squashes their forward direction to nothing are left out, having no direction
+	RenderWorld ExtractRenderWorld(const ScenePose& pose);
+	// The same for a scene with nothing animated or skinned, its transforms interpolated by a factor
+	// (Simulation::GetInterpolationFactor()); 1 takes the current transforms
 	RenderWorld ExtractRenderWorld(const Scene& scene, float interpolationFactor = 1.0f);
 
 	// The matrix that transforms normals for a world matrix: the inverse transpose of its upper 3x3, up to scale (the

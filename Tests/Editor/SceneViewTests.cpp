@@ -1,8 +1,11 @@
 #include "Lodestone/Editor/SceneView.h"
 
 #include "Common/DescribeError.h"
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Scene/Entity.h"
+#include "Lodestone/Scene/EntitySerializer.h"
+#include "Lodestone/Scene/ModelEntities.h"
 #include "Lodestone/Scene/RenderComponents.h"
 
 #include <doctest/doctest.h>
@@ -18,6 +21,7 @@ namespace Lodestone {
 		constexpr glm::uvec2 ImageSize{800, 600};
 		constexpr glm::vec2 Center(400.0f, 300.0f);
 		constexpr UUID PrimitivesId(0x2000000000004000ull, 0x8000000000000001ull);
+		constexpr UUID ArmId(0x2000000000004000ull, 0x8000000000000002ull);
 		// Meshes of Primitives.glb
 		constexpr uint32_t Cube = 1;
 		constexpr uint32_t Sphere = 2;
@@ -231,6 +235,46 @@ namespace Lodestone {
 		// Editing shows the scene as it is
 		REQUIRE(fixture.Context.StopPlay().has_value());
 		CHECK(fixture.Pick(fixture.Project(glm::vec3(0.0f))) == mover.GetId());
+	}
+
+	TEST_CASE("Picking and the overlay find skinned meshes where their animated joints put them")
+	{
+		static const Model Arm = []
+		{
+			auto imported =
+				ModelImporter::Import(std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "SkinnedArm.glb");
+			REQUIRE_MESSAGE(imported.has_value(), Testing::DescribeError(imported));
+			return std::move(*imported);
+		}();
+		const ModelLookup models = [](UUID id) -> const Model* { return id == ArmId ? &Arm : nullptr; };
+		Fixture fixture;
+		fixture.Context.SetModelLookup(models);
+		auto root = EntitySerializer::InstantiateTree(
+			fixture.Context.GetScene(), BuildModelEntities(Arm, ArmId, "Arm"), EntitySerializer::IdPolicy::Regenerate);
+		REQUIRE_MESSAGE(root.has_value(), Testing::DescribeError(root));
+		// Bend's end: the column's top half lies along -X, a meter up
+		auto& animator = root->Get<AnimatorComponent>();
+		animator.Time = 1.0f;
+		animator.Loop = false;
+		const UUID mesh = root->Get<HierarchyComponent>().Children[0];
+		const glm::vec2 bentTop = fixture.Project(glm::vec3(-0.8f, 1.0f, 0.0f));
+		const glm::vec2 uprightTop = fixture.Project(glm::vec3(0.0f, 1.8f, 0.0f));
+
+		CHECK(fixture.Pick(bentTop, models) == mesh);
+		CHECK(fixture.Pick(uprightTop, models).IsNil());
+
+		// The outline bounds the bent arm: its joints' bounds, moved
+		fixture.Context.Select(mesh);
+		const SceneOverlay overlay = SceneView::BuildOverlay(fixture.Context, models);
+		REQUIRE(overlay.OnTop.size() == MarkerVertexCount);
+		CHECK(HasVertexAt(overlay.OnTop, glm::vec3(-1.0f, 0.0f, -0.2f)));
+		CHECK(HasVertexAt(overlay.OnTop, glm::vec3(0.2f, 1.2f, 0.2f)));
+
+		// A preview of the clip's start stands it up again, without changing the scene
+		REQUIRE(fixture.Context.SetAnimationPreview(root->GetId(), 0, 0.0f).has_value());
+		CHECK(fixture.Pick(uprightTop, models) == mesh);
+		CHECK(fixture.Pick(bentTop, models).IsNil());
+		CHECK(animator.Time == 1.0f);
 	}
 
 	TEST_CASE("The render view is the editor camera's")

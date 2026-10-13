@@ -106,6 +106,8 @@ namespace Lodestone {
 		}
 		if (m_ShowConsole)
 			m_Console.Draw(m_Context->GetLog(), &m_ShowConsole);
+		if (m_ShowAnimation)
+			m_Animation.Draw(*m_Context, &m_ShowAnimation);
 
 		DrawModals();
 	}
@@ -158,6 +160,7 @@ namespace Lodestone {
 		ImGui::DockBuilderDockWindow(InspectorPanel::Title, right);
 		ImGui::DockBuilderDockWindow(ContentBrowserPanel::Title, bottom);
 		ImGui::DockBuilderDockWindow(ConsolePanel::Title, bottom);
+		ImGui::DockBuilderDockWindow(AnimationPanel::Title, bottom);
 		ImGui::DockBuilderDockWindow(ViewportPanel::Title, center);
 		ImGui::DockBuilderFinish(dockSpace);
 	}
@@ -240,6 +243,7 @@ namespace Lodestone {
 			ImGui::MenuItem(InspectorPanel::Title, nullptr, &m_ShowInspector);
 			ImGui::MenuItem(ContentBrowserPanel::Title, nullptr, &m_ShowContentBrowser);
 			ImGui::MenuItem(ConsolePanel::Title, nullptr, &m_ShowConsole);
+			ImGui::MenuItem(AnimationPanel::Title, nullptr, &m_ShowAnimation);
 			ImGui::Separator();
 			if (ImGui::MenuItem("Reset Layout"))
 				m_ResetLayout = true;

@@ -1,5 +1,7 @@
 #include "Lodestone/Editor/Mcp/EditorTools.h"
 
+#include "Lodestone/Animation/Animation.h"
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Core/Base64.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
@@ -129,6 +131,17 @@ namespace Lodestone {
 				if (!index)
 					return std::unexpected(index.error());
 				return static_cast<size_t>(*index);
+			}
+
+			std::expected<float, Error> Float(std::string_view key, float fallback, float min, float max) const
+			{
+				if (!Has(key))
+					return fallback;
+				const Json::Value& value = Get(key);
+				if (!value.is_number() || value.get<double>() < min || value.get<double>() > max)
+					return std::unexpected(
+						ArgumentError(fmt::format("'{}' must be a number from {} to {}", key, min, max)));
+				return static_cast<float>(value.get<double>());
 			}
 
 			std::expected<bool, Error> Bool(std::string_view key, bool fallback) const
@@ -1322,6 +1335,136 @@ namespace Lodestone {
 				}});
 		}
 
+		// The clips of a model asset
+		std::expected<Json::Value, Error> DescribeClips(EditorContext& context, UUID modelId)
+		{
+			const auto model = context.LoadModel(modelId);
+			if (!model)
+				return std::unexpected(model.error());
+			Json::Value clips = Json::Value::array();
+			for (size_t index = 0; index < (*model)->Animations.size(); ++index)
+			{
+				const AnimationClip& clip = (*model)->Animations[index];
+				clips.push_back({{"index", index}, {"name", clip.Name}, {"duration", clip.Duration},
+					{"channels", clip.Channels.size()}});
+			}
+			return clips;
+		}
+
+		// The animator that moves an entity (its own or an ancestor's) and its model instance
+		std::expected<std::pair<UUID, UUID>, Error> FindAnimatorAndModel(EditorContext& context, UUID entity)
+		{
+			const UUID animator = FindAnimator(context.GetScene(), entity);
+			if (animator.IsNil())
+				return std::unexpected(Error(ErrorCode::NotFound,
+					fmt::format("Entity {} has no Animator, and neither do its ancestors", entity)));
+			const Entity found = context.GetScene().FindEntity(animator);
+			const auto* instance = found.TryGet<ModelInstanceComponent>();
+			if (instance == nullptr)
+				return std::unexpected(Error(ErrorCode::InvalidArgument,
+					fmt::format(
+						"The Animator of '{}' isn't on a model instance, so it has no clips", found.GetName())));
+			return std::pair(animator, instance->Model);
+		}
+
+		Json::Value DescribePreview(const EditorContext& context)
+		{
+			const auto& preview = context.GetAnimationPreview();
+			if (!preview)
+				return {};
+			return {{"entity", preview->Pose.Entity.ToString()}, {"clip", preview->Pose.Clip},
+				{"time", preview->Pose.Time}, {"playing", preview->Playing}};
+		}
+
+		void AddAnimationTools(McpServer& server, EditorContext& context)
+		{
+			server.AddTool({.Name = "animation_clips",
+				.Title = "Animation clips",
+				.Description =
+					"The clips an entity's Animator can play - its own, or its model instance's - with their names "
+					"and lengths, the animator's state (clip, time, speed, crossfade) and any preview. Clips are "
+					"chosen by index (set the Animator's Clip field with component_set)",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"entity": {"type": "string", "description": "The UUID of an entity with an Animator, or of a node of its model"}},
+					"required": ["entity"]})"),
+				.ReadOnly = true,
+				.Handler = [&context](const Json::Value& json)
+				{
+					const auto entity = Arguments(json).Id("entity");
+					if (!entity)
+						return Fail(entity.error());
+					const auto found = FindAnimatorAndModel(context, *entity);
+					if (!found)
+						return Fail(found.error());
+					const auto [animatorId, modelId] = *found;
+					auto clips = DescribeClips(context, modelId);
+					if (!clips)
+						return Fail(clips.error());
+					const AnimatorComponent& animator =
+						context.GetScene().FindEntity(animatorId).Get<AnimatorComponent>();
+					const Json::Value state = {{"clip", animator.Clip}, {"time", animator.Time},
+						{"speed", animator.Speed}, {"playing", animator.Playing}, {"loop", animator.Loop},
+						{"fadeClip", animator.FadeClip}, {"fadeDuration", animator.FadeDuration},
+						{"fadeElapsed", animator.FadeElapsed}};
+					return McpToolResult::Structured(
+						{{"animator", animatorId.ToString()}, {"model", modelId.ToString()},
+							{"clips", std::move(*clips)}, {"state", state}, {"preview", DescribePreview(context)}});
+				}});
+
+			server.AddTool({.Name = "animation_preview",
+				.Title = "Preview an animation clip",
+				.Description =
+					"Shows an entity's model posed by one of its clips at a time - in the viewport and in "
+					"screenshots - without changing the document, as the timeline does. It can play on in real "
+					"time. Only while editing; 'stop' ends the preview",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"entity": {"type": "string", "description": "The UUID of an entity with an Animator, or of a node of its model"},
+					"clip": {"type": "integer", "minimum": 0, "description": "Into the clips animation_clips lists; the animator's by default"},
+					"time": {"type": "number", "minimum": 0, "description": "Seconds into the clip; 0 by default"},
+					"playing": {"type": "boolean", "description": "Whether the preview plays on from there; false by default"},
+					"stop": {"type": "boolean", "description": "Ends the preview instead"}}})"),
+				.Handler = [&context](const Json::Value& json)
+				{
+					const Arguments arguments(json);
+					const auto stop = arguments.Bool("stop", false);
+					if (!stop)
+						return Fail(stop.error());
+					if (*stop)
+					{
+						context.StopAnimationPreview();
+						return McpToolResult::Structured({{"preview", Json::Value()}});
+					}
+					const auto entity = arguments.Id("entity");
+					if (!entity)
+						return Fail(entity.error());
+					const auto found = FindAnimatorAndModel(context, *entity);
+					if (!found)
+						return Fail(found.error());
+					const auto [animatorId, modelId] = *found;
+					const AnimatorComponent& animator =
+						context.GetScene().FindEntity(animatorId).Get<AnimatorComponent>();
+					const auto clip = arguments.UInt("clip", animator.Clip, 0, std::numeric_limits<int32_t>::max());
+					const auto time = arguments.Float("time", 0.0f, 0.0f, 1.0e6f);
+					const auto playing = arguments.Bool("playing", false);
+					if (!clip)
+						return Fail(clip.error());
+					if (!time)
+						return Fail(time.error());
+					if (!playing)
+						return Fail(playing.error());
+					const auto clips = DescribeClips(context, modelId);
+					if (!clips)
+						return Fail(clips.error());
+					if (*clip >= clips->size())
+						return Fail(ArgumentError(
+							fmt::format("The model has {} clips, so it has no clip {}", clips->size(), *clip)));
+					if (auto previewed = context.SetAnimationPreview(animatorId, *clip, *time, *playing); !previewed)
+						return Fail(previewed.error());
+					return McpToolResult::Structured(
+						{{"animator", animatorId.ToString()}, {"preview", DescribePreview(context)}});
+				}});
+		}
+
 	}
 
 	void RegisterEditorTools(McpServer& server, EditorContext& context, EditorToolHost host)
@@ -1333,6 +1476,7 @@ namespace Lodestone {
 		AddPrefabTools(server, context);
 		AddHistoryTools(server, context);
 		AddPlayTools(server, context);
+		AddAnimationTools(server, context);
 		AddViewTools(server, context, std::move(host.Capture), std::move(host.GetRenderStats));
 		AddLogAndAssetTools(server, context);
 	}

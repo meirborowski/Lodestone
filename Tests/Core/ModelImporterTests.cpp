@@ -10,6 +10,8 @@
 #include <glm/geometric.hpp>
 #include <spdlog/fmt/fmt.h>
 
+#include <array>
+#include <cmath>
 #include <cstring>
 #include <filesystem>
 #include <limits>
@@ -356,6 +358,230 @@ namespace Lodestone {
 			EncodeBase64(bytes));
 
 		CHECK_FALSE(ImportText(text).has_value());
+	}
+
+	TEST_CASE("A skinned model imports with its skin, skin weights and animation clips")
+	{
+		const Model model = ImportFixture("SkinnedArm.glb");
+
+		REQUIRE(model.Skins.size() == 1);
+		const ModelSkin& skin = model.Skins[0];
+		CHECK(skin.Name == "Skeleton");
+		CHECK(skin.Joints == std::vector<uint32_t>{1, 2});
+		REQUIRE(skin.InverseBindMatrices.size() == 2);
+		CHECK(skin.InverseBindMatrices[0] == glm::mat4(1.0f));
+		CHECK(glm::vec3(skin.InverseBindMatrices[1][3]) == glm::vec3(0.0f, -1.0f, 0.0f));
+		REQUIRE(model.Nodes.size() == 3);
+		CHECK(model.Nodes[0].Skin == 0u);
+		CHECK_FALSE(model.Nodes[1].Skin.has_value());
+
+		// Every vertex is weighted between the two joints, the weights adding up to 1
+		REQUIRE(model.Meshes.size() == 1);
+		const ModelMesh& mesh = model.Meshes[0];
+		REQUIRE(mesh.IsSkinned());
+		REQUIRE(mesh.Skin.size() == mesh.Vertices.size());
+		for (size_t vertex = 0; vertex < mesh.Skin.size(); ++vertex)
+		{
+			const SkinVertex& skinned = mesh.Skin[vertex];
+			CHECK(
+				skinned.Weights.x + skinned.Weights.y + skinned.Weights.z + skinned.Weights.w == doctest::Approx(1.0f));
+			// Upper takes over the column above 0.75 m
+			if (mesh.Vertices[vertex].Position.y >= 1.25f)
+				CHECK(skinned.Weights[skinned.Joints[0] == 1 ? 0 : 1] == doctest::Approx(1.0f));
+		}
+		CHECK(mesh.SkinJointCount == 2);
+		// Lower moves the column up to 1 m, and Upper from 1 m (its first ring with weight) to the top
+		REQUIRE(mesh.JointBounds.size() == 2);
+		CHECK(mesh.JointBounds[0].Joint == 0);
+		CHECK(mesh.JointBounds[0].Bounds.Min.y == doctest::Approx(0.0f));
+		CHECK(mesh.JointBounds[0].Bounds.Max.y == doctest::Approx(1.0f));
+		CHECK(mesh.JointBounds[1].Joint == 1);
+		CHECK(mesh.JointBounds[1].Bounds.Min.y == doctest::Approx(1.0f));
+		CHECK(mesh.JointBounds[1].Bounds.Max.y == doctest::Approx(2.0f));
+
+		// The clips, each a second long, with every path and interpolation
+		REQUIRE(model.Animations.size() == 3);
+		const AnimationClip& bend = model.Animations[0];
+		CHECK(bend.Name == "Bend");
+		CHECK(bend.Duration == doctest::Approx(1.0f));
+		REQUIRE(bend.Channels.size() == 1);
+		CHECK(bend.Channels[0].Node == 2);
+		CHECK(bend.Channels[0].Path == AnimationPath::Rotation);
+		CHECK(bend.Channels[0].Interpolation == AnimationInterpolation::Linear);
+		CHECK(bend.Channels[0].Times == std::vector<float>{0.0f, 1.0f});
+		REQUIRE(bend.Channels[0].Values.size() == 2);
+		CHECK(bend.Channels[0].Values[1].z == doctest::Approx(std::sqrt(0.5f)));
+
+		const AnimationClip& wave = model.Animations[1];
+		CHECK(wave.Name == "Wave");
+		REQUIRE(wave.Channels.size() == 2);
+		CHECK(wave.Channels[1].Node == 1);
+		CHECK(wave.Channels[1].Path == AnimationPath::Translation);
+		CHECK(wave.Channels[1].Interpolation == AnimationInterpolation::Step);
+		CHECK(wave.Channels[1].Values[1] == glm::vec4(0.0f, 0.25f, 0.0f, 0.0f));
+
+		const AnimationClip& sway = model.Animations[2];
+		REQUIRE(sway.Channels.size() == 2);
+		CHECK(sway.Channels[0].Interpolation == AnimationInterpolation::CubicSpline);
+		// An in-tangent, a value and an out-tangent for each keyframe
+		CHECK(sway.Channels[0].Values.size() == 6);
+		CHECK(sway.Channels[1].Path == AnimationPath::Scale);
+		CHECK(sway.Channels[1].Values[1] == glm::vec4(1.0f, 1.5f, 1.0f, 0.0f));
+	}
+
+	TEST_CASE("Skins and skin weights that don't fit together fail to import")
+	{
+		// A triangle skinned to nodes 1 and 2: positions, joints, weights and two inverse bind matrices
+		const auto makeModel = [](std::vector<uint16_t> joints, std::vector<float> weights, std::string_view skin)
+		{
+			std::vector<uint8_t> bytes(36 + 24 + 48 + 128, 0);
+			const std::vector<float> positions = {0, 0, 0, 1, 0, 0, 0, 1, 0};
+			std::memcpy(bytes.data(), positions.data(), 36);
+			std::memcpy(bytes.data() + 36, joints.data(), 24);
+			std::memcpy(bytes.data() + 60, weights.data(), 48);
+			const glm::mat4 identity(1.0f);
+			std::memcpy(bytes.data() + 108, &identity, 64);
+			std::memcpy(bytes.data() + 172, &identity, 64);
+			return fmt::format(R"({{"asset": {{"version": "2.0"}},
+				"buffers": [{{"uri": "data:application/octet-stream;base64,{}", "byteLength": 236}}],
+				"bufferViews": [{{"buffer": 0, "byteLength": 36}}, {{"buffer": 0, "byteOffset": 36, "byteLength": 24}},
+					{{"buffer": 0, "byteOffset": 60, "byteLength": 48}}, {{"buffer": 0, "byteOffset": 108, "byteLength": 128}}],
+				"accessors": [{{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}},
+					{{"bufferView": 1, "componentType": 5123, "count": 3, "type": "VEC4"}},
+					{{"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC4"}},
+					{{"bufferView": 3, "componentType": 5126, "count": 2, "type": "MAT4"}}],
+				"meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0, "JOINTS_0": 1, "WEIGHTS_0": 2}}}}]}}],
+				"nodes": [{{"mesh": 0, "skin": 0}}, {{"children": [2]}}, {{}}],
+				"skins": [{}]}})",
+				EncodeBase64(bytes), skin);
+		};
+		const std::vector<uint16_t> joints = {0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0};
+		const std::vector<float> weights = {1, 0, 0, 0, 1, 0, 0, 0, 2, 2, 0, 0};
+		const std::string skin = R"({"joints": [1, 2], "inverseBindMatrices": 3})";
+
+		SUBCASE("Sound, with weights made to add up to 1")
+		{
+			const auto model = ImportText(makeModel(joints, weights, skin));
+			REQUIRE_MESSAGE(model.has_value(), Testing::DescribeError(model));
+			REQUIRE(model->Meshes[0].Skin.size() == 3);
+			CHECK(model->Meshes[0].Skin[2].Weights == glm::vec4(0.5f, 0.5f, 0.0f, 0.0f));
+			CHECK(model->Meshes[0].Skin[2].Joints == std::array<uint16_t, 4>{0, 1, 0, 0});
+			// Flat normals give each corner its own vertex, and its own weights
+			CHECK(model->Meshes[0].Vertices.size() == 3);
+		}
+		SUBCASE("A joint the skin doesn't have")
+		{
+			std::vector<uint16_t> beyond = joints;
+			beyond[4] = 2;
+			const auto model = ImportText(makeModel(beyond, weights, skin));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("refers to joint 2"));
+		}
+		SUBCASE("Normalized joints, which would be fractions rather than indices")
+		{
+			std::string text = makeModel(joints, weights, skin);
+			const std::string accessor = R"("componentType": 5123, "count": 3, "type": "VEC4")";
+			const size_t position = text.find(accessor);
+			REQUIRE(position != std::string::npos);
+			text.replace(
+				position, accessor.size(), R"("componentType": 5123, "normalized": true, "count": 3, "type": "VEC4")");
+			const auto model = ImportText(text);
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("JOINTS_0"));
+		}
+		SUBCASE("A negative weight")
+		{
+			std::vector<float> negative = weights;
+			negative[0] = -1.0f;
+			const auto model = ImportText(makeModel(joints, negative, skin));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("negative"));
+		}
+		SUBCASE("Inverse bind matrices that don't match the joints")
+		{
+			const auto model =
+				ImportText(makeModel(joints, weights, R"({"joints": [1, 2, 0], "inverseBindMatrices": 3})"));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("2 inverse bind matrices for 3 joints"));
+		}
+		SUBCASE("More joints than a skin may have")
+		{
+			const std::string text = makeModel(joints, weights, skin);
+			const auto model = ModelImporter::Import(
+				std::vector<uint8_t>(text.begin(), text.end()), {}, ModelImportOptions{.MaxJointCount = 1});
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetCode() == ErrorCode::Unsupported);
+		}
+		SUBCASE("Without inverse bind matrices, they're identities")
+		{
+			const auto model = ImportText(makeModel(joints, weights, R"({"joints": [1, 2]})"));
+			REQUIRE_MESSAGE(model.has_value(), Testing::DescribeError(model));
+			CHECK(model->Skins[0].InverseBindMatrices == std::vector<glm::mat4>(2, glm::mat4(1.0f)));
+		}
+	}
+
+	TEST_CASE("Animation clips import their channels, and refuse keyframes out of order")
+	{
+		// A triangle whose node is moved by one channel: three keyframe times, and three translations
+		const auto makeModel = [](std::vector<float> times, std::string_view interpolation, std::string_view path)
+		{
+			std::vector<uint8_t> bytes(36 + 12 + 36, 0);
+			const std::vector<float> positions = {0, 0, 0, 1, 0, 0, 0, 1, 0};
+			const std::vector<float> values = {0, 0, 0, 1, 0, 0, 2, 0, 0};
+			std::memcpy(bytes.data(), positions.data(), 36);
+			std::memcpy(bytes.data() + 36, times.data(), 12);
+			std::memcpy(bytes.data() + 48, values.data(), 36);
+			return fmt::format(R"({{"asset": {{"version": "2.0"}},
+				"buffers": [{{"uri": "data:application/octet-stream;base64,{}", "byteLength": 84}}],
+				"bufferViews": [{{"buffer": 0, "byteLength": 36}}, {{"buffer": 0, "byteOffset": 36, "byteLength": 12}},
+					{{"buffer": 0, "byteOffset": 48, "byteLength": 36}}],
+				"accessors": [{{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"}},
+					{{"bufferView": 1, "componentType": 5126, "count": 3, "type": "SCALAR"}},
+					{{"bufferView": 2, "componentType": 5126, "count": 3, "type": "VEC3"}}],
+				"meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0}}}}]}}],
+				"nodes": [{{"mesh": 0}}],
+				"animations": [{{"name": "Slide", "samplers": [{{"input": 1, "output": 2, "interpolation": "{}"}}],
+					"channels": [{{"sampler": 0, "target": {{"node": 0, "path": "{}"}}}}]}}]}})",
+				EncodeBase64(bytes), interpolation, path);
+		};
+
+		SUBCASE("Sound")
+		{
+			const auto model = ImportText(makeModel({0.0f, 0.5f, 1.5f}, "STEP", "translation"));
+			REQUIRE_MESSAGE(model.has_value(), Testing::DescribeError(model));
+			REQUIRE(model->Animations.size() == 1);
+			CHECK(model->Animations[0].Name == "Slide");
+			CHECK(model->Animations[0].Duration == 1.5f);
+			REQUIRE(model->Animations[0].Channels.size() == 1);
+			CHECK(model->Animations[0].Channels[0].Interpolation == AnimationInterpolation::Step);
+			CHECK(model->Animations[0].Channels[0].Values[2] == glm::vec4(2.0f, 0.0f, 0.0f, 0.0f));
+		}
+		SUBCASE("Keyframe times that go back")
+		{
+			const auto model = ImportText(makeModel({0.0f, 1.0f, 0.5f}, "LINEAR", "translation"));
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetMessageText().contains("increasing"));
+		}
+		SUBCASE("Keyframe times before 0")
+		{
+			CHECK_FALSE(ImportText(makeModel({-1.0f, 0.0f, 1.0f}, "LINEAR", "translation")).has_value());
+		}
+		SUBCASE("A cubic spline without its tangents")
+		{
+			CHECK_FALSE(ImportText(makeModel({0.0f, 0.5f, 1.0f}, "CUBICSPLINE", "translation")).has_value());
+		}
+		SUBCASE("Rotations need quaternions")
+		{
+			CHECK_FALSE(ImportText(makeModel({0.0f, 0.5f, 1.0f}, "LINEAR", "rotation")).has_value());
+		}
+		SUBCASE("More keyframes than allowed")
+		{
+			const std::string text = makeModel({0.0f, 0.5f, 1.0f}, "LINEAR", "translation");
+			const auto model = ModelImporter::Import(
+				std::vector<uint8_t>(text.begin(), text.end()), {}, ModelImportOptions{.MaxKeyframeCount = 2});
+			REQUIRE_FALSE(model.has_value());
+			CHECK(model.error().GetCode() == ErrorCode::Unsupported);
+		}
 	}
 
 	TEST_CASE("Accessors that aren't aligned to their component size fail to import")

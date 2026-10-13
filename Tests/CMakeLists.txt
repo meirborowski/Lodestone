@@ -68,6 +68,8 @@ ls_add_test_executable(LodestoneCoreTests
 	PREFIX Core
 	LABELS unit
 	SOURCES
+		Core/AnimationComponentsTests.cpp
+		Core/AnimationTests.cpp
 		Core/AssertTests.cpp
 		Core/AssetTests.cpp
 		Core/Base64Tests.cpp
@@ -86,6 +88,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/ModelCacheTests.cpp
 		Core/ModelEntitiesTests.cpp
 		Core/ModelImporterTests.cpp
 		Core/PrefabSerializerTests.cpp
@@ -94,6 +97,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/ReferenceImageTests.cpp
 		Core/RenderComponentsTests.cpp
 		Core/RunMainTests.cpp
+		Core/ScenePoseTests.cpp
 		Core/SceneSerializerTests.cpp
 		Core/SceneTests.cpp
 		Core/SimulationTests.cpp
@@ -191,7 +195,8 @@ if(TARGET LodestoneEditorLib)
 	foreach(transport IN ITEMS stdio http)
 		set(name "Editor.Agent smoke test over ${transport}")
 		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport}
-			--model "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Models/Primitives.glb")
+			--model "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Models/Primitives.glb"
+			--animated-model "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Models/SkinnedArm.glb")
 		if(LS_LAVAPIPE_DRIVER)
 			list(APPEND arguments --vulkan-driver "${LS_LAVAPIPE_DRIVER}")
 		endif()

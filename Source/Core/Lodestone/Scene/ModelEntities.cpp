@@ -1,5 +1,6 @@
 #include "Lodestone/Scene/ModelEntities.h"
 
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Core/Assert.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
@@ -20,7 +21,11 @@ namespace Lodestone {
 	{
 		// Built in a scene of its own, which the entity list is then read from
 		Scene scene(components);
-		const Entity root = scene.CreateEntity(name);
+		Entity root = scene.CreateEntity(name);
+		root.Add<ModelInstanceComponent>(ModelInstanceComponent{.Model = modelAsset});
+		// Models with clips play their first, looping
+		if (!model.Animations.empty())
+			root.Add<AnimatorComponent>();
 
 		std::vector<Entity> entities;
 		std::vector<UUID> parents;
@@ -43,8 +48,11 @@ namespace Lodestone {
 			transform.Position = node.Position;
 			transform.Rotation = node.Rotation;
 			transform.Scale = node.Scale;
+			entity.Add<ModelNodeComponent>(ModelNodeComponent{.Node = index});
 			if (node.Mesh)
 				entity.Add<MeshRendererComponent>(MeshRendererComponent{.Model = modelAsset, .Mesh = *node.Mesh});
+			if (node.Mesh && node.Skin)
+				entity.Add<SkinComponent>(SkinComponent{.Skin = *node.Skin});
 			entities.push_back(entity);
 			parents.push_back(parent);
 

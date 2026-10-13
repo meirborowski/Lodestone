@@ -26,9 +26,6 @@
 
 namespace Lodestone {
 
-	// A model asset's meshes on the CPU, if it's loaded, for picking and outlining; null if it isn't
-	using ModelLookup = std::function<const Model*(UUID)>;
-
 	// What the editor draws over the scene
 	struct SceneOverlay
 	{
@@ -79,6 +76,8 @@ namespace Lodestone {
 		std::optional<RenderStats> GetStats() const;
 		// The entity under a point of an image of a size (in pixels from its top left corner), or the nil UUID
 		UUID PickEntity(const EditorContext& context, glm::uvec2 size, glm::vec2 point) const;
+		// The models the renderer has loaded, on the CPU. The lookup reads the view, so it mustn't outlive it
+		ModelLookup GetModelLookup() const;
 
 		// Where the editor camera looks from, for the renderer
 		static RenderView GetRenderView(const EditorContext& context);
@@ -87,6 +86,8 @@ namespace Lodestone {
 		// What the overlay draws for the open document, where the scene is drawn (between ticks, while playing). Meshes
 		// whose models aren't loaded get markers
 		static SceneOverlay BuildOverlay(const EditorContext& context, const ModelLookup& models);
+		// The same, for the scene posed already - as the frame that draws it was
+		static SceneOverlay BuildOverlay(const EditorContext& context, const ScenePose& pose);
 		// The entity under a point: the nearest mesh it hits, triangle by triangle, or the nearest marker - where the
 		// scene is drawn
 		static UUID PickEntity(
@@ -97,7 +98,6 @@ namespace Lodestone {
 		void SyncAssets(const EditorContext& context);
 		// Notes when an asset's file last changed, as it's loaded
 		void RecordWriteTime(const AssetRegistry& registry, UUID id);
-		ModelLookup GetModelLookup() const;
 		void Render(const EditorContext& context, SceneRenderTarget& target);
 
 	private:

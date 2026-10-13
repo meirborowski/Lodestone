@@ -82,7 +82,8 @@ ls_add_shaders(LodestoneClient
 		Fullscreen_VSMain.spirv.h
 		ImGui_VSMain.spirv.h ImGui_PSMain.spirv.h
 		Lines_VSMain.spirv.h Lines_PSMain.spirv.h
-		Mesh_VSMain.spirv.h Mesh_VSShadow.spirv.h Mesh_PSShadowMasked.spirv.h
+		Mesh_VSMain.spirv.h Mesh_VSShadow.spirv.h Mesh_VSMainSkinned.spirv.h Mesh_VSShadowSkinned.spirv.h
+		Mesh_PSShadowMasked.spirv.h
 		Mesh_PSPrepass.spirv.h Mesh_PSPrepassMasked.spirv.h
 		Mesh_PSForward.spirv.h Mesh_PSForwardMasked.spirv.h Mesh_PSForwardBlended.spirv.h
 		Sky_PSMain.spirv.h

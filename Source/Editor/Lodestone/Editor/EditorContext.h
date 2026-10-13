@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Lodestone/Animation/ScenePose.h"
 #include "Lodestone/Asset/AssetRegistry.h"
+#include "Lodestone/Asset/Model.h"
+#include "Lodestone/Asset/ModelCache.h"
 #include "Lodestone/Core/Base.h"
 #include "Lodestone/Core/Error.h"
 #include "Lodestone/Core/UUID.h"
@@ -54,6 +57,12 @@ namespace Lodestone {
 		};
 
 		explicit EditorContext(const ComponentRegistry& components = GetEngineComponentRegistry());
+
+		EditorContext(const EditorContext&) = delete;
+		EditorContext& operator=(const EditorContext&) = delete;
+		EditorContext(EditorContext&&) = delete;
+		EditorContext& operator=(EditorContext&&) = delete;
+		~EditorContext() = default;
 
 		// Projects. Opening or creating a project starts a new, empty scene
 		[[nodiscard]] std::expected<void, Error> CreateProject(
@@ -135,6 +144,31 @@ namespace Lodestone {
 		size_t GetQueuedInputCount() const { return m_QueuedInput.size(); }
 		const Simulation* GetSimulation() const { return m_Simulation.get(); }
 
+		// Animation (see docs/Decisions/0020-skeletal-animation.md). The models animators play are imported from the
+		// project's assets on first use, without their textures, and kept until they change - whatever the renderer
+		// has loaded, so play mode simulates the same with or without one
+		[[nodiscard]] std::expected<const Model*, Error> LoadModel(UUID id);
+		// LoadModel() as a lookup: what play mode's animation system, the preview and the timeline use
+		const ModelLookup& GetModelLookup() const { return m_ModelLookup; }
+		// Models from somewhere else than the project's assets, for tests; an empty lookup goes back to the assets
+		void SetModelLookup(ModelLookup models) { m_ModelOverride = std::move(models); }
+
+		struct AnimationPreview
+		{
+			AnimatorPreview Pose;
+			// Whether the preview's time advances with real time, at the animator's speed
+			bool Playing = false;
+		};
+		// Draws an animator's entity with a clip at a time, in place of the animator's state, without changing the
+		// document - the timeline's preview. Only while editing; fails for entities without an Animator and clips the
+		// model doesn't have
+		[[nodiscard]] std::expected<void, Error> SetAnimationPreview(
+			UUID entity, uint32_t clip, float time, bool playing = false);
+		void StopAnimationPreview() { m_AnimationPreview.reset(); }
+		const std::optional<AnimationPreview>& GetAnimationPreview() const { return m_AnimationPreview; }
+		// How the scene is drawn now: between ticks while playing, and with the preview while editing
+		PoseOptions GetPoseOptions() const;
+
 		LogBuffer& GetLog() { return m_Log; }
 
 	private:
@@ -142,6 +176,7 @@ namespace Lodestone {
 		[[nodiscard]] std::expected<void, Error> RequireEditing() const;
 		std::vector<InputCommand> SampleInput(uint64_t tick, const Simulation::InputSampler& live);
 		void RescanAssets();
+		void UpdateAnimationPreview(double elapsedSeconds);
 
 	private:
 		const ComponentRegistry* m_Components;
@@ -162,6 +197,12 @@ namespace Lodestone {
 		Scope<Simulation> m_Simulation;
 		SceneSnapshot m_EditSnapshot;
 		std::deque<InputCommand> m_QueuedInput;
+
+		Scope<ModelCache> m_ModelCache;
+		ModelLookup m_ModelOverride;
+		// Calls LoadModel(), so the context can't be copied or moved
+		ModelLookup m_ModelLookup;
+		std::optional<AnimationPreview> m_AnimationPreview;
 
 		LogBuffer m_Log;
 	};

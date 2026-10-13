@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 5. 3D renderer
-- **In progress:** Milestone 5 is built on `milestone-5-renderer`: glTF import (`ModelImporter`, with fuzz tests for it and the image and HDR decoders), the render components, and the scene renderer (`Source/Client/Lodestone/Renderer`) - forward PBR over a depth and normal prepass, cascaded shadow maps with PCSS, GTAO, split-sum image-based lighting with a sky, transparency, and ACES, Khronos PBR Neutral or no tonemapping - with a reference image for every feature. The editor's viewport, screenshots and picking use it, with a line overlay (grid, markers, selection), a stats overlay with CPU and GPU timings, model instancing (`model_instantiate`) and `render_stats` (40 MCP tools). `LodestoneBenchmark` measures it - 2.3 ms GPU and 1.6 ms CPU per 1080p frame on an RTX 3050 Ti Laptop GPU, in Release - and CI gates its draw calls. Three CC0 HDRIs from Poly Haven (1k, in `Tests/Fixtures/Environments/PolyHaven`) have reference images and a sunlight check. Every item is done and reviewed; what remains is the pull request and CI on all three platforms
-- **Next:** Milestone 6, animation: skeletons, skins and clips from glTF (extend `Model` and `ModelImporter`), the Animator component, and GPU skinning in the mesh shaders (a skinned vertex layout and pipeline variant)
+- **Active milestone:** 6. Animation
+- **In progress:** Milestone 6 is built on `milestone-6-animation`, as [Decision 0020](Decisions/0020-skeletal-animation.md) designs it: skins, skin weights (with each joint's bind-pose bounds) and clips (step, linear and cubic spline) in `Model` and `ModelImporter`; the `ModelInstance`, `ModelNode`, `Skin` and `Animator` components, placed by `BuildModelEntities()`; clip sampling, crossfades and play mode's animation system; `ScenePose`, which derives where entities are drawn from animator state, for the renderer, picking and the overlay; GPU skinning in every pass, culled by joint bounds; the editor's Animation panel (a timeline previewing clips without editing) and the `animation_clips` and `animation_preview` MCP tools (42 tools). `SkinnedArm.glb` (generated) is the test model, with a reference image and the agent smoke test previewing it. Every item is done; what remains is review, the pull request and CI
+- **Next:** Milestone 7, physics - confirm the prediction scope first (see its section below)
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -29,7 +29,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 - [x] [2. Window, input and rendering backend](#2-window-input-and-rendering-backend)
 - [x] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [x] [4. Editor and AI control](#4-editor-and-ai-control)
-- [ ] [5. 3D renderer](#5-3d-renderer)
+- [x] [5. 3D renderer](#5-3d-renderer)
 - [ ] [6. Animation](#6-animation)
 - [ ] [7. Physics](#7-physics)
 - [ ] [8. Scripting](#8-scripting)
@@ -106,10 +106,10 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** reference-image tests cover every renderer feature; the benchmark scene sustains 60 fps at 1920x1080 on an RTX 3060-class GPU with every feature enabled.
 
 ### 6. Animation
-- [ ] glTF skeleton, skin and animation clip import
-- [ ] Animator component: play, loop, playback speed and crossfade
-- [ ] GPU skinning, supported by shadows, SSAO and the rest of the renderer
-- [ ] Editor preview with a timeline to scrub through clips
+- [x] glTF skeleton, skin and animation clip import
+- [x] Animator component: play, loop, playback speed and crossfade
+- [x] GPU skinning, supported by shadows, SSAO and the rest of the renderer
+- [x] Editor preview with a timeline to scrub through clips
 
 **Acceptance:** clip sampling, looping and crossfade tests pass against known poses; reference-image tests of skinned meshes at fixed animation times pass.
 

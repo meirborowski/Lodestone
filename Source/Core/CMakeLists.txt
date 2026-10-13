@@ -5,12 +5,20 @@ add_library(LodestoneCore STATIC)
 add_library(Lodestone::Core ALIAS LodestoneCore)
 
 target_sources(LodestoneCore PRIVATE
+	Lodestone/Animation/Animation.cpp
+	Lodestone/Animation/Animation.h
+	Lodestone/Animation/AnimationComponents.cpp
+	Lodestone/Animation/AnimationComponents.h
+	Lodestone/Animation/ScenePose.cpp
+	Lodestone/Animation/ScenePose.h
 	Lodestone/Asset/AssetMetadata.cpp
 	Lodestone/Asset/AssetMetadata.h
 	Lodestone/Asset/AssetRegistry.cpp
 	Lodestone/Asset/AssetRegistry.h
 	Lodestone/Asset/Model.cpp
 	Lodestone/Asset/Model.h
+	Lodestone/Asset/ModelCache.cpp
+	Lodestone/Asset/ModelCache.h
 	Lodestone/Asset/ModelImporter.cpp
 	Lodestone/Asset/ModelImporter.h
 	Lodestone/Core/Assert.cpp

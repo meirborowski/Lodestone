@@ -3,10 +3,16 @@
 #include "Common/DescribeError.h"
 #include "Common/LogCapture.h"
 #include "Common/ReferenceImage.h"
+#include "Lodestone/Animation/AnimationComponents.h"
+#include "Lodestone/Animation/ScenePose.h"
 #include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Graphics/GraphicsDevice.h"
 #include "Lodestone/Graphics/TextureReadback.h"
 #include "Lodestone/Renderer/ImageBasedLighting.h"
+#include "Lodestone/Scene/Entity.h"
+#include "Lodestone/Scene/EntitySerializer.h"
+#include "Lodestone/Scene/ModelEntities.h"
+#include "Lodestone/Scene/Scene.h"
 #include "Render/RenderTestDevice.h"
 
 #include <doctest/doctest.h>
@@ -40,6 +46,7 @@ namespace Lodestone {
 		constexpr UUID OutdoorId(0x1000000000004000ull, 0x8000000000000006ull);
 		constexpr UUID StudioId(0x1000000000004000ull, 0x8000000000000007ull);
 		constexpr UUID SunsetId(0x1000000000004000ull, 0x8000000000000008ull);
+		constexpr UUID SkinnedArmId(0x1000000000004000ull, 0x8000000000000009ull);
 		constexpr UUID MissingId(0x1000000000004000ull, 0x80000000000000FFull);
 
 		// Meshes of Primitives.glb
@@ -65,11 +72,12 @@ namespace Lodestone {
 			return {
 				.LoadModel = [](UUID id) -> std::expected<Model, Error>
 				{
-					const std::array<std::pair<UUID, std::string_view>, 4> models = {{
+					const std::array<std::pair<UUID, std::string_view>, 5> models = {{
 						{PrimitivesId, "Primitives.glb"},
 						{SpheresId, "MaterialSpheres.glb"},
 						{TexturedCubeId, "TexturedCube.gltf"},
 						{AlphaModesId, "AlphaModes.glb"},
+						{SkinnedArmId, "SkinnedArm.glb"},
 					}};
 					for (const auto& [modelId, file] : models)
 					{
@@ -126,6 +134,39 @@ namespace Lodestone {
 		{
 			world.Meshes.push_back(
 				{.Model = PrimitivesId, .Mesh = Plane, .World = Place(glm::vec3(0.0f), glm::vec3(size))});
+		}
+
+		// SkinnedArm.glb on the CPU, which poses scenes; the renderer loads its own copy
+		const Model* FindArm(UUID id)
+		{
+			static const Model Arm = []
+			{
+				auto imported = ModelImporter::Import(GetFixture("Models", "SkinnedArm.glb"));
+				REQUIRE_MESSAGE(imported.has_value(), Testing::DescribeError(imported));
+				return std::move(*imported);
+			}();
+			return id == SkinnedArmId ? &Arm : nullptr;
+		}
+
+		// SkinnedArm.glb placed in a scene, its Bend clip held at a time: the column's top half turns a quarter turn
+		// about Z over the clip's second, leaning toward -X
+		Entity PlaceArm(Scene& scene, const glm::vec3& position, float time)
+		{
+			auto root = EntitySerializer::InstantiateTree(scene,
+				BuildModelEntities(*FindArm(SkinnedArmId), SkinnedArmId, "Arm"),
+				EntitySerializer::IdPolicy::Regenerate);
+			REQUIRE_MESSAGE(root.has_value(), Testing::DescribeError(root));
+			root->GetTransform().Position = position;
+			auto& animator = root->Get<AnimatorComponent>();
+			animator.Time = time;
+			animator.Loop = false;
+			return *root;
+		}
+
+		// What the renderer draws of a scene, posed by its animators
+		RenderWorld ExtractPosed(const Scene& scene)
+		{
+			return ExtractRenderWorld(ScenePose(scene, {.Models = FindArm}));
 		}
 
 		size_t CountMessages(const Testing::LogCapture& log, std::string_view text)
@@ -417,7 +458,91 @@ namespace Lodestone {
 		}
 	}
 
+	TEST_CASE("Skinned meshes bend with their joints, cast shadows and are shaded like any other" *
+		doctest::test_suite("ReferenceImages"))
+	{
+		// Three arms bending a quarter turn: at its start, halfway and at its end
+		Scene scene;
+		PlaceArm(scene, glm::vec3(-2.0f, 0.0f, 0.0f), 0.0f);
+		PlaceArm(scene, glm::vec3(0.0f), 0.5f);
+		PlaceArm(scene, glm::vec3(2.0f, 0.0f, 0.0f), 1.0f);
+		RenderWorld world = ExtractPosed(scene);
+		REQUIRE(world.Meshes.size() == 3);
+		CHECK(world.JointMatrices.size() == 6);
+		world.DirectionalLights.push_back(
+			{.Direction = glm::normalize(glm::vec3(0.6f, -1.0f, -0.5f)), .Color = glm::vec3(3.0f)});
+		world.Environment.Environment = SkyId;
+		AddGround(world);
+		RendererFixture fixture;
+
+		const Image image =
+			fixture.Render(world, MakeView(glm::vec3(0.0f, 1.8f, 7.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f));
+
+		Testing::CheckReferenceImage("SkinnedArms", image);
+	}
+
 	// These run on every driver, including MoltenVK on macOS, where reference images aren't compared
+
+	TEST_CASE("Skinned meshes cast shadows where their joints move them")
+	{
+		// The sun nearly overhead, the arm bent a quarter turn: its top half's shadow lies on the ground along -X
+		Scene scene;
+		PlaceArm(scene, glm::vec3(0.0f), 1.0f);
+		RenderWorld world = ExtractPosed(scene);
+		world.DirectionalLights.push_back(
+			{.Direction = glm::normalize(glm::vec3(0.05f, -1.0f, 0.05f)), .Color = glm::vec3(3.0f)});
+		world.Environment.Intensity = 0.2f;
+		AddGround(world);
+		constexpr glm::uvec2 size(128, 128);
+		RendererFixture fixture(size);
+		// Looking under the bent arm, at the ground below it
+		const RenderView view = MakeView(glm::vec3(-0.6f, 3.0f, 4.0f), glm::vec3(-0.6f, 0.0f, 0.0f));
+		const glm::mat4 viewProjection = view.GetProjection(1.0f) * view.View;
+		const auto toPixel = [&viewProjection](const glm::vec3& point)
+		{
+			const glm::vec4 clip = viewProjection * glm::vec4(point, 1.0f);
+			const glm::vec2 ndc = glm::vec2(clip) / clip.w;
+			return glm::uvec2(
+				(ndc.x * 0.5f + 0.5f) * static_cast<float>(size.x), (0.5f - ndc.y * 0.5f) * static_cast<float>(size.y));
+		};
+
+		const Image image = fixture.Render(world, view);
+
+		CHECK(fixture.GetStats().PassDrawCalls[static_cast<size_t>(RenderPass::Shadows)] > 0);
+		const glm::uvec2 shadowed = toPixel(glm::vec3(-0.6f, 0.0f, 0.0f));
+		const glm::uvec2 lit = toPixel(glm::vec3(-0.6f, 0.0f, 1.0f));
+		const float shadowedBrightness = AreaBrightness(image, shadowed.x, shadowed.y, 2);
+		const float litBrightness = AreaBrightness(image, lit.x, lit.y, 2);
+		CAPTURE(shadowedBrightness);
+		CAPTURE(litBrightness);
+		CHECK(shadowedBrightness < 0.7f * litBrightness);
+	}
+
+	TEST_CASE("Skinned meshes are drawn, and culled, where their joints move them")
+	{
+		// At its clip's end the arm's top half lies along -X, a meter up. The view sees only there: the arm's bind
+		// pose, upright, is out of it
+		Scene scene;
+		Entity arm = PlaceArm(scene, glm::vec3(0.0f), 1.0f);
+		RendererFixture fixture(glm::uvec2(64, 64));
+		const RenderView view = MakeView(glm::vec3(-0.8f, 1.0f, 5.0f), glm::vec3(-0.8f, 1.0f, 0.0f), 8.0f);
+
+		const Image bent = fixture.Render(ExtractPosed(scene), view);
+
+		CHECK(fixture.GetStats().VisibleMeshes == 1);
+		// The arm's orange, not the grey sky
+		const glm::vec3 center = AreaColor(bent, 32, 32, 2);
+		CAPTURE(center.r);
+		CAPTURE(center.b);
+		CHECK(center.r > center.b + 30.0f);
+
+		// At the clip's start the arm stands upright, out of view
+		arm.Get<AnimatorComponent>().Time = 0.0f;
+		const Image upright = fixture.Render(ExtractPosed(scene), view);
+		CHECK(fixture.GetStats().VisibleMeshes == 0);
+		const glm::vec3 sky = AreaColor(upright, 32, 32, 2);
+		CHECK(std::abs(sky.r - sky.b) < 10.0f);
+	}
 
 	TEST_CASE("A photographed sunset lights what faces its sun brighter and warmer than what faces away")
 	{

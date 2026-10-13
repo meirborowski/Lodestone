@@ -2,13 +2,17 @@
 
 #include "Common/DescribeError.h"
 #include "Common/TemporaryDirectory.h"
+#include "Lodestone/Animation/AnimationComponents.h"
+#include "Lodestone/Asset/Model.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 
 #include <doctest/doctest.h>
+#include <glm/vec4.hpp>
 
+#include <cmath>
 #include <filesystem>
 #include <initializer_list>
 #include <string>
@@ -386,6 +390,118 @@ namespace Lodestone {
 		REQUIRE_FALSE(entries.empty());
 		CHECK(entries.back().Message == "A message for the editor log");
 		CHECK(entries.back().Level == LogLevel::Warn);
+	}
+
+	namespace {
+
+		constexpr UUID SlidingModelId(0x5000000000004000ull, 0x8000000000000001ull);
+
+		// A model with one node and one clip, two seconds long
+		const Model& GetSlidingModel()
+		{
+			static const Model Sliding = []
+			{
+				Model model;
+				model.Nodes.emplace_back();
+				model.Animations.push_back({.Name = "Slide",
+					.Duration = 2.0f,
+					.Channels = {{.Node = 0,
+						.Path = AnimationPath::Translation,
+						.Interpolation = AnimationInterpolation::Linear,
+						.Times = {0.0f, 2.0f},
+						.Values = {glm::vec4(0.0f), glm::vec4(2.0f, 0.0f, 0.0f, 0.0f)}}}});
+				return model;
+			}();
+			return Sliding;
+		}
+
+		// The sliding model placed as an instance with an animator, and the context told where it is
+		UUID PlaceAnimated(Fixture& fixture, Json::Value animator = Json::Value::object())
+		{
+			fixture.Context.SetModelLookup(
+				[](UUID id) -> const Model* { return id == SlidingModelId ? &GetSlidingModel() : nullptr; });
+			return fixture.CreateEntity("Slider", {},
+				{{"ModelInstance", {{"Model", SlidingModelId.ToString()}}}, {"Animator", std::move(animator)}});
+		}
+
+	}
+
+	TEST_CASE("Play mode advances animators, wrapping clips that loop, and stopping restores them")
+	{
+		Fixture fixture;
+		const UUID slider = PlaceAnimated(fixture);
+		const auto time = [&fixture, slider]
+		{ return fixture.Context.GetScene().FindEntity(slider).Get<AnimatorComponent>().Time; };
+		REQUIRE(fixture.Context.StartPlay().has_value());
+
+		// The project ticks 60 times a second
+		REQUIRE(fixture.Context.Step(90).has_value());
+		CHECK(time() == doctest::Approx(1.5f));
+		REQUIRE(fixture.Context.Step(60).has_value());
+		CHECK(time() == doctest::Approx(0.5f));
+
+		REQUIRE(fixture.Context.StopPlay().has_value());
+		CHECK(time() == 0.0f);
+	}
+
+	TEST_CASE("An animation preview poses an animator without editing the document, and can play on")
+	{
+		Fixture fixture;
+		const UUID slider = PlaceAnimated(fixture, {{"Loop", false}});
+		const auto preview = [&fixture]
+		{
+			REQUIRE(fixture.Context.GetAnimationPreview().has_value());
+			return fixture.Context.GetAnimationPreview().value_or(EditorContext::AnimationPreview{});
+		};
+		const UUID plain = fixture.CreateEntity("Plain");
+		const size_t undoable = fixture.Context.GetHistory().GetUndoNames().size();
+
+		// Only animators, clips their model has, and times that are numbers
+		CHECK_FALSE(fixture.Context.SetAnimationPreview(UUID::Generate(), 0, 0.0f).has_value());
+		CHECK_FALSE(fixture.Context.SetAnimationPreview(plain, 0, 0.0f).has_value());
+		CHECK_FALSE(fixture.Context.SetAnimationPreview(slider, 1, 0.0f).has_value());
+		CHECK_FALSE(fixture.Context.SetAnimationPreview(slider, 0, std::nanf("")).has_value());
+		CHECK_FALSE(fixture.Context.GetPoseOptions().Preview.has_value());
+
+		REQUIRE(fixture.Context.SetAnimationPreview(slider, 0, 0.5f, true).has_value());
+		CHECK(fixture.Context.GetHistory().GetUndoNames().size() == undoable);
+		REQUIRE(fixture.Context.GetPoseOptions().Preview.has_value());
+		CHECK(fixture.Context.GetPoseOptions().Preview.value_or(AnimatorPreview{}).Entity == slider);
+
+		// Playing, it advances with real time, and stops at the end of a clip that doesn't loop
+		fixture.Context.Update(1.0);
+		CHECK(preview().Pose.Time == doctest::Approx(1.5f));
+		CHECK(preview().Playing);
+		fixture.Context.Update(1.0);
+		CHECK(preview().Pose.Time == doctest::Approx(2.0f));
+		CHECK_FALSE(preview().Playing);
+
+		// Play mode, and changing documents, end it
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		CHECK_FALSE(fixture.Context.GetAnimationPreview().has_value());
+		CHECK_FALSE(fixture.Context.SetAnimationPreview(slider, 0, 0.0f).has_value());
+		REQUIRE(fixture.Context.StopPlay().has_value());
+		REQUIRE(fixture.Context.SetAnimationPreview(slider, 0, 0.0f).has_value());
+		REQUIRE(fixture.Context.NewScene().has_value());
+		CHECK_FALSE(fixture.Context.GetAnimationPreview().has_value());
+	}
+
+	TEST_CASE("A playing preview ends when its animator's entity goes")
+	{
+		Fixture fixture;
+		const UUID slider = PlaceAnimated(fixture);
+		REQUIRE(fixture.Context.SetAnimationPreview(slider, 0, 1.5f, true).has_value());
+
+		// Looping, it goes round
+		fixture.Context.Update(1.0);
+		REQUIRE(fixture.Context.GetAnimationPreview().has_value());
+		CHECK(fixture.Context.GetAnimationPreview().value_or(EditorContext::AnimationPreview{}).Pose.Time ==
+			doctest::Approx(0.5f));
+
+		auto deleted = CreateScope<DestroyEntityCommand>(slider);
+		REQUIRE(fixture.Context.Execute(std::move(deleted)).has_value());
+		fixture.Context.Update(0.1);
+		CHECK_FALSE(fixture.Context.GetAnimationPreview().has_value());
 	}
 
 }

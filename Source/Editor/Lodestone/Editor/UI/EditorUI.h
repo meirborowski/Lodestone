@@ -2,6 +2,7 @@
 
 #include "Lodestone/Core/UUID.h"
 #include "Lodestone/Editor/EditorContext.h"
+#include "Lodestone/Editor/UI/AnimationPanel.h"
 #include "Lodestone/Editor/UI/ConsolePanel.h"
 #include "Lodestone/Editor/UI/ContentBrowserPanel.h"
 #include "Lodestone/Editor/UI/HierarchyPanel.h"
@@ -25,9 +26,9 @@ namespace Lodestone {
 		std::string McpUrl;
 	};
 
-	// The editor's docked panels - viewport, hierarchy, inspector, content browser and console - with the menus, play
-	// controls, shortcuts and dialogs around them. Everything it changes goes through the editor context, as MCP's
-	// changes do (see docs/Features/Editor.md)
+	// The editor's docked panels - viewport, hierarchy, inspector, content browser, console and animation - with the
+	// menus, play controls, shortcuts and dialogs around them. Everything it changes goes through the editor context,
+	// as MCP's changes do (see docs/Features/Editor.md)
 	class EditorUI
 	{
 	public:
@@ -100,11 +101,13 @@ namespace Lodestone {
 		ViewportPanel m_Viewport;
 		ContentBrowserPanel m_ContentBrowser;
 		ConsolePanel m_Console;
+		AnimationPanel m_Animation;
 		bool m_ShowHierarchy = true;
 		bool m_ShowInspector = true;
 		bool m_ShowViewport = true;
 		bool m_ShowContentBrowser = true;
 		bool m_ShowConsole = true;
+		bool m_ShowAnimation = true;
 		bool m_ResetLayout = false;
 		bool m_Quit = false;
 

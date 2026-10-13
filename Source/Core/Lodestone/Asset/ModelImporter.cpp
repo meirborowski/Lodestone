@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -287,6 +288,95 @@ namespace Lodestone {
 				indices[index] = static_cast<uint32_t>(index);
 		}
 
+		// Per-vertex data repeated for every corner of every triangle, as MakeFlatNormals() repeats the vertices
+		template <typename T>
+		std::vector<T> ToTriangleCorners(const std::vector<T>& values, const std::vector<uint32_t>& indices)
+		{
+			std::vector<T> corners;
+			corners.reserve(indices.size());
+			for (size_t index = 0; index + 2 < indices.size(); index += 3)
+			{
+				for (size_t corner = 0; corner < 3; ++corner)
+					corners.push_back(values[indices[index + corner]]);
+			}
+			return corners;
+		}
+
+		// A primitive's skin weights, from its first set of joints and weights: up to four joints a vertex, with
+		// weights made to add up to 1. Joints a skin can't have are refused
+		std::expected<std::vector<SkinVertex>, Error> ReadSkinWeights(const cgltf_accessor& joints,
+			const cgltf_accessor& weights, size_t vertexCount, uint64_t maxJointCount, std::string_view context)
+		{
+			// Joints are indices: normalizing them would turn them into fractions
+			if ((joints.component_type != cgltf_component_type_r_8u &&
+					joints.component_type != cgltf_component_type_r_16u) ||
+				joints.normalized)
+				return std::unexpected(
+					MakeError(fmt::format("{} JOINTS_0 isn't unsigned 8 or 16-bit integers", context)));
+			const auto jointValues =
+				ReadFloats(joints, cgltf_type_vec4, vertexCount, fmt::format("{} JOINTS_0", context));
+			if (!jointValues)
+				return std::unexpected(jointValues.error());
+			const auto weightValues =
+				ReadFloats(weights, cgltf_type_vec4, vertexCount, fmt::format("{} WEIGHTS_0", context));
+			if (!weightValues)
+				return std::unexpected(weightValues.error());
+
+			std::vector<SkinVertex> skin(vertexCount);
+			for (size_t vertex = 0; vertex < vertexCount; ++vertex)
+			{
+				SkinVertex& skinned = skin[vertex];
+				float total = 0.0f;
+				for (size_t influence = 0; influence < 4; ++influence)
+				{
+					const float weight = (*weightValues)[vertex * 4 + influence];
+					const float joint = (*jointValues)[vertex * 4 + influence];
+					if (weight < 0.0f)
+						return std::unexpected(MakeError(fmt::format("{} has a negative skin weight", context)));
+					if (weight > 0.0f && joint >= static_cast<float>(maxJointCount))
+						return std::unexpected(Error(ErrorCode::Unsupported,
+							fmt::format("{} refers to joint {}, but skins can have at most {} joints", context, joint,
+								maxJointCount)));
+					skinned.Weights[static_cast<glm::length_t>(influence)] = weight;
+					// Joints without weight don't matter, and aren't kept
+					skinned.Joints[influence] = weight > 0.0f ? static_cast<uint16_t>(joint) : 0;
+					total += weight;
+				}
+				// Weights that add up to nothing leave the vertex to the skin's first joint
+				if (total > 1e-6f)
+					skinned.Weights /= total;
+				else
+					skinned = SkinVertex{};
+			}
+			return skin;
+		}
+
+		// Each joint's bounds in the mesh's bind pose, and how many joints the weights need
+		void ComputeJointBounds(ModelMesh& mesh)
+		{
+			std::vector<BoundingBox> bounds;
+			for (size_t vertex = 0; vertex < mesh.Skin.size(); ++vertex)
+			{
+				const SkinVertex& skinned = mesh.Skin[vertex];
+				for (size_t influence = 0; influence < 4; ++influence)
+				{
+					if (skinned.Weights[static_cast<glm::length_t>(influence)] <= 0.0f)
+						continue;
+					const uint16_t joint = skinned.Joints[influence];
+					if (joint >= bounds.size())
+						bounds.resize(static_cast<size_t>(joint) + 1);
+					bounds[joint].Add(mesh.Vertices[vertex].Position);
+				}
+			}
+			mesh.JointBounds.clear();
+			for (size_t joint = 0; joint < bounds.size(); ++joint)
+			{
+				if (!bounds[joint].IsEmpty())
+					mesh.JointBounds.push_back({.Joint = static_cast<uint16_t>(joint), .Bounds = bounds[joint]});
+			}
+			mesh.SkinJointCount = static_cast<uint32_t>(bounds.size());
+		}
+
 		// Tangents from texture coordinates when a primitive has none, for normal mapping: each triangle's tangent
 		// and bitangent, accumulated per vertex and made perpendicular to the normal
 		void GenerateTangents(std::vector<MeshVertex>& vertices, const std::vector<uint32_t>& indices)
@@ -341,8 +431,12 @@ namespace Lodestone {
 				ImportMaterials();
 				if (auto meshes = ImportMeshes(); !meshes)
 					return std::unexpected(meshes.error());
+				if (auto skins = ImportSkins(); !skins)
+					return std::unexpected(skins.error());
 				if (auto nodes = ImportNodes(); !nodes)
 					return std::unexpected(nodes.error());
+				if (auto animations = ImportAnimations(); !animations)
+					return std::unexpected(animations.error());
 				return std::move(m_Model);
 			}
 
@@ -512,6 +606,8 @@ namespace Lodestone {
 						if (auto added = AddPrimitive(mesh.primitives[primitiveIndex], context, imported); !added)
 							return std::unexpected(added.error());
 					}
+					if (imported.IsSkinned())
+						ComputeJointBounds(imported);
 					m_Model.Meshes.push_back(std::move(imported));
 				}
 				return {};
@@ -533,6 +629,8 @@ namespace Lodestone {
 				const cgltf_accessor* normals = nullptr;
 				const cgltf_accessor* tangents = nullptr;
 				const cgltf_accessor* texCoords = nullptr;
+				const cgltf_accessor* joints = nullptr;
+				const cgltf_accessor* weights = nullptr;
 				for (size_t index = 0; index < primitive.attributes_count; ++index)
 				{
 					const cgltf_attribute& attribute = primitive.attributes[index];
@@ -544,6 +642,10 @@ namespace Lodestone {
 						tangents = attribute.data;
 					else if (attribute.type == cgltf_attribute_type_texcoord && attribute.index == 0)
 						texCoords = attribute.data;
+					else if (attribute.type == cgltf_attribute_type_joints && attribute.index == 0)
+						joints = attribute.data;
+					else if (attribute.type == cgltf_attribute_type_weights && attribute.index == 0)
+						weights = attribute.data;
 				}
 				if (positions == nullptr)
 					return std::unexpected(MakeError(fmt::format("{} has no POSITION attribute", context)));
@@ -594,6 +696,14 @@ namespace Lodestone {
 					for (size_t index = 0; index < vertexCount; ++index)
 						vertices[index].TexCoord = glm::vec2((*values)[index * 2], (*values)[index * 2 + 1]);
 				}
+				std::vector<SkinVertex> skin;
+				if (joints != nullptr && weights != nullptr)
+				{
+					auto read = ReadSkinWeights(*joints, *weights, vertexCount, m_Options->MaxJointCount, context);
+					if (!read)
+						return std::unexpected(read.error());
+					skin = std::move(*read);
+				}
 
 				std::vector<uint32_t> indices;
 				if (primitive.indices != nullptr)
@@ -616,6 +726,8 @@ namespace Lodestone {
 				bool hasTangents = false;
 				if (normals == nullptr)
 				{
+					if (!skin.empty())
+						skin = ToTriangleCorners(skin, indices);
 					MakeFlatNormals(vertices, indices);
 				}
 				else if (tangents != nullptr)
@@ -648,6 +760,13 @@ namespace Lodestone {
 				{
 					mesh.Indices.push_back(baseVertex + index);
 					imported.Bounds.Add(vertices[index].Position);
+				}
+				// A mesh is skinned if any of its primitives is; the vertices of others follow the skin's first joint
+				if (!skin.empty() || mesh.IsSkinned())
+				{
+					mesh.Skin.resize(mesh.Vertices.size());
+					skin.resize(vertices.size());
+					mesh.Skin.insert(mesh.Skin.end(), skin.begin(), skin.end());
 				}
 				mesh.Vertices.insert(mesh.Vertices.end(), vertices.begin(), vertices.end());
 				mesh.Bounds.Add(imported.Bounds);
@@ -692,6 +811,18 @@ namespace Lodestone {
 							MakeError(fmt::format("nodes[{}] has a transform that isn't finite", index)));
 					if (node.mesh != nullptr)
 						imported.Mesh = static_cast<uint32_t>(cgltf_mesh_index(m_Data, node.mesh));
+					if (node.skin != nullptr)
+					{
+						const auto skin = static_cast<uint32_t>(cgltf_skin_index(m_Data, node.skin));
+						if (imported.Mesh &&
+							m_Model.Meshes[*imported.Mesh].SkinJointCount > m_Model.Skins[skin].Joints.size())
+							return std::unexpected(MakeError(
+								fmt::format("nodes[{}] skins a mesh that refers to joint {} with skins[{}], which has "
+											"{} joints",
+									index, m_Model.Meshes[*imported.Mesh].SkinJointCount - 1, skin,
+									m_Model.Skins[skin].Joints.size())));
+						imported.Skin = skin;
+					}
 					for (size_t child = 0; child < node.children_count; ++child)
 						imported.Children.push_back(
 							static_cast<uint32_t>(cgltf_node_index(m_Data, node.children[child])));
@@ -717,6 +848,149 @@ namespace Lodestone {
 					}
 				}
 				return {};
+			}
+
+			std::expected<void, Error> ImportSkins()
+			{
+				for (size_t index = 0; index < m_Data->skins_count; ++index)
+				{
+					const cgltf_skin& skin = m_Data->skins[index];
+					const std::string context = fmt::format("skins[{}]", index);
+					if (skin.joints_count == 0)
+						return std::unexpected(MakeError(fmt::format("{} has no joints", context)));
+					if (skin.joints_count > m_Options->MaxJointCount)
+						return std::unexpected(MakeLimitError("joints in a skin", m_Options->MaxJointCount));
+
+					ModelSkin imported;
+					imported.Name = GetName(skin.name, "Skin", index);
+					for (size_t joint = 0; joint < skin.joints_count; ++joint)
+						imported.Joints.push_back(static_cast<uint32_t>(cgltf_node_index(m_Data, skin.joints[joint])));
+					imported.InverseBindMatrices.assign(skin.joints_count, glm::mat4(1.0f));
+					if (const cgltf_accessor* matrices = skin.inverse_bind_matrices)
+					{
+						if (matrices->count != skin.joints_count)
+							return std::unexpected(
+								MakeError(fmt::format("{} has {} inverse bind matrices for {} joints", context,
+									matrices->count, skin.joints_count)));
+						const auto values =
+							ReadFloats(*matrices, cgltf_type_mat4, skin.joints_count, context + " inverseBindMatrices");
+						if (!values)
+							return std::unexpected(values.error());
+						for (size_t joint = 0; joint < skin.joints_count; ++joint)
+							imported.InverseBindMatrices[joint] = glm::make_mat4(&(*values)[joint * 16]);
+					}
+					m_Model.Skins.push_back(std::move(imported));
+				}
+				return {};
+			}
+
+			std::expected<void, Error> ImportAnimations()
+			{
+				for (size_t index = 0; index < m_Data->animations_count; ++index)
+				{
+					const cgltf_animation& animation = m_Data->animations[index];
+					AnimationClip clip;
+					clip.Name = GetName(animation.name, "Animation", index);
+					for (size_t channelIndex = 0; channelIndex < animation.channels_count; ++channelIndex)
+					{
+						const std::string context = fmt::format("animations[{}].channels[{}]", index, channelIndex);
+						auto channel = ImportChannel(animation.channels[channelIndex], context);
+						if (!channel)
+							return std::unexpected(channel.error());
+						// Morph target weights, and channels that target no node, aren't animated
+						if (!*channel)
+							continue;
+						clip.Duration = std::max(clip.Duration, (*channel)->Times.back());
+						clip.Channels.push_back(std::move(**channel));
+					}
+					m_Model.Animations.push_back(std::move(clip));
+				}
+				return {};
+			}
+
+			std::expected<std::optional<AnimationChannel>, Error> ImportChannel(
+				const cgltf_animation_channel& channel, const std::string& context)
+			{
+				if (channel.target_node == nullptr)
+					return std::nullopt;
+				AnimationChannel imported;
+				imported.Node = static_cast<uint32_t>(cgltf_node_index(m_Data, channel.target_node));
+				switch (channel.target_path)
+				{
+					case cgltf_animation_path_type_translation:
+						imported.Path = AnimationPath::Translation;
+						break;
+					case cgltf_animation_path_type_rotation:
+						imported.Path = AnimationPath::Rotation;
+						break;
+					case cgltf_animation_path_type_scale:
+						imported.Path = AnimationPath::Scale;
+						break;
+					default:
+						return std::nullopt;
+				}
+
+				const cgltf_animation_sampler* sampler = channel.sampler;
+				if (sampler == nullptr || sampler->input == nullptr || sampler->output == nullptr)
+					return std::unexpected(MakeError(fmt::format("{} has no sampler", context)));
+				switch (sampler->interpolation)
+				{
+					case cgltf_interpolation_type_step:
+						imported.Interpolation = AnimationInterpolation::Step;
+						break;
+					case cgltf_interpolation_type_cubic_spline:
+						imported.Interpolation = AnimationInterpolation::CubicSpline;
+						break;
+					default:
+						imported.Interpolation = AnimationInterpolation::Linear;
+						break;
+				}
+
+				// Counted toward the limits before anything is read
+				const uint64_t keyCount = sampler->input->count;
+				const uint64_t valuesPerKey = imported.Interpolation == AnimationInterpolation::CubicSpline ? 3 : 1;
+				if (keyCount == 0)
+					return std::unexpected(MakeError(fmt::format("{} has no keyframes", context)));
+				if (m_ChannelCount + 1 > m_Options->MaxAnimationChannelCount)
+					return std::unexpected(MakeLimitError("animation channels", m_Options->MaxAnimationChannelCount));
+				if (m_KeyframeCount + keyCount * valuesPerKey > m_Options->MaxKeyframeCount)
+					return std::unexpected(MakeLimitError("keyframe values", m_Options->MaxKeyframeCount));
+				++m_ChannelCount;
+				m_KeyframeCount += keyCount * valuesPerKey;
+				if (sampler->output->count != keyCount * valuesPerKey)
+					return std::unexpected(MakeError(
+						fmt::format("{} has {} values for {} keyframes", context, sampler->output->count, keyCount)));
+
+				const auto times = ReadFloats(*sampler->input, cgltf_type_scalar, keyCount, context + " input");
+				if (!times)
+					return std::unexpected(times.error());
+				if ((*times)[0] < 0.0f || std::ranges::adjacent_find(*times, std::greater<>()) != times->end())
+					return std::unexpected(MakeError(
+						fmt::format("{} has keyframe times that aren't increasing from 0 or later", context)));
+				imported.Times = *times;
+
+				const bool rotation = imported.Path == AnimationPath::Rotation;
+				const size_t width = rotation ? 4 : 3;
+				const auto values = ReadFloats(*sampler->output, rotation ? cgltf_type_vec4 : cgltf_type_vec3,
+					keyCount * valuesPerKey, context + " output");
+				if (!values)
+					return std::unexpected(values.error());
+				imported.Values.resize(keyCount * valuesPerKey, glm::vec4(0.0f));
+				for (size_t value = 0; value < imported.Values.size(); ++value)
+				{
+					for (size_t component = 0; component < width; ++component)
+						imported.Values[value][static_cast<glm::length_t>(component)] =
+							(*values)[value * width + component];
+					// Rotations are unit quaternions; a spline's tangents aren't
+					const bool tangent = valuesPerKey == 3 && value % 3 != 1;
+					if (rotation && !tangent)
+					{
+						const float length = glm::length(imported.Values[value]);
+						imported.Values[value] =
+							length > 1e-12f ? imported.Values[value] / length : glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+					}
+				}
+				return imported;
 			}
 
 			// Position, rotation and scale from a matrix. Shear can't be represented, and is lost
@@ -747,6 +1021,8 @@ namespace Lodestone {
 			// What the model holds so far, against the limits
 			uint64_t m_VertexCount = 0;
 			uint64_t m_IndexCount = 0;
+			uint64_t m_KeyframeCount = 0;
+			uint64_t m_ChannelCount = 0;
 		};
 
 	}
@@ -770,6 +1046,11 @@ namespace Lodestone {
 		if (options.MaxVertexCount > addressable || options.MaxIndexCount > addressable)
 			return std::unexpected(Error(ErrorCode::InvalidArgument,
 				fmt::format("Models can't hold more than {} vertices or indices", addressable)));
+		// Skinned vertices refer to joints with 16 bits
+		constexpr uint64_t jointAddressable = std::numeric_limits<uint16_t>::max() + 1;
+		if (options.MaxJointCount == 0 || options.MaxJointCount > jointAddressable)
+			return std::unexpected(
+				Error(ErrorCode::InvalidArgument, fmt::format("Skins can have from 1 to {} joints", jointAddressable)));
 
 		ReadContext readContext{.Reader = &readFile};
 		cgltf_options parseOptions{};
