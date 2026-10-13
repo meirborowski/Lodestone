@@ -21,6 +21,12 @@ namespace Lodestone {
 		uint64_t MaxVertexCount = 16ull * 1024 * 1024;
 		uint64_t MaxIndexCount = 48ull * 1024 * 1024;
 		uint64_t MaxNodeCount = 65536;
+		// Joints in one skin. Skinned vertices refer to joints with 16 bits, and the renderer uploads each skin's
+		// matrices every frame
+		uint64_t MaxJointCount = 1024;
+		// Keyframe values over every animation clip (cubic splines have three a keyframe), and channels
+		uint64_t MaxKeyframeCount = 16ull * 1024 * 1024;
+		uint64_t MaxAnimationChannelCount = 1024ull * 1024;
 		// Decoded pixels over every image: 256 megapixels is 1 GB of RGBA8. Each image is also limited on its own
 		// (Image::MaxPixelCount)
 		uint64_t MaxImagePixelCount = 256ull * 1024 * 1024;

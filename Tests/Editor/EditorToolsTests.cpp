@@ -23,13 +23,14 @@ namespace Lodestone {
 	namespace {
 
 		// Every tool the editor offers. A new tool is added here deliberately, with its tests
-		constexpr std::array<std::string_view, 40> ToolNames = {"project_info", "project_create", "project_open",
+		constexpr std::array<std::string_view, 42> ToolNames = {"project_info", "project_create", "project_open",
 			"scene_new", "scene_open", "prefab_open", "document_save", "scene_hierarchy", "entity_create",
 			"entity_delete", "entity_duplicate", "entity_set_parent", "entity_get", "entity_find", "selection_set",
 			"component_types", "component_add", "component_remove", "component_set", "prefab_create",
 			"prefab_instantiate", "model_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start",
-			"play_stop", "play_pause", "play_step", "play_status", "input_send", "viewport_screenshot", "render_stats",
-			"camera_set", "camera_frame", "log_read", "asset_list", "asset_import", "asset_rescan", "editor_quit"};
+			"play_stop", "play_pause", "play_step", "play_status", "input_send", "animation_clips", "animation_preview",
+			"viewport_screenshot", "render_stats", "camera_set", "camera_frame", "log_read", "asset_list",
+			"asset_import", "asset_rescan", "editor_quit"};
 
 		UUID ToId(const std::string& text)
 		{
@@ -379,6 +380,79 @@ namespace Lodestone {
 			"model_instantiate", {{"path", "Models/Primitives.glb"}, {"parent", UUID::Generate().ToString()}});
 		fixture.Ok("document_save", {{"path", "Scenes/Main.lscene"}});
 		fixture.Fails("model_instantiate", {{"path", "Scenes/Main.lscene"}});
+	}
+
+	TEST_CASE("animation_clips lists the clips an entity's animator plays, found from any node of its model")
+	{
+		Fixture fixture;
+		const std::filesystem::path source = std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "SkinnedArm.glb";
+		const Json::Value model =
+			fixture.Ok("asset_import", {{"source", PathToUtf8(source)}, {"path", "Models/SkinnedArm.glb"}});
+		const Json::Value instance = fixture.Ok("model_instantiate", {{"path", "Models/SkinnedArm.glb"}});
+		const Json::Value root = fixture.Ok("entity_get", {{"entity", instance["id"]}});
+		REQUIRE(root["components"].contains("Animator"));
+		const Json::Value lower = fixture.Ok("entity_get", {{"entity", root["children"][1]}});
+
+		// From the root, or from a joint of its skeleton
+		for (const Json::Value& entity : {instance["id"], lower["children"][0]})
+		{
+			const Json::Value clips = fixture.Ok("animation_clips", {{"entity", entity}});
+			CHECK(clips["animator"] == instance["id"]);
+			CHECK(clips["model"] == model["id"]);
+			REQUIRE(clips["clips"].size() == 3);
+			CHECK(clips["clips"][0]["name"] == "Bend");
+			CHECK(clips["clips"][0]["index"] == 0);
+			CHECK(clips["clips"][0]["duration"] == doctest::Approx(1.0));
+			CHECK(clips["clips"][1]["name"] == "Wave");
+			CHECK(clips["clips"][1]["channels"] == 2);
+			CHECK(clips["state"]["clip"] == 0);
+			CHECK(clips["state"]["playing"] == true);
+			CHECK(clips["preview"].is_null());
+		}
+
+		// Entities without an animator, or one that isn't on a model instance
+		const std::string plain = fixture.CreateEntity("Plain");
+		CHECK(fixture.Fails("animation_clips", {{"entity", plain}}).find("no Animator") != std::string::npos);
+		fixture.Ok("component_add", {{"entity", plain}, {"component", "Animator"}});
+		CHECK(fixture.Fails("animation_clips", {{"entity", plain}}).find("isn't on a model instance") !=
+			std::string::npos);
+		fixture.Fails("animation_clips", {{"entity", UUID::Generate().ToString()}});
+	}
+
+	TEST_CASE("animation_preview poses a clip at a time without changing the document, until it's stopped")
+	{
+		Fixture fixture;
+		const std::filesystem::path source = std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "SkinnedArm.glb";
+		fixture.Ok("asset_import", {{"source", PathToUtf8(source)}, {"path", "Models/SkinnedArm.glb"}});
+		const Json::Value instance = fixture.Ok("model_instantiate", {{"path", "Models/SkinnedArm.glb"}});
+		const size_t undoable = fixture.Context.GetHistory().GetUndoNames().size();
+
+		const Json::Value previewed = fixture.Ok(
+			"animation_preview", {{"entity", instance["id"]}, {"clip", 1}, {"time", 0.5}, {"playing", true}});
+
+		CHECK(previewed["animator"] == instance["id"]);
+		CHECK(previewed["preview"]["clip"] == 1);
+		CHECK(previewed["preview"]["time"] == doctest::Approx(0.5));
+		CHECK(previewed["preview"]["playing"] == true);
+		CHECK(fixture.Context.GetHistory().GetUndoNames().size() == undoable);
+		const PoseOptions options = fixture.Context.GetPoseOptions();
+		REQUIRE(options.Preview.has_value());
+		CHECK(options.Preview.value_or(AnimatorPreview{}).Clip == 1);
+		CHECK(fixture.Ok("animation_clips", {{"entity", instance["id"]}})["preview"]["clip"] == 1);
+
+		// Clips the model doesn't have, and times that aren't seconds into a clip
+		CHECK(fixture.Fails("animation_preview", {{"entity", instance["id"]}, {"clip", 3}}).find("3 clips") !=
+			std::string::npos);
+		fixture.Fails("animation_preview", {{"entity", instance["id"]}, {"time", -1.0}});
+		fixture.Fails("animation_preview", {{"entity", instance["id"]}, {"time", "soon"}});
+
+		CHECK(fixture.Ok("animation_preview", {{"stop", true}})["preview"].is_null());
+		CHECK_FALSE(fixture.Context.GetPoseOptions().Preview.has_value());
+
+		// Not while playing
+		fixture.Ok("play_start", {{"paused", true}});
+		fixture.Fails("animation_preview", {{"entity", instance["id"]}});
+		fixture.Ok("play_stop");
 	}
 
 	TEST_CASE("render_stats reports the renderer's latest frame, and when there's none")

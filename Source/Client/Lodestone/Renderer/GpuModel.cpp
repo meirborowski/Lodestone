@@ -23,6 +23,8 @@ namespace Lodestone {
 		static_assert(offsetof(MeshVertex, Normal) == 12);
 		static_assert(offsetof(MeshVertex, Tangent) == 24);
 		static_assert(offsetof(MeshVertex, TexCoord) == 40);
+		static_assert(sizeof(SkinVertex) == 24);
+		static_assert(offsetof(SkinVertex, Weights) == 8);
 
 		struct TextureSlot
 		{
@@ -70,6 +72,22 @@ namespace Lodestone {
 					fmt::format("Creating the buffers of mesh {} of '{}' failed", index, debugName)));
 			commandList->writeBuffer(gpuMesh.VertexBuffer, mesh.Vertices.data(), vertices.byteSize);
 			commandList->writeBuffer(gpuMesh.IndexBuffer, mesh.Indices.data(), indices.byteSize);
+
+			if (mesh.IsSkinned() && mesh.Skin.size() == mesh.Vertices.size())
+			{
+				const std::string skinName = fmt::format("{} mesh {} skin", debugName, index);
+				nvrhi::BufferDesc skin;
+				skin.byteSize = mesh.Skin.size() * sizeof(SkinVertex);
+				skin.debugName = skinName;
+				skin.isVertexBuffer = true;
+				skin.initialState = nvrhi::ResourceStates::VertexBuffer;
+				skin.keepInitialState = true;
+				gpuMesh.SkinBuffer = device->createBuffer(skin);
+				if (!gpuMesh.SkinBuffer)
+					return std::unexpected(Error(ErrorCode::DeviceError,
+						fmt::format("Creating the skin buffer of mesh {} of '{}' failed", index, debugName)));
+				commandList->writeBuffer(gpuMesh.SkinBuffer, mesh.Skin.data(), skin.byteSize);
+			}
 
 			for (const MeshPrimitive& primitive : mesh.Primitives)
 			{

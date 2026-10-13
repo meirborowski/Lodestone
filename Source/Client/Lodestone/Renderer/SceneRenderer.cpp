@@ -36,7 +36,9 @@ namespace Lodestone {
 #include "Shaders/Mesh_PSPrepassMasked.spirv.h"
 #include "Shaders/Mesh_PSShadowMasked.spirv.h"
 #include "Shaders/Mesh_VSMain.spirv.h"
+#include "Shaders/Mesh_VSMainSkinned.spirv.h"
 #include "Shaders/Mesh_VSShadow.spirv.h"
+#include "Shaders/Mesh_VSShadowSkinned.spirv.h"
 #include "Shaders/Sky_PSMain.spirv.h"
 #include "Shaders/Tonemap_PSMain.spirv.h"
 
@@ -50,9 +52,10 @@ namespace Lodestone {
 		constexpr float MinAmbientOcclusionRadius = 0.01f;
 		constexpr float MaxExposure = 20.0f;
 
-		size_t GetMeshPipelineIndex(size_t pass, AlphaMode alpha, bool doubleSided, bool mirrored)
+		size_t GetMeshPipelineIndex(size_t pass, AlphaMode alpha, bool doubleSided, bool mirrored, bool skinned)
 		{
-			return ((pass * 3 + static_cast<size_t>(alpha)) * 2 + (doubleSided ? 1 : 0)) * 2 + (mirrored ? 1 : 0);
+			const size_t material = (pass * 3 + static_cast<size_t>(alpha)) * 2 + (doubleSided ? 1 : 0);
+			return (material * 2 + (mirrored ? 1 : 0)) * 2 + (skinned ? 1 : 0);
 		}
 
 		bool IntersectsSphere(const BoundingBox& box, const glm::vec3& center, float radius)
@@ -95,13 +98,16 @@ namespace Lodestone {
 			return nvrhi::ViewportState().addViewportAndScissorRect(framebuffer->getFramebufferInfo().getViewport());
 		}
 
-		nvrhi::VertexAttributeDesc MakeAttribute(const char* name, nvrhi::Format format, size_t offset)
+		// An attribute of the vertex buffer (slot 0) or, for skinned meshes, the skin buffer (slot 1)
+		nvrhi::VertexAttributeDesc MakeAttribute(
+			const char* name, nvrhi::Format format, size_t offset, bool skin = false)
 		{
 			return nvrhi::VertexAttributeDesc()
 				.setName(name)
 				.setFormat(format)
+				.setBufferIndex(skin ? 1 : 0)
 				.setOffset(static_cast<uint32_t>(offset))
-				.setElementStride(GpuModel::VertexStride);
+				.setElementStride(skin ? GpuModel::SkinVertexStride : GpuModel::VertexStride);
 		}
 
 	}
@@ -156,6 +162,10 @@ namespace Lodestone {
 			shader(Type::Vertex, "VSMain", g_Mesh_VSMain_spirv, sizeof(g_Mesh_VSMain_spirv), "Mesh VS");
 		m_ShadowVertexShader =
 			shader(Type::Vertex, "VSShadow", g_Mesh_VSShadow_spirv, sizeof(g_Mesh_VSShadow_spirv), "Mesh shadow VS");
+		m_MeshSkinnedVertexShader = shader(Type::Vertex, "VSMainSkinned", g_Mesh_VSMainSkinned_spirv,
+			sizeof(g_Mesh_VSMainSkinned_spirv), "Skinned mesh VS");
+		m_ShadowSkinnedVertexShader = shader(Type::Vertex, "VSShadowSkinned", g_Mesh_VSShadowSkinned_spirv,
+			sizeof(g_Mesh_VSShadowSkinned_spirv), "Skinned mesh shadow VS");
 		m_ShadowMaskedPixelShader = shader(Type::Pixel, "PSShadowMasked", g_Mesh_PSShadowMasked_spirv,
 			sizeof(g_Mesh_PSShadowMasked_spirv), "Mesh masked shadow PS");
 		m_PrepassPixelShader =
@@ -177,7 +187,8 @@ namespace Lodestone {
 		m_SkyPixelShader = shader(Type::Pixel, "PSMain", g_Sky_PSMain_spirv, sizeof(g_Sky_PSMain_spirv), "Sky PS");
 		m_TonemapPixelShader =
 			shader(Type::Pixel, "PSMain", g_Tonemap_PSMain_spirv, sizeof(g_Tonemap_PSMain_spirv), "Tonemap PS");
-		if (!m_MeshVertexShader || !m_ShadowVertexShader || !m_ShadowMaskedPixelShader || !m_PrepassPixelShader ||
+		if (!m_MeshVertexShader || !m_ShadowVertexShader || !m_MeshSkinnedVertexShader ||
+			!m_ShadowSkinnedVertexShader || !m_ShadowMaskedPixelShader || !m_PrepassPixelShader ||
 			!m_PrepassMaskedPixelShader || !m_ForwardPixelShader || !m_ForwardMaskedPixelShader ||
 			!m_ForwardBlendedPixelShader || !m_FullscreenVertexShader || !m_OcclusionPixelShader ||
 			!m_BlurPixelShader || !m_SkyPixelShader || !m_TonemapPixelShader)
@@ -197,6 +208,18 @@ namespace Lodestone {
 			meshAttributes.data(), static_cast<uint32_t>(meshAttributes.size()), m_MeshVertexShader);
 		m_ShadowInputLayout = m_Device->createInputLayout(
 			shadowAttributes.data(), static_cast<uint32_t>(shadowAttributes.size()), m_ShadowVertexShader);
+		const nvrhi::VertexAttributeDesc joints =
+			MakeAttribute("BLENDINDICES", nvrhi::Format::RGBA16_UINT, offsetof(SkinVertex, Joints), true);
+		const nvrhi::VertexAttributeDesc weights =
+			MakeAttribute("BLENDWEIGHT", nvrhi::Format::RGBA32_FLOAT, offsetof(SkinVertex, Weights), true);
+		const std::array<nvrhi::VertexAttributeDesc, 6> meshSkinnedAttributes = {
+			meshAttributes[0], meshAttributes[1], meshAttributes[2], meshAttributes[3], joints, weights};
+		const std::array<nvrhi::VertexAttributeDesc, 4> shadowSkinnedAttributes = {
+			shadowAttributes[0], shadowAttributes[1], joints, weights};
+		m_MeshSkinnedInputLayout = m_Device->createInputLayout(meshSkinnedAttributes.data(),
+			static_cast<uint32_t>(meshSkinnedAttributes.size()), m_MeshSkinnedVertexShader);
+		m_ShadowSkinnedInputLayout = m_Device->createInputLayout(shadowSkinnedAttributes.data(),
+			static_cast<uint32_t>(shadowSkinnedAttributes.size()), m_ShadowSkinnedVertexShader);
 
 		m_OcclusionLayout = m_Device->createBindingLayout(nvrhi::BindingLayoutDesc()
 				.setVisibility(nvrhi::ShaderType::Pixel)
@@ -208,7 +231,8 @@ namespace Lodestone {
 				.setVisibility(nvrhi::ShaderType::Pixel)
 				.addItem(nvrhi::BindingLayoutItem::Texture_SRV(0))
 				.addItem(nvrhi::BindingLayoutItem::PushConstants(0, sizeof(ShaderTypes::TonemapConstants))));
-		if (!m_MeshInputLayout || !m_ShadowInputLayout || !m_OcclusionLayout || !m_TonemapLayout)
+		if (!m_MeshInputLayout || !m_ShadowInputLayout || !m_MeshSkinnedInputLayout || !m_ShadowSkinnedInputLayout ||
+			!m_OcclusionLayout || !m_TonemapLayout)
 			return std::unexpected(Error(ErrorCode::DeviceError, "Creating the scene renderer's layouts failed"));
 
 		const auto makeFullscreen = [this](nvrhi::IShader* pixelShader,
@@ -275,12 +299,17 @@ namespace Lodestone {
 		return {};
 	}
 
-	nvrhi::IGraphicsPipeline* SceneRenderer::GetMeshPipeline(
-		MeshPass pass, AlphaMode alpha, bool doubleSided, bool mirrored)
+	nvrhi::IGraphicsPipeline* SceneRenderer::GetMeshPipeline(const Draw& draw, MeshPass pass)
 	{
-		const size_t index = GetMeshPipelineIndex(static_cast<size_t>(pass), alpha, doubleSided, mirrored);
+		const AlphaMode alpha = draw.Material->Alpha;
+		const bool doubleSided = draw.Material->DoubleSided;
+		const bool mirrored = draw.Mirrored;
+		const bool skinned = draw.Skinned;
+		const size_t index = GetMeshPipelineIndex(static_cast<size_t>(pass), alpha, doubleSided, mirrored, skinned);
 		if (m_MeshPipelines[index] || m_MeshPipelineFailed[index])
 			return m_MeshPipelines[index];
+		nvrhi::IShader* meshVertexShader = skinned ? m_MeshSkinnedVertexShader : m_MeshVertexShader;
+		nvrhi::IInputLayout* meshInputLayout = skinned ? m_MeshSkinnedInputLayout : m_MeshInputLayout;
 
 		nvrhi::GraphicsPipelineDesc desc;
 		nvrhi::FramebufferInfo framebuffer;
@@ -293,8 +322,8 @@ namespace Lodestone {
 		switch (pass)
 		{
 			case MeshPass::Shadow:
-				desc.setVertexShader(m_ShadowVertexShader)
-					.setInputLayout(m_ShadowInputLayout)
+				desc.setVertexShader(skinned ? m_ShadowSkinnedVertexShader : m_ShadowVertexShader)
+					.setInputLayout(skinned ? m_ShadowSkinnedInputLayout : m_ShadowInputLayout)
 					.addBindingLayout(m_Resources->GetMaterialLayout());
 				if (alpha == AlphaMode::Mask)
 					desc.setPixelShader(m_ShadowMaskedPixelShader);
@@ -304,17 +333,17 @@ namespace Lodestone {
 				framebuffer.setDepthFormat(RenderTarget::DepthFormat);
 				break;
 			case MeshPass::Prepass:
-				desc.setVertexShader(m_MeshVertexShader)
+				desc.setVertexShader(meshVertexShader)
 					.setPixelShader(alpha == AlphaMode::Mask ? m_PrepassMaskedPixelShader : m_PrepassPixelShader)
-					.setInputLayout(m_MeshInputLayout)
+					.setInputLayout(meshInputLayout)
 					.addBindingLayout(m_Resources->GetViewLayout())
 					.addBindingLayout(m_Resources->GetMaterialLayout());
 				depth.enableDepthWrite().setDepthFunc(nvrhi::ComparisonFunc::GreaterOrEqual);
 				framebuffer.addColorFormat(SceneRenderTarget::NormalFormat).setDepthFormat(RenderTarget::DepthFormat);
 				break;
 			case MeshPass::Forward:
-				desc.setVertexShader(m_MeshVertexShader)
-					.setInputLayout(m_MeshInputLayout)
+				desc.setVertexShader(meshVertexShader)
+					.setInputLayout(meshInputLayout)
 					.addBindingLayout(m_Resources->GetViewLayout())
 					.addBindingLayout(m_Resources->GetEnvironmentLayout())
 					.addBindingLayout(m_Resources->GetMaterialLayout());
@@ -341,14 +370,17 @@ namespace Lodestone {
 				framebuffer.addColorFormat(SceneRenderTarget::HdrFormat).setDepthFormat(RenderTarget::DepthFormat);
 				break;
 		}
+		// The joints' descriptor set comes last, in every pass
+		if (skinned)
+			desc.addBindingLayout(m_Resources->GetSkinLayout());
 
 		m_MeshPipelines[index] = m_Device->createGraphicsPipeline(desc, framebuffer);
 		if (!m_MeshPipelines[index])
 		{
 			m_MeshPipelineFailed[index] = true;
-			LS_CORE_ERROR("Creating a scene pipeline failed (pass {}, alpha mode {}, double-sided {}, mirrored {}), so "
-						  "meshes that need it aren't drawn",
-				static_cast<int>(pass), static_cast<int>(alpha), doubleSided, mirrored);
+			LS_CORE_ERROR("Creating a scene pipeline failed (pass {}, alpha mode {}, double-sided {}, mirrored {}, "
+						  "skinned {}), so meshes that need it aren't drawn",
+				static_cast<int>(pass), static_cast<int>(alpha), doubleSided, mirrored, skinned);
 		}
 		return m_MeshPipelines[index];
 	}
@@ -369,6 +401,9 @@ namespace Lodestone {
 				.addItem(nvrhi::BindingSetItem::Sampler(0, resources.GetPointClampSampler()))
 				.addItem(nvrhi::BindingSetItem::Sampler(1, resources.GetShadowSampler())),
 			resources.GetViewLayout());
+		target.m_SkinBindings = m_Device->createBindingSet(
+			nvrhi::BindingSetDesc().addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, target.m_JointMatrices)),
+			resources.GetSkinLayout());
 		const auto makeOcclusionBindings = [&](nvrhi::ITexture* input)
 		{
 			return m_Device->createBindingSet(
@@ -386,7 +421,7 @@ namespace Lodestone {
 				.addItem(nvrhi::BindingSetItem::Texture_SRV(0, target.m_Hdr))
 				.addItem(nvrhi::BindingSetItem::PushConstants(0, sizeof(ShaderTypes::TonemapConstants))),
 			m_TonemapLayout);
-		if (!target.m_ViewBindings || !target.m_OcclusionBindings || !target.m_BlurBindings ||
+		if (!target.m_ViewBindings || !target.m_SkinBindings || !target.m_OcclusionBindings || !target.m_BlurBindings ||
 			!target.m_TonemapBindings)
 			return std::unexpected(Error(
 				ErrorCode::DeviceError, fmt::format("Creating the binding sets of '{}' failed", target.m_DebugName)));
@@ -422,18 +457,34 @@ namespace Lodestone {
 			if (!mesh.VertexBuffer)
 				continue;
 
-			const bool mirrored = glm::determinant(glm::mat3(instance.World)) < 0.0f;
+			// A skinned mesh is bounded by each joint's bind-pose bounds, moved by the joint. Mirroring is its first
+			// joint's
+			const ModelMesh& cpuMesh = model->GetModel().Meshes[instance.Mesh];
+			const bool skinned = instance.IsSkinned() && mesh.SkinBuffer &&
+				instance.JointCount >= cpuMesh.SkinJointCount &&
+				static_cast<size_t>(instance.FirstJoint) + instance.JointCount <= world.JointMatrices.size();
+			BoundingBox skinnedBounds;
+			if (skinned)
+			{
+				for (const MeshJointBounds& joint : cpuMesh.JointBounds)
+					skinnedBounds.Add(joint.Bounds.Transform(world.JointMatrices[instance.FirstJoint + joint.Joint]));
+			}
+			const glm::mat4& orientation = skinned ? world.JointMatrices[instance.FirstJoint] : instance.World;
+			const bool mirrored = glm::determinant(glm::mat3(orientation)) < 0.0f;
 			bool visible = false;
 			for (const GpuPrimitive& primitive : mesh.Primitives)
 			{
 				const GpuMaterial& material = model->GetMaterials()[primitive.Material];
+				// The skinned vertex shaders place vertices in the world themselves
 				Draw draw{
 					.Mesh = &mesh,
 					.Primitive = &primitive,
 					.Material = &material,
-					.World = instance.World,
-					.Bounds = primitive.Bounds.Transform(instance.World),
+					.World = skinned ? glm::mat4(1.0f) : instance.World,
+					.Bounds = skinned ? skinnedBounds : primitive.Bounds.Transform(instance.World),
 					.Mirrored = mirrored,
+					.Skinned = skinned,
+					.JointOffset = instance.FirstJoint,
 				};
 				// Transparent surfaces let light through, so they cast no shadows
 				if (instance.CastShadows && material.Alpha != AlphaMode::Blend)
@@ -451,7 +502,7 @@ namespace Lodestone {
 		// Transparent ones far to near, so each blends over what's behind it. Stable, so equal keys keep the world's
 		// order and frames are reproducible
 		const auto pipelineKey = [](const Draw& draw)
-		{ return std::make_tuple(draw.Material->Alpha, draw.Material->DoubleSided, draw.Mirrored); };
+		{ return std::make_tuple(draw.Material->Alpha, draw.Material->DoubleSided, draw.Mirrored, draw.Skinned); };
 		std::ranges::stable_sort(m_OpaqueDraws, [&](const Draw& a, const Draw& b)
 			{ return std::make_tuple(pipelineKey(a), a.ViewDepth) < std::make_tuple(pipelineKey(b), b.ViewDepth); });
 		std::ranges::stable_sort(
@@ -654,6 +705,11 @@ namespace Lodestone {
 			LS_CORE_ERROR("Can't render '{}': {}", target.m_DebugName, reserved.error());
 			return;
 		}
+		if (auto reserved = target.ReserveJoints(world.JointMatrices.size()); !reserved)
+		{
+			LS_CORE_ERROR("Can't render '{}': {}", target.m_DebugName, reserved.error());
+			return;
+		}
 		if (auto updated = UpdateBindings(target); !updated)
 		{
 			LS_CORE_ERROR("Can't render '{}': {}", target.m_DebugName, updated.error());
@@ -672,6 +728,10 @@ namespace Lodestone {
 		if (!m_LightIndices.empty())
 			commandList->writeBuffer(
 				target.m_LightIndices, m_LightIndices.data(), m_LightIndices.size() * sizeof(uint32_t));
+		if (!world.JointMatrices.empty())
+			commandList->writeBuffer(
+				target.m_JointMatrices, world.JointMatrices.data(), world.JointMatrices.size() * sizeof(glm::mat4));
+		nvrhi::IBindingSet* skinBindings = target.m_SkinBindings;
 
 		nvrhi::IBindingSet* viewBindings = target.m_ViewBindings;
 		const std::array<nvrhi::IBindingSet*, 1> prepassSets = {viewBindings};
@@ -689,7 +749,7 @@ namespace Lodestone {
 				if (cascadeFrustum.Intersects(caster.Bounds))
 					m_CascadeDraws.push_back(caster);
 			}
-			DrawMeshes(commandList, MeshPass::Shadow, m_CascadeDraws, m_ShadowFramebuffers[i], {},
+			DrawMeshes(commandList, MeshPass::Shadow, m_CascadeDraws, m_ShadowFramebuffers[i], {}, skinBindings,
 				&cascades[i].ViewProjection, stats, RenderPass::Shadows);
 		}
 		endPass(RenderPass::Shadows);
@@ -697,8 +757,8 @@ namespace Lodestone {
 		beginPass(RenderPass::Prepass);
 		commandList->clearTextureFloat(target.m_Normals, nvrhi::AllSubresources, nvrhi::Color(0.0f));
 		commandList->clearDepthStencilTexture(target.GetDepth(), nvrhi::AllSubresources, true, 0.0f, false, 0);
-		DrawMeshes(commandList, MeshPass::Prepass, m_OpaqueDraws, target.m_PrepassFramebuffer, prepassSets, nullptr,
-			stats, RenderPass::Prepass);
+		DrawMeshes(commandList, MeshPass::Prepass, m_OpaqueDraws, target.m_PrepassFramebuffer, prepassSets,
+			skinBindings, nullptr, stats, RenderPass::Prepass);
 		endPass(RenderPass::Prepass);
 
 		beginPass(RenderPass::AmbientOcclusion);
@@ -725,8 +785,8 @@ namespace Lodestone {
 		beginPass(RenderPass::Opaque);
 		commandList->clearTextureFloat(
 			target.m_Hdr, nvrhi::AllSubresources, nvrhi::Color(background.r, background.g, background.b, 1.0f));
-		DrawMeshes(commandList, MeshPass::Forward, m_OpaqueDraws, target.m_ForwardFramebuffer, forwardSets, nullptr,
-			stats, RenderPass::Opaque);
+		DrawMeshes(commandList, MeshPass::Forward, m_OpaqueDraws, target.m_ForwardFramebuffer, forwardSets,
+			skinBindings, nullptr, stats, RenderPass::Opaque);
 		endPass(RenderPass::Opaque);
 
 		beginPass(RenderPass::Sky);
@@ -737,7 +797,7 @@ namespace Lodestone {
 
 		beginPass(RenderPass::Transparent);
 		DrawMeshes(commandList, MeshPass::Forward, m_TransparentDraws, target.m_ForwardFramebuffer, forwardSets,
-			nullptr, stats, RenderPass::Transparent);
+			skinBindings, nullptr, stats, RenderPass::Transparent);
 		endPass(RenderPass::Transparent);
 
 		beginPass(RenderPass::Tonemap);
@@ -757,7 +817,7 @@ namespace Lodestone {
 	}
 
 	void SceneRenderer::DrawMeshes(nvrhi::ICommandList* commandList, MeshPass pass, const std::vector<Draw>& draws,
-		nvrhi::IFramebuffer* framebuffer, std::span<nvrhi::IBindingSet* const> sets,
+		nvrhi::IFramebuffer* framebuffer, std::span<nvrhi::IBindingSet* const> sets, nvrhi::IBindingSet* skinBindings,
 		const glm::mat4* shadowViewProjection, RenderStats& stats, RenderPass statsPass)
 	{
 		if (draws.empty())
@@ -765,8 +825,7 @@ namespace Lodestone {
 		const nvrhi::ViewportState viewport = GetViewport(framebuffer);
 		for (const Draw& draw : draws)
 		{
-			nvrhi::IGraphicsPipeline* pipeline =
-				GetMeshPipeline(pass, draw.Material->Alpha, draw.Material->DoubleSided, draw.Mirrored);
+			nvrhi::IGraphicsPipeline* pipeline = GetMeshPipeline(draw, pass);
 			if (pipeline == nullptr)
 				continue;
 			nvrhi::GraphicsState state;
@@ -779,6 +838,11 @@ namespace Lodestone {
 			for (nvrhi::IBindingSet* set : sets)
 				state.addBindingSet(set);
 			state.addBindingSet(draw.Material->Bindings);
+			if (draw.Skinned)
+			{
+				state.addVertexBuffer(nvrhi::VertexBufferBinding().setBuffer(draw.Mesh->SkinBuffer).setSlot(1));
+				state.addBindingSet(skinBindings);
+			}
 			commandList->setGraphicsState(state);
 
 			ShaderTypes::DrawConstants constants;
@@ -793,6 +857,7 @@ namespace Lodestone {
 				constants.LightOffset = draw.LightOffset;
 				constants.LightCount = draw.LightCount;
 			}
+			constants.JointOffset = draw.JointOffset;
 			commandList->setPushConstants(&constants, sizeof(constants));
 			commandList->drawIndexed(nvrhi::DrawArguments()
 					.setVertexCount(draw.Primitive->IndexCount)

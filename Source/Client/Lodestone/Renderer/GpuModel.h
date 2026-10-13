@@ -30,6 +30,8 @@ namespace Lodestone {
 	{
 		// MeshVertex, 48 bytes each; null for a mesh without triangles
 		nvrhi::BufferHandle VertexBuffer;
+		// SkinVertex, 24 bytes each, for meshes that can be skinned; null otherwise
+		nvrhi::BufferHandle SkinBuffer;
 		// 32-bit indices
 		nvrhi::BufferHandle IndexBuffer;
 		std::vector<GpuPrimitive> Primitives;
@@ -58,8 +60,9 @@ namespace Lodestone {
 		};
 
 	public:
-		// The vertex layout GpuMesh::VertexBuffer has
+		// The vertex layouts GpuMesh::VertexBuffer and SkinBuffer have
 		static constexpr uint32_t VertexStride = sizeof(MeshVertex);
+		static constexpr uint32_t SkinVertexStride = sizeof(SkinVertex);
 		// Textures larger than this are uploaded from the first mip level that fits, which every GPU can sample
 		static constexpr uint32_t MaxTextureSize = 8192;
 

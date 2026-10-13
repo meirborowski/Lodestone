@@ -2,13 +2,13 @@
 
 An agent - this script - starts the headless editor and builds a scene with MCP tools alone: it imports a model,
 creates entities and sets their components - meshes and lights among them - makes a prefab and instances it, instances
-the model, saves the scene, reloads it, screenshots it and reads the renderer's stats, and plays it with input,
-checking the result of every step. It talks to the editor as Claude Code would, over stdio (the editor started with
---headless --mcp-stdio) or over HTTP (the editor started with --headless --mcp-port 0), so it also tests both
-transports end to end.
+the model, saves the scene, reloads it, screenshots it and reads the renderer's stats, plays it with input, and
+previews an animated model's clips, checking the result of every step. It talks to the editor as Claude Code would,
+over stdio (the editor started with --headless --mcp-stdio) or over HTTP (the editor started with --headless
+--mcp-port 0), so it also tests both transports end to end.
 
     python McpAgentSmokeTest.py --editor <LodestoneEditor> --transport stdio|http --model <Primitives.glb>
-        [--vulkan-driver <library>]
+        --animated-model <SkinnedArm.glb> [--vulkan-driver <library>]
 """
 
 import argparse
@@ -246,7 +246,7 @@ def find_entities(hierarchy, name):
     return [entity for entity in hierarchy["entities"] if entity["name"] == name]
 
 
-def run(agent, project_directory, client, model_file):
+def run(agent, project_directory, client, model_file, animated_file):
     # The handshake, and the tools an agent discovers
     initialized = agent.request("initialize", {"protocolVersion": PROTOCOL_VERSION, "capabilities": {},
                                                "clientInfo": {"name": "Lodestone smoke test", "version": "1"}})
@@ -256,7 +256,7 @@ def run(agent, project_directory, client, model_file):
     tools = {tool["name"] for tool in agent.request("tools/list")["tools"]}
     for needed in ["project_create", "asset_import", "entity_create", "component_set", "prefab_create",
                    "prefab_instantiate", "model_instantiate", "document_save", "scene_open", "viewport_screenshot",
-                   "render_stats", "play_start", "input_send"]:
+                   "render_stats", "play_start", "input_send", "animation_clips", "animation_preview"]:
         check(needed in tools, f"The editor has no {needed} tool")
 
     # A project, and what components exist
@@ -357,6 +357,21 @@ def run(agent, project_directory, client, model_file):
     check([entity["name"] for entity in agent.data("scene_hierarchy")["entities"]] == names,
           "Play mode didn't restore the scene")
 
+    # An animated model: its clips, and the end of one previewed - the arm bends in screenshots, the document is unchanged
+    agent.data("asset_import", {"source": str(animated_file), "path": "Models/SkinnedArm.glb"})
+    arm = agent.data("model_instantiate", {"path": "Models/SkinnedArm.glb"})["id"]
+    agent.data("component_set", {"entity": arm, "component": "Transform", "fields": {"Position": [2, 0, 3]}})
+    clips = agent.data("animation_clips", {"entity": arm})
+    check([clip["name"] for clip in clips["clips"]] == ["Bend", "Wave", "Sway"], f"The arm's clips are {clips}")
+    agent.data("animation_preview", {"entity": arm, "clip": 0, "time": 0})
+    upright = screenshot(agent, 320, 180)
+    history = agent.data("edit_history")
+    agent.data("animation_preview", {"entity": arm, "clip": 0, "time": 1})
+    bent = screenshot(agent, 320, 180)
+    check(upright != bent, "Previewing the end of the arm's clip didn't bend it")
+    check(agent.data("edit_history") == history, "Previewing a clip edited the document")
+    agent.data("animation_preview", {"stop": True})
+
     # Nothing went wrong along the way
     errors = agent.data("log_read", {"level": "error"})["entries"]
     check(not errors, f"The editor logged errors: {[entry['message'] for entry in errors]}")
@@ -371,6 +386,8 @@ def main():
     parser.add_argument("--vulkan-driver", help="Render screenshots with this Vulkan driver, e.g. lavapipe")
     parser.add_argument("--model", required=True, type=pathlib.Path,
                         help="A model to build the scene with: Tests/Fixtures/Models/Primitives.glb")
+    parser.add_argument("--animated-model", required=True, type=pathlib.Path,
+                        help="A skinned, animated model: Tests/Fixtures/Models/SkinnedArm.glb")
     arguments = parser.parse_args()
     driver_arguments = ["--vulkan-driver", arguments.vulkan_driver] if arguments.vulkan_driver else []
 
@@ -379,7 +396,7 @@ def main():
         client = (StdioClient if arguments.transport == "stdio" else HttpClient)(arguments.editor, driver_arguments)
         agent = Agent(client)
         try:
-            run(agent, project, client, arguments.model)
+            run(agent, project, client, arguments.model, arguments.animated_model)
             exit_code = client.close() if arguments.transport == "stdio" else client.close(agent)
             check(exit_code == 0, f"The editor exited with {exit_code}")
             check((project / "Assets" / "Scenes" / "Main.lscene").is_file(), "The scene file wasn't written")

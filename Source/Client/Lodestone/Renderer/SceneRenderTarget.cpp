@@ -14,6 +14,7 @@ namespace Lodestone {
 		// The light buffers start with room for this many, and double as needed
 		constexpr size_t MinLightCapacity = 64;
 		constexpr size_t MinLightIndexCapacity = 1024;
+		constexpr size_t MinJointCapacity = 256;
 
 		nvrhi::TextureHandle CreateImage(
 			nvrhi::IDevice* device, glm::uvec2 size, nvrhi::Format format, const char* name)
@@ -101,6 +102,8 @@ namespace Lodestone {
 					Error(ErrorCode::DeviceError, fmt::format("Creating the constants of '{}' failed", m_DebugName)));
 			if (auto reserved = ReserveLights(MinLightCapacity, MinLightIndexCapacity); !reserved)
 				return std::unexpected(reserved.error());
+			if (auto reserved = ReserveJoints(MinJointCapacity); !reserved)
+				return std::unexpected(reserved.error());
 		}
 
 		m_Output = std::move(*output);
@@ -145,6 +148,23 @@ namespace Lodestone {
 			m_LightIndices = std::move(buffer);
 			m_BindingsValid = false;
 		}
+		return {};
+	}
+
+	std::expected<void, Error> SceneRenderTarget::ReserveJoints(size_t jointCount)
+	{
+		constexpr auto stride = static_cast<uint32_t>(sizeof(glm::mat4));
+		const size_t capacity = m_JointMatrices ? static_cast<size_t>(m_JointMatrices->getDesc().byteSize) / stride : 0;
+		if (capacity >= jointCount)
+			return {};
+		const std::string name = fmt::format("{} joint matrices", m_DebugName);
+		nvrhi::BufferHandle buffer = CreateStructuredBuffer(
+			m_Device, std::bit_ceil(std::max(jointCount, MinJointCapacity)), stride, name.c_str());
+		if (!buffer)
+			return std::unexpected(
+				Error(ErrorCode::DeviceError, fmt::format("Creating the joint buffer of '{}' failed", m_DebugName)));
+		m_JointMatrices = std::move(buffer);
+		m_BindingsValid = false;
 		return {};
 	}
 

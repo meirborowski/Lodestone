@@ -1,0 +1,28 @@
+# 0020 - Skeletal Animation: Poses Derived from Animator State, Skinned on the GPU
+
+## Status
+Accepted
+
+## Context
+Milestone 6 adds skeletons, skins and animation clips from glTF, an Animator component (play, loop, speed, crossfade), GPU skinning that shadows and ambient occlusion support, and an editor preview with a timeline. Later milestones constrain the design: scripts control animators (Milestone 8), animation state replicates (Milestone 11), and the simulation must restore exactly on rollback ([Decision 0012](0012-simulation-and-rollback.md)) - so whatever animation keeps in the scene is simulation state, snapshotted every tick. Models are instanced as entity trees, an entity per glTF node ([Decision 0019](0019-model-import.md)), so a skeleton's joints are already entities.
+
+## Decision
+- **Skins and clips in `Model`** - `ModelSkin` (joint node indices and inverse bind matrices), `AnimationClip` (channels: a node, a path - translation, rotation or scale - an interpolation - step, linear or cubic spline - and keyframes), and per-mesh skin weights (up to four joints per vertex, `JOINTS_0`/`WEIGHTS_0`, normalized) with each joint's bounds in the mesh's bind pose. The importer validates them like the rest of a model: limits on keyframes and joints, increasing key times, finite values, joint indices within their skin. Morph targets stay out of scope
+- **Model instances know their nodes** - `BuildModelEntities()` marks the root of an instance with `ModelInstance` (the model asset) and each node's entity with `ModelNode` (its node index); a node with a skin gets `Skin` (the skin's index) next to its `MeshRenderer`. A skin's joints are the instance's node entities, found under the nearest `ModelInstance` ancestor; a nested instance is its own
+- **The Animator holds state, not poses** - `Animator`, on an instance root, is the playing clip, its time, speed, whether it plays and loops, and a crossfade (the clip fading out, its time, the fade's length and progress). It's a few numbers, replicated and snapshotted like any component. The simulation's animation system only advances it each tick; joint transforms in the scene stay as they are (the rest pose)
+- **Poses are derived when they're needed** - `ScenePose` (Core) samples every animator's clips into the local transforms of the node entities they animate, blending crossfades, and answers "where is this entity drawn": local transforms, world matrices, and a skinned mesh's joint matrices. Between ticks it draws animators slightly behind their latest time, by the part of the tick still to come, just as transforms are interpolated - so animation is as smooth as the frame rate. The renderer's extraction, the editor's picking and overlay, and later physics and scripts use the same `ScenePose`, so what's drawn, picked and hit agree. Children of joints - a sword in a hand - follow the animation, since their parents' world matrices come from the pose
+- **Models for animation come from the assets, not the renderer** - `ModelCache` (Core) imports a project's models on first use, without textures, and refreshes them when a scan finds their files changed. The editor's play mode, preview, timeline and MCP tools read models through it, so the simulation behaves the same whether or not anything has rendered - as a dedicated server, which has no renderer, will
+- **The editor previews without editing** - the timeline sets a preview (an entity, a clip and a time) that `ScenePose` draws in place of that animator's state; scrubbing doesn't touch the document or the undo history. During play mode the timeline shows the running animator
+- **GPU skinning in the vertex shader** - skinned meshes have a second vertex stream (four 16-bit joint indices and four weights); the frame's joint matrices are one structured buffer, and each draw's push constants say where its joints start. Skinned variants of the mesh and shadow vertex shaders make skinned meshes cast shadows and write the prepass's depth and normals, so ambient occlusion sees them. Culling bounds are each joint's bind-pose bounds moved by its joint matrix, which contain every vertex however the skeleton moves
+
+## Alternatives
+- **The animation system writes joint transforms every tick** (as engines with a transform hierarchy usually do) - attachments and gameplay read bones directly, but every joint's transform becomes simulation state: rollback snapshots and network state grow with every skeleton, and the editor's preview would edit the document. Deriving poses keeps the state to a handful of numbers per animator; anything that needs a bone asks `ScenePose`
+- **A skeleton component with joints as an array** - reflection has no array fields, and joint entities exist anyway for attachments
+- **CPU skinning** - simpler shaders, but the cost grows with vertices on the CPU every frame, and the GPU copies them every frame
+- **Animation time wrapped by the simulation alone** - the animation system wraps looping time when it knows the clip's length (from the models it's given), but sampling wraps too, so a simulation that can't load a model (or hasn't yet) still poses correctly
+
+## Consequences
+- Selecting a joint entity shows its rest transform in the inspector, not the animated one; the viewport draws and picks it where it's animated
+- Clips are referred to by index in the model's list, like meshes: reordering clips in the source file changes what animators play. The editor and MCP show clip names
+- A skinned mesh whose joint entities were deleted is drawn unskinned, at its entity's transform
+- Model instances placed before this milestone lack `ModelInstance` and `ModelNode`, so they don't animate; placing the model again does

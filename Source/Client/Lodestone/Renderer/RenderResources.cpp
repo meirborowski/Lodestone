@@ -120,8 +120,12 @@ namespace Lodestone {
 		// Push constants have no register; slot 1 keeps them apart from the constant buffer in slot 0
 		material.addItem(nvrhi::BindingLayoutItem::PushConstants(1, sizeof(ShaderTypes::DrawConstants)));
 		m_MaterialLayout = m_Device->createBindingLayout(material);
+		m_SkinLayout = m_Device->createBindingLayout(nvrhi::BindingLayoutDesc()
+				.setVisibility(nvrhi::ShaderType::Vertex)
+				.setRegisterSpaceAndDescriptorSet(SkinSpace)
+				.addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0)));
 
-		if (!m_ViewLayout || !m_EnvironmentLayout || !m_MaterialLayout)
+		if (!m_ViewLayout || !m_EnvironmentLayout || !m_MaterialLayout || !m_SkinLayout)
 			return std::unexpected(
 				Error(ErrorCode::DeviceError, "Creating the scene renderer's binding layouts failed"));
 		return {};

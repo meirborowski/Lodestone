@@ -4,6 +4,8 @@
 //   - Prepass: depth and view-space normals, which ambient occlusion reads (PSPrepass, PSPrepassMasked)
 //   - Forward: the lit color, over the prepass's depth (PSForward, PSForwardMasked), and transparent surfaces blended
 //     on top (PSForwardBlended)
+// Skinned meshes use VSMainSkinned and VSShadowSkinned, which move each vertex by its joints, with the same pixel
+// shaders
 
 #include "Common.hlsli"
 #include "Lighting.hlsli"
@@ -37,9 +39,14 @@ struct DrawConstants
 	// The range of g_LightIndices with the punctual lights that reach the mesh
 	uint LightOffset;
 	uint LightCount;
+	// Skinned meshes: where their joints' matrices start in g_JointMatrices
+	uint JointOffset;
 };
 
 [[vk::push_constant]] DrawConstants g_Draw;
+
+// Descriptor set 3: the frame's joint matrices, from each skinned mesh's bind pose to the world
+StructuredBuffer<float4x4> g_JointMatrices : register(t0, space3);
 
 // Descriptor set 2: the material
 ConstantBuffer<MaterialConstants> g_Material : register(b0, space2);
@@ -71,10 +78,29 @@ struct Vertex
 	float2 TexCoord : TEXCOORD0;
 };
 
+// The skin vertex buffer: up to four joints and their weights, which add up to 1
+struct SkinnedVertexInput
+{
+	[[vk::location(0)]] float3 Position : POSITION;
+	[[vk::location(1)]] float3 Normal : NORMAL;
+	[[vk::location(2)]] float4 Tangent : TANGENT;
+	[[vk::location(3)]] float2 TexCoord : TEXCOORD0;
+	[[vk::location(4)]] uint4 Joints : BLENDINDICES;
+	[[vk::location(5)]] float4 Weights : BLENDWEIGHT;
+};
+
 struct ShadowVertexInput
 {
 	[[vk::location(0)]] float3 Position : POSITION;
 	[[vk::location(1)]] float2 TexCoord : TEXCOORD0;
+};
+
+struct SkinnedShadowVertexInput
+{
+	[[vk::location(0)]] float3 Position : POSITION;
+	[[vk::location(1)]] float2 TexCoord : TEXCOORD0;
+	[[vk::location(2)]] uint4 Joints : BLENDINDICES;
+	[[vk::location(3)]] float4 Weights : BLENDWEIGHT;
 };
 
 struct ShadowVertex
@@ -106,6 +132,49 @@ ShadowVertex VSShadow(ShadowVertexInput input)
 {
 	ShadowVertex output;
 	output.Position = mul(g_Draw.World, float4(input.Position, 1.0));
+	output.TexCoord = input.TexCoord;
+	return output;
+}
+
+// A skinned vertex's matrix: its joints' matrices, weighted
+float4x4 GetSkinMatrix(uint4 joints, float4 weights)
+{
+	const uint offset = g_Draw.JointOffset;
+	return weights.x * g_JointMatrices[offset + joints.x] + weights.y * g_JointMatrices[offset + joints.y] +
+		weights.z * g_JointMatrices[offset + joints.z] + weights.w * g_JointMatrices[offset + joints.w];
+}
+
+// A normal moved by a matrix: by the cofactor of its upper 3x3, which is its inverse transpose up to scale and exists
+// even when the matrix flattens the mesh; turned around when the matrix mirrors, so it still faces out
+float3 TransformNormalBy(float3x3 transform, float3 normal)
+{
+	const float3x3 columns = transpose(transform);
+	const float3 moved = cross(columns[1], columns[2]) * normal.x + cross(columns[2], columns[0]) * normal.y +
+		cross(columns[0], columns[1]) * normal.z;
+	return determinant(transform) < 0.0 ? -moved : moved;
+}
+
+// Skinned meshes are placed by their joints: the draw's world matrix is the identity, and mirroring is the skin's
+Vertex VSMainSkinned(SkinnedVertexInput input)
+{
+	const float4x4 skin = GetSkinMatrix(input.Joints, input.Weights);
+	const float4 world = mul(skin, float4(input.Position, 1.0));
+	const float3x3 skin3 = (float3x3)skin;
+	Vertex output;
+	output.Position = mul(g_Frame.ViewProjection, world);
+	output.WorldPosition = world.xyz;
+	output.Normal = TransformNormalBy(skin3, input.Normal);
+	output.Tangent =
+		float4(mul(skin3, input.Tangent.xyz), input.Tangent.w * (determinant(skin3) < 0.0 ? -1.0 : 1.0));
+	output.TexCoord = input.TexCoord;
+	return output;
+}
+
+ShadowVertex VSShadowSkinned(SkinnedShadowVertexInput input)
+{
+	ShadowVertex output;
+	const float4 world = mul(GetSkinMatrix(input.Joints, input.Weights), float4(input.Position, 1.0));
+	output.Position = mul(g_Draw.World, world);
 	output.TexCoord = input.TexCoord;
 	return output;
 }

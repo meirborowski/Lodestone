@@ -1,5 +1,6 @@
 #include "Lodestone/Renderer/RenderWorld.h"
 
+#include "Lodestone/Animation/ScenePose.h"
 #include "Lodestone/Scene/Components.h"
 #include "Lodestone/Scene/Scene.h"
 
@@ -66,6 +67,12 @@ namespace Lodestone {
 
 	RenderWorld ExtractRenderWorld(const Scene& scene, float interpolationFactor)
 	{
+		return ExtractRenderWorld(ScenePose(scene, {.InterpolationFactor = interpolationFactor}));
+	}
+
+	RenderWorld ExtractRenderWorld(const ScenePose& pose)
+	{
+		const Scene& scene = pose.GetScene();
 		const entt::registry& registry = scene.GetRegistry();
 		RenderWorld world;
 		bool foundEnvironment = false;
@@ -88,19 +95,26 @@ namespace Lodestone {
 			if (handle == entt::null)
 				continue;
 
-			const glm::mat4 transform =
-				visit.ParentWorld * scene.GetInterpolatedTransform(handle, interpolationFactor).GetMatrix();
+			const glm::mat4 transform = visit.ParentWorld * pose.GetLocalTransform(handle).GetMatrix();
 
 			if (const auto* mesh = registry.try_get<MeshRendererComponent>(handle);
 				mesh != nullptr && !mesh->Model.IsNil())
 			{
-				world.Meshes.push_back({
+				RenderMesh drawn{
 					.Entity = visit.Entity,
 					.Model = mesh->Model,
 					.Mesh = mesh->Mesh,
 					.World = transform,
 					.CastShadows = mesh->CastShadows,
-				});
+				};
+				// Skinned meshes are placed by their joints, not their entity
+				if (std::vector<glm::mat4> joints = pose.GetJointMatrices(handle); !joints.empty())
+				{
+					drawn.FirstJoint = static_cast<uint32_t>(world.JointMatrices.size());
+					drawn.JointCount = static_cast<uint32_t>(joints.size());
+					world.JointMatrices.insert(world.JointMatrices.end(), joints.begin(), joints.end());
+				}
+				world.Meshes.push_back(drawn);
 			}
 			if (const auto* light = registry.try_get<DirectionalLightComponent>(handle))
 			{

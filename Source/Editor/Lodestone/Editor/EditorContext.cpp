@@ -1,5 +1,7 @@
 #include "Lodestone/Editor/EditorContext.h"
 
+#include "Lodestone/Animation/Animation.h"
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
@@ -12,6 +14,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
 
+#include <cmath>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -57,7 +60,15 @@ namespace Lodestone {
 	}
 
 	EditorContext::EditorContext(const ComponentRegistry& components)
-		: m_Components(&components), m_Scene(CreateScope<Scene>(components)), m_SavedStateId(m_History.GetStateId())
+		: m_Components(&components),
+		  m_Scene(CreateScope<Scene>(components)),
+		  m_SavedStateId(m_History.GetStateId()),
+		  m_ModelLookup(
+			  [this](UUID id) -> const Model*
+			  {
+				  auto model = LoadModel(id);
+				  return model ? *model : nullptr;
+			  })
 	{
 		m_Log.Attach();
 	}
@@ -72,6 +83,7 @@ namespace Lodestone {
 			return std::unexpected(project.error());
 		m_Project = CreateScope<Project>(std::move(*project));
 		m_Assets = CreateScope<AssetRegistry>(m_Project->GetAssetDirectory());
+		m_ModelCache = CreateScope<ModelCache>(*m_Assets);
 		RescanAssets();
 		return NewScene();
 	}
@@ -85,6 +97,7 @@ namespace Lodestone {
 			return std::unexpected(project.error());
 		m_Project = CreateScope<Project>(std::move(*project));
 		m_Assets = CreateScope<AssetRegistry>(m_Project->GetAssetDirectory());
+		m_ModelCache = CreateScope<ModelCache>(*m_Assets);
 		RescanAssets();
 		return NewScene();
 	}
@@ -114,7 +127,22 @@ namespace Lodestone {
 		if (!m_Assets)
 			return std::unexpected(Error(ErrorCode::InvalidState, "No project is open"));
 		++m_AssetGeneration;
-		return m_Assets->Scan();
+		auto report = m_Assets->Scan();
+		m_ModelCache->Refresh();
+		return report;
+	}
+
+	std::expected<const Model*, Error> EditorContext::LoadModel(UUID id)
+	{
+		if (m_ModelOverride)
+		{
+			if (const Model* model = m_ModelOverride(id))
+				return model;
+			return std::unexpected(Error(ErrorCode::NotFound, fmt::format("There's no model with the ID {}", id)));
+		}
+		if (!m_ModelCache)
+			return std::unexpected(Error(ErrorCode::InvalidState, "No project is open, so it has no models"));
+		return m_ModelCache->Load(id);
 	}
 
 	std::expected<void, Error> EditorContext::NewScene()
@@ -321,10 +349,14 @@ namespace Lodestone {
 			return std::unexpected(Error(ErrorCode::InvalidState, "Play mode is already running"));
 		m_History.EndMerge();
 		m_EditSnapshot = m_Scene->SaveSnapshot();
+		m_AnimationPreview.reset();
 		const uint32_t tickRate = m_Project ? m_Project->GetSettings().TickRate : DefaultTickRate;
 		m_Simulation = CreateScope<Simulation>(*m_Scene, SimulationConfig{.TickRate = tickRate});
 		for (const auto& [name, system] : m_PlaySystems)
 			m_Simulation->AddSystem(name, system);
+		// Animators advance after gameplay, which may have started clips this tick
+		m_Simulation->AddSystem("Animation", [this](SimulationContext& simulation)
+			{ AdvanceAnimators(simulation.GetScene(), simulation.GetDeltaTime(), m_ModelLookup); });
 		m_PlayState = PlayState::Playing;
 		LS_CORE_INFO("Play mode started");
 		return {};
@@ -367,9 +399,75 @@ namespace Lodestone {
 
 	void EditorContext::Update(double elapsedSeconds, const Simulation::InputSampler& live)
 	{
+		if (m_PlayState == PlayState::Editing)
+			UpdateAnimationPreview(elapsedSeconds);
 		if (m_PlayState != PlayState::Playing)
 			return;
 		m_Simulation->Advance(elapsedSeconds, [this, &live](uint64_t tick) { return SampleInput(tick, live); });
+	}
+
+	std::expected<void, Error> EditorContext::SetAnimationPreview(UUID entity, uint32_t clip, float time, bool playing)
+	{
+		if (auto editing = RequireEditing(); !editing)
+			return std::unexpected(editing.error());
+		const Entity found = m_Scene->FindEntity(entity);
+		if (!found.IsValid())
+			return std::unexpected(Error(ErrorCode::NotFound, fmt::format("No entity has the ID {}", entity)));
+		if (found.TryGet<AnimatorComponent>() == nullptr)
+			return std::unexpected(Error(
+				ErrorCode::InvalidArgument, fmt::format("Entity '{}' has no Animator to preview", found.GetName())));
+		if (!std::isfinite(time))
+			return std::unexpected(Error(ErrorCode::InvalidArgument, "The preview's time isn't a number"));
+		const auto* instance = found.TryGet<ModelInstanceComponent>();
+		if (const Model* model = instance != nullptr ? m_ModelLookup(instance->Model) : nullptr;
+			model != nullptr && clip >= model->Animations.size())
+			return std::unexpected(Error(ErrorCode::InvalidArgument,
+				fmt::format("The model of '{}' has {} clips, so it has no clip {}", found.GetName(),
+					model->Animations.size(), clip)));
+		m_AnimationPreview = AnimationPreview{
+			.Pose = {.Entity = entity, .Clip = clip, .Time = time},
+			.Playing = playing,
+		};
+		return {};
+	}
+
+	PoseOptions EditorContext::GetPoseOptions() const
+	{
+		PoseOptions options{.Models = m_ModelLookup};
+		if (m_Simulation)
+		{
+			options.InterpolationFactor = m_Simulation->GetInterpolationFactor();
+			options.TickDuration = static_cast<float>(m_Simulation->GetTickDuration());
+		}
+		if (m_PlayState == PlayState::Editing && m_AnimationPreview)
+			options.Preview = m_AnimationPreview->Pose;
+		return options;
+	}
+
+	void EditorContext::UpdateAnimationPreview(double elapsedSeconds)
+	{
+		if (!m_AnimationPreview || !m_AnimationPreview->Playing)
+			return;
+		AnimatorPreview& preview = m_AnimationPreview->Pose;
+		const Entity entity = m_Scene->FindEntity(preview.Entity);
+		const auto* animator = entity.IsValid() ? entity.TryGet<AnimatorComponent>() : nullptr;
+		if (animator == nullptr)
+		{
+			// The entity, or its animator, is gone
+			m_AnimationPreview.reset();
+			return;
+		}
+		preview.Time += static_cast<float>(elapsedSeconds) * animator->Speed;
+		const auto* instance = entity.TryGet<ModelInstanceComponent>();
+		const Model* model = instance != nullptr ? m_ModelLookup(instance->Model) : nullptr;
+		if (model == nullptr || preview.Clip >= model->Animations.size())
+			return;
+		const AnimationClip& clip = model->Animations[preview.Clip];
+		// Like the animator: around again if it loops, stopping at the end if it doesn't
+		const float time = GetClipTime(clip, preview.Time, animator->Loop);
+		if (!animator->Loop && time != preview.Time)
+			m_AnimationPreview->Playing = false;
+		preview.Time = time;
 	}
 
 	void EditorContext::QueueInput(std::span<const InputCommand> commands)
@@ -385,6 +483,7 @@ namespace Lodestone {
 		m_History.Clear();
 		m_SavedStateId = m_History.GetStateId();
 		m_Selection = UUID();
+		m_AnimationPreview.reset();
 	}
 
 	std::expected<void, Error> EditorContext::RequireEditing() const

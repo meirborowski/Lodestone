@@ -39,6 +39,7 @@ The tools so far (`Source/Editor/Lodestone/Editor/Mcp/EditorTools.cpp`):
 | Prefabs and models | `prefab_create`, `prefab_instantiate`, `model_instantiate` |
 | Undo | `edit_undo`, `edit_redo`, `edit_history` |
 | Play mode | `play_start` (optionally paused), `play_stop`, `play_pause`, `play_step`, `play_status`, `input_send` |
+| Animation | `animation_clips`, `animation_preview` |
 | View and rendering | `viewport_screenshot`, `render_stats`, `camera_set`, `camera_frame` |
 | Logs and assets | `log_read`, `asset_list`, `asset_import`, `asset_rescan` |
 
@@ -46,6 +47,8 @@ Entities are addressed by UUID. Tools that replace the open document refuse whil
 
 Rendering is set up with the generic component tools: `MeshRenderer` (a model asset's UUID and a mesh index), `Camera`, `DirectionalLight`, `PointLight`, `SpotLight`, `Environment` (an HDR environment asset) and `RenderSettings` (exposure, tonemapper, ambient occlusion, shadows). `asset_import` brings models (.gltf, .glb) and environments (.hdr) into the project, `model_instantiate` places a model's nodes as entities, `viewport_screenshot` shows the lit result with the editor's overlay, and `render_stats` reports draw calls, triangles, meshes seen and CPU and GPU times.
 
+Animated models play their clips through an `Animator` on the model instance's root (set its `Clip`, `Time`, `Speed`, `Playing` and `Loop` fields with `component_set`); `animation_clips` lists a model's clips by index, name and length, with the animator's state, and `animation_preview` poses the model with a clip at a time - in the viewport and in screenshots - without changing the document, as the editor's timeline does (see [Decision 0020](Decisions/0020-skeletal-animation.md)).
+
 ## Testing
 - Every MCP tool has in-process tests that call it directly (`Tests/Editor/EditorToolsTests.cpp`), including with missing and wrongly typed arguments
-- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it imports a model and builds a scene with entities, components - meshes and lights among them - prefab instances and a model instance, saves and reloads it, screenshots it, reads the renderer's stats and plays it with input
+- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it imports a model and builds a scene with entities, components - meshes and lights among them - prefab instances and a model instance, saves and reloads it, screenshots it, reads the renderer's stats, plays it with input, and previews an animated model's clips

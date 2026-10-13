@@ -1,6 +1,7 @@
 #include "Lodestone/Scene/ModelEntities.h"
 
 #include "Common/DescribeError.h"
+#include "Lodestone/Animation/AnimationComponents.h"
 #include "Lodestone/Asset/ModelImporter.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
@@ -70,6 +71,43 @@ namespace Lodestone {
 		CHECK(plain.Get<MeshRendererComponent>().Mesh == 1);
 		// The placed meshes end up where the model puts them
 		CHECK(glm::length(glm::vec3(scene.GetWorldMatrix(plain)[3]) - glm::vec3(0.0f, 0.0f, -2.0f)) < 1e-5f);
+	}
+
+	TEST_CASE("A model's entities know their model and nodes, skins and clips")
+	{
+		const auto model =
+			ModelImporter::Import(std::filesystem::path(LS_TEST_FIXTURE_DIR) / "Models" / "SkinnedArm.glb");
+		REQUIRE_MESSAGE(model.has_value(), Testing::DescribeError(model));
+		Scene scene;
+
+		const Entity root = Instantiate(scene, *model);
+
+		// The root is the instance, and plays the model's first clip
+		REQUIRE(root.TryGet<ModelInstanceComponent>() != nullptr);
+		CHECK(root.Get<ModelInstanceComponent>().Model == ModelAsset);
+		REQUIRE(root.TryGet<AnimatorComponent>() != nullptr);
+		CHECK(root.Get<AnimatorComponent>().Clip == 0);
+		CHECK(root.Get<AnimatorComponent>().Playing);
+		CHECK(root.TryGet<ModelNodeComponent>() == nullptr);
+		CHECK(GetChildNames(scene, root) == std::vector<std::string>{"Arm", "Lower"});
+
+		// Each node's entity knows its node; the mesh's knows its skin
+		const Entity arm = scene.FindEntity(root.Get<HierarchyComponent>().Children[0]);
+		REQUIRE(arm.TryGet<ModelNodeComponent>() != nullptr);
+		CHECK(arm.Get<ModelNodeComponent>().Node == 0);
+		REQUIRE(arm.TryGet<SkinComponent>() != nullptr);
+		CHECK(arm.Get<SkinComponent>().Skin == 0);
+		const Entity lower = scene.FindEntity(root.Get<HierarchyComponent>().Children[1]);
+		CHECK(lower.Get<ModelNodeComponent>().Node == 1);
+		CHECK(lower.TryGet<SkinComponent>() == nullptr);
+		const Entity upper = scene.FindEntity(lower.Get<HierarchyComponent>().Children[0]);
+		CHECK(upper.Get<ModelNodeComponent>().Node == 2);
+
+		// A model without clips gets no animator
+		Scene still;
+		const Entity stillRoot = Instantiate(still, Model());
+		CHECK(stillRoot.TryGet<ModelInstanceComponent>() != nullptr);
+		CHECK(stillRoot.TryGet<AnimatorComponent>() == nullptr);
 	}
 
 	TEST_CASE("Unnamed nodes are named by index, and nodes reached twice are placed once")

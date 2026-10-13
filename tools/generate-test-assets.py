@@ -257,25 +257,30 @@ class Gltf:
 
     def accessor(self, values, kind, component=5126, minmax=False, target=34962):
         count = len(values)
-        width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[kind]
-        flat = [v for value in values for v in (value if width > 1 else (value,))]
+        width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}[kind]
+        rows = [value if width > 1 else (value,) for value in values]
+        flat = [v for row in rows for v in row]
         fmt = {5126: "f", 5123: "H", 5125: "I"}[component]
         accessor = {"bufferView": self.view(struct.pack(f"<{len(flat)}{fmt}", *flat), target), "componentType": component,
                     "count": count, "type": kind}
         if minmax:
-            accessor["min"] = [min(value[i] for value in values) for i in range(width)]
-            accessor["max"] = [max(value[i] for value in values) for i in range(width)]
+            accessor["min"] = [min(row[i] for row in rows) for i in range(width)]
+            accessor["max"] = [max(row[i] for row in rows) for i in range(width)]
         return self.add("accessors", accessor)
 
     def indices(self, values):
         return self.accessor(values, "SCALAR", 5123 if max(values) < 65536 else 5125, target=34963)
 
-    def mesh_primitive(self, positions, normals=None, uvs=None, indices=None, material=None, mode=None):
+    def mesh_primitive(self, positions, normals=None, uvs=None, indices=None, material=None, mode=None, joints=None,
+                       weights=None):
         attributes = {"POSITION": self.accessor(positions, "VEC3", minmax=True)}
         if normals is not None:
             attributes["NORMAL"] = self.accessor(normals, "VEC3")
         if uvs is not None:
             attributes["TEXCOORD_0"] = self.accessor(uvs, "VEC2")
+        if joints is not None:
+            attributes["JOINTS_0"] = self.accessor(joints, "VEC4", 5123)
+            attributes["WEIGHTS_0"] = self.accessor(weights, "VEC4")
         primitive = {"attributes": attributes}
         if indices is not None:
             primitive["indices"] = self.indices(indices)
@@ -483,6 +488,89 @@ def alpha_modes():
     gltf.write_glb(MODELS / "AlphaModes.glb")
 
 
+def rotation(axis, degrees):
+    """A quaternion (x, y, z, w) turning about a unit axis."""
+    half = math.radians(degrees) / 2
+    return tuple(component * math.sin(half) for component in axis) + (math.cos(half),)
+
+
+def skinned_arm():
+    """A square column 2 m tall, skinned to two joints: Lower at its foot and Upper halfway up, which bends the column
+    smoothly between 0.75 and 1.25 m. Three clips, covering every path and interpolation:
+    - Bend: Upper turns 90 degrees about Z over a second (linear)
+    - Wave: Upper nods 45 degrees about X and back (linear), and Lower jumps up 0.25 m at half a second (step)
+    - Sway: Lower turns 20 degrees about Z on a cubic spline with flat tangents, and Upper stretches to 1.5 in Y
+      (linear)"""
+    gltf = Gltf()
+    material = gltf.add("materials", {"name": "Skin", "pbrMetallicRoughness": {
+        "baseColorFactor": [0.9, 0.45, 0.25, 1.0], "metallicFactor": 0, "roughnessFactor": 0.5}})
+    half, height, segments = 0.2, 2.0, 8
+
+    def upper_share(y):
+        t = min(max((y - 0.75) / 0.5, 0.0), 1.0)
+        return t * t * (3 - 2 * t)
+
+    positions, normals, joints, weights, indices = [], [], [], [], []
+
+    def add_vertex(position, normal):
+        share = upper_share(position[1])
+        positions.append(position)
+        normals.append(normal)
+        joints.append((0, 1, 0, 0))
+        weights.append((1.0 - share, share, 0.0, 0.0))
+
+    # Each side, with the direction across it that makes its triangles face out
+    for normal, across in (((1, 0, 0), (0, 0, -1)), ((-1, 0, 0), (0, 0, 1)), ((0, 0, 1), (1, 0, 0)),
+                           ((0, 0, -1), (-1, 0, 0))):
+        base = len(positions)
+        for ring in range(segments + 1):
+            for side in (-1, 1):
+                add_vertex((normal[0] * half + across[0] * half * side, height * ring / segments,
+                            normal[2] * half + across[2] * half * side), normal)
+        for ring in range(segments):
+            corner = base + ring * 2
+            indices += [corner, corner + 1, corner + 3, corner, corner + 3, corner + 2]
+    for y, normal, order in ((height, (0, 1, 0), (0, 1, 2, 0, 2, 3)), (0.0, (0, -1, 0), (0, 2, 1, 0, 3, 2))):
+        base = len(positions)
+        for x, z in ((-half, half), (half, half), (half, -half), (-half, -half)):
+            add_vertex((x, y, z), normal)
+        indices += [base + index for index in order]
+
+    mesh = gltf.add("meshes", {"name": "Arm", "primitives": [
+        gltf.mesh_primitive(positions, normals, None, indices, material, joints=joints, weights=weights)]})
+    identity = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+    below_upper = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -1, 0, 1)
+    inverse_bind = gltf.accessor([identity, below_upper], "MAT4", target=None)
+    gltf.add("nodes", {"name": "Arm", "mesh": mesh, "skin": 0})
+    gltf.add("nodes", {"name": "Lower", "children": [2]})
+    gltf.add("nodes", {"name": "Upper", "translation": [0, 1, 0]})
+    gltf.add("skins", {"name": "Skeleton", "joints": [1, 2], "inverseBindMatrices": inverse_bind, "skeleton": 1})
+    gltf.add("scenes", {"nodes": [0, 1]})
+    gltf.document["scene"] = 0
+
+    def sampler(samplers, times, values, kind, interpolation):
+        samplers.append({"input": gltf.accessor(times, "SCALAR", minmax=True, target=None),
+                         "output": gltf.accessor(values, kind, target=None), "interpolation": interpolation})
+        return len(samplers) - 1
+
+    def animation(name, channels):
+        samplers, targets = [], []
+        for node, path, times, values, interpolation in channels:
+            kind = "VEC4" if path == "rotation" else "VEC3"
+            targets.append({"sampler": sampler(samplers, times, values, kind, interpolation),
+                            "target": {"node": node, "path": path}})
+        gltf.add("animations", {"name": name, "samplers": samplers, "channels": targets})
+
+    still = (0, 0, 0, 1)
+    flat = (0, 0, 0, 0)
+    animation("Bend", [(2, "rotation", [0, 1], [still, rotation((0, 0, 1), 90)], "LINEAR")])
+    animation("Wave", [(2, "rotation", [0, 0.5, 1], [still, rotation((1, 0, 0), 45), still], "LINEAR"),
+                       (1, "translation", [0, 0.5], [(0, 0, 0), (0, 0.25, 0)], "STEP")])
+    animation("Sway", [(1, "rotation", [0, 1], [flat, still, flat, flat, rotation((0, 0, 1), 20), flat], "CUBICSPLINE"),
+                       (2, "scale", [0, 1], [(1, 1, 1), (1, 1.5, 1)], "LINEAR")])
+    gltf.write_glb(MODELS / "SkinnedArm.glb")
+
+
 def main():
     MODELS.mkdir(parents=True, exist_ok=True)
     ENVIRONMENTS.mkdir(parents=True, exist_ok=True)
@@ -491,6 +579,7 @@ def main():
     hierarchy()
     alpha_modes()
     primitives()
+    skinned_arm()
     (ENVIRONMENTS / "Sky.hdr").write_bytes(encode_hdr(128, 64, sky(128, 64)))
     (ENVIRONMENTS / "Uniform.hdr").write_bytes(encode_hdr(16, 8, [[(1.0, 1.0, 1.0)] * 16 for _ in range(8)]))
 
@@ -499,6 +588,7 @@ def main():
     (CORPUS / "Model" / "MaterialSpheres.glb").write_bytes((MODELS / "MaterialSpheres.glb").read_bytes())
     (CORPUS / "Model" / "AlphaModes.glb").write_bytes((MODELS / "AlphaModes.glb").read_bytes())
     (CORPUS / "Model" / "Hierarchy.gltf").write_bytes((MODELS / "Hierarchy.gltf").read_bytes())
+    (CORPUS / "Model" / "SkinnedArm.glb").write_bytes((MODELS / "SkinnedArm.glb").read_bytes())
     (CORPUS / "Image" / "Checker.png").write_bytes(
         encode_png(16, 16, checker(16, 4, (255, 0, 0, 255), (0, 0, 255, 128))))
     (CORPUS / "Image" / "Checker.jpg").write_bytes(

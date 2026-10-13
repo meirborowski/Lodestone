@@ -31,3 +31,4 @@ Record every significant design decision here - especially ones made without ask
 - [0017 - Editor UI: Dear ImGui on NVRHI, and a debug scene view](0017-editor-ui.md)
 - [0018 - The scene renderer: forward PBR with a prepass, CSM and PCSS, GTAO and split-sum IBL](0018-scene-renderer.md)
 - [0019 - Model import: glTF 2.0 with cgltf, into a CPU model, instanced as entities](0019-model-import.md)
+- [0020 - Skeletal animation: poses derived from animator state, skinned on the GPU](0020-skeletal-animation.md)

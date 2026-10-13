@@ -30,6 +30,7 @@ namespace Lodestone {
 		static constexpr uint32_t ViewSpace = 0;
 		static constexpr uint32_t EnvironmentSpace = 1;
 		static constexpr uint32_t MaterialSpace = 2;
+		static constexpr uint32_t SkinSpace = 3;
 		// The texture slots of a material's binding set, in Mesh.hlsl's order
 		static constexpr uint32_t MaterialTextureCount = 5;
 		static constexpr uint32_t BrdfLutSize = 64;
@@ -44,6 +45,8 @@ namespace Lodestone {
 		nvrhi::IBindingLayout* GetEnvironmentLayout() const { return m_EnvironmentLayout; }
 		// Includes the draw's push constants (ShaderTypes::DrawConstants)
 		nvrhi::IBindingLayout* GetMaterialLayout() const { return m_MaterialLayout; }
+		// Skinned meshes' joint matrices, for their vertex shaders
+		nvrhi::IBindingLayout* GetSkinLayout() const { return m_SkinLayout; }
 
 		// A trilinear sampler for a material texture's wrap modes, or a nearest-neighbor one, with anisotropic
 		// filtering where the device has it
@@ -82,6 +85,7 @@ namespace Lodestone {
 		nvrhi::BindingLayoutHandle m_ViewLayout;
 		nvrhi::BindingLayoutHandle m_EnvironmentLayout;
 		nvrhi::BindingLayoutHandle m_MaterialLayout;
+		nvrhi::BindingLayoutHandle m_SkinLayout;
 
 		// By wrap U and wrap V (TextureWrap has three modes each) and filtering (linear or nearest): 3 x 3 x 2
 		std::array<nvrhi::SamplerHandle, 18> m_MaterialSamplers;

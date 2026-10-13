@@ -32,6 +32,8 @@ target_sources(LodestoneEditorLib PRIVATE
 	Lodestone/Editor/Mcp/StdioTransport.h
 	Lodestone/Editor/SceneView.cpp
 	Lodestone/Editor/SceneView.h
+	Lodestone/Editor/UI/AnimationPanel.cpp
+	Lodestone/Editor/UI/AnimationPanel.h
 	Lodestone/Editor/UI/ConsolePanel.cpp
 	Lodestone/Editor/UI/ConsolePanel.h
 	Lodestone/Editor/UI/ContentBrowserPanel.cpp

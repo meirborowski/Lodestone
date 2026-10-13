@@ -71,6 +71,8 @@ namespace Lodestone {
 
 		// Makes the light buffers hold at least these many lights and indices, growing them if they're smaller
 		[[nodiscard]] std::expected<void, Error> ReserveLights(size_t lightCount, size_t indexCount);
+		// Makes the joint buffer hold at least these many joint matrices, growing it if it's smaller
+		[[nodiscard]] std::expected<void, Error> ReserveJoints(size_t jointCount);
 
 	private:
 		nvrhi::IDevice* m_Device;
@@ -90,10 +92,12 @@ namespace Lodestone {
 		nvrhi::BufferHandle m_FrameConstants;
 		nvrhi::BufferHandle m_PunctualLights;
 		nvrhi::BufferHandle m_LightIndices;
+		nvrhi::BufferHandle m_JointMatrices;
 
 		// The renderer creates these from the images and buffers above, again whenever they change
 		bool m_BindingsValid = false;
 		nvrhi::BindingSetHandle m_ViewBindings;
+		nvrhi::BindingSetHandle m_SkinBindings;
 		nvrhi::BindingSetHandle m_OcclusionBindings;
 		nvrhi::BindingSetHandle m_BlurBindings;
 		nvrhi::BindingSetHandle m_TonemapBindings;

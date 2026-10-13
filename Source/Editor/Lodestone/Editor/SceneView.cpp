@@ -1,5 +1,6 @@
 #include "Lodestone/Editor/SceneView.h"
 
+#include "Lodestone/Animation/ScenePose.h"
 #include "Lodestone/Graphics/TextureReadback.h"
 #include "Lodestone/Renderer/RenderAssets.h"
 #include "Lodestone/Scene/Entity.h"
@@ -34,17 +35,24 @@ namespace Lodestone {
 		// Below this, a world matrix squashes its mesh flat and can't be inverted
 		constexpr float MinDeterminant = 1e-12f;
 
-		// GetWorldMatrix() only reads, but takes an entity handle, which needs a mutable scene
-		Entity MakeEntity(const Scene& scene, entt::entity handle)
+		// How the editor's scene is posed, with models from a lookup
+		ScenePose MakePose(const EditorContext& context, const ModelLookup& models)
 		{
-			return {handle, const_cast<Scene*>(&scene)}; // NOLINT(cppcoreguidelines-pro-type-const-cast)
+			PoseOptions options = context.GetPoseOptions();
+			options.Models = models;
+			return ScenePose(context.GetScene(), std::move(options));
 		}
 
-		// How far between the latest tick and the next play mode draws entities; editing draws them where they are
-		float GetInterpolationFactor(const EditorContext& context)
+		// A skinned mesh's bounds: each joint's bind-pose bounds, moved by the joint's matrix
+		BoundingBox GetSkinnedBounds(const ModelMesh& mesh, std::span<const glm::mat4> joints)
 		{
-			const Simulation* simulation = context.GetSimulation();
-			return simulation != nullptr ? simulation->GetInterpolationFactor() : 1.0f;
+			BoundingBox bounds;
+			for (const MeshJointBounds& joint : mesh.JointBounds)
+			{
+				if (joint.Joint < joints.size())
+					bounds.Add(joint.Bounds.Transform(joints[joint.Joint]));
+			}
+			return bounds;
 		}
 
 		// The mesh an entity draws, if it has one and its model is loaded
@@ -137,6 +145,43 @@ namespace Lodestone {
 					continue;
 				const auto distance = IntersectTriangle(localOrigin, localDirection, mesh.Vertices[a].Position,
 					mesh.Vertices[b].Position, mesh.Vertices[c].Position);
+				if (distance && (!nearest || *distance < *nearest))
+					nearest = distance;
+			}
+			return nearest;
+		}
+
+		// Where a ray hits a skinned mesh, posed by its joints' matrices: its vertices are skinned as the GPU skins
+		// them, and its triangles hit in the world
+		std::optional<float> IntersectSkinnedMesh(const ModelMesh& mesh, std::span<const glm::mat4> joints,
+			const glm::vec3& origin, const glm::vec3& direction)
+		{
+			if (mesh.Skin.size() != mesh.Vertices.size() ||
+				!GetSkinnedBounds(mesh, joints).Intersect(origin, direction))
+				return std::nullopt;
+			std::vector<glm::vec3> positions(mesh.Vertices.size());
+			for (size_t vertex = 0; vertex < positions.size(); ++vertex)
+			{
+				const SkinVertex& skinned = mesh.Skin[vertex];
+				glm::mat4 matrix(0.0f);
+				for (size_t influence = 0; influence < 4; ++influence)
+				{
+					const uint16_t joint = skinned.Joints[influence];
+					if (joint < joints.size())
+						matrix += joints[joint] * skinned.Weights[static_cast<glm::length_t>(influence)];
+				}
+				positions[vertex] = glm::vec3(matrix * glm::vec4(mesh.Vertices[vertex].Position, 1.0f));
+			}
+
+			std::optional<float> nearest;
+			for (size_t index = 0; index + 2 < mesh.Indices.size(); index += 3)
+			{
+				const uint32_t a = mesh.Indices[index];
+				const uint32_t b = mesh.Indices[index + 1];
+				const uint32_t c = mesh.Indices[index + 2];
+				if (a >= positions.size() || b >= positions.size() || c >= positions.size())
+					continue;
+				const auto distance = IntersectTriangle(origin, direction, positions[a], positions[b], positions[c]);
 				if (distance && (!nearest || *distance < *nearest))
 					nearest = distance;
 			}
@@ -245,6 +290,11 @@ namespace Lodestone {
 
 	SceneOverlay SceneView::BuildOverlay(const EditorContext& context, const ModelLookup& models)
 	{
+		return BuildOverlay(context, MakePose(context, models));
+	}
+
+	SceneOverlay SceneView::BuildOverlay(const EditorContext& context, const ScenePose& pose)
+	{
 		SceneOverlay overlay;
 		constexpr auto extent = static_cast<float>(GridHalfSize);
 		for (int line = -GridHalfSize; line <= GridHalfSize; ++line)
@@ -256,20 +306,24 @@ namespace Lodestone {
 				line == 0 ? AxisColorZ : GridColor);
 		}
 
-		// Where the scene is drawn, which while playing is between ticks
-		const Scene& scene = context.GetScene();
-		const entt::registry& registry = scene.GetRegistry();
+		// Where the scene is drawn: between ticks while playing, and animated
+		const ModelLookup& models = pose.GetOptions().Models;
+		const entt::registry& registry = context.GetScene().GetRegistry();
 		const UUID selection = context.GetSelection();
-		const float interpolationFactor = GetInterpolationFactor(context);
 		for (const auto [handle, id] : registry.view<const IDComponent>().each())
 		{
 			const bool selected = id.ID == selection;
-			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle), interpolationFactor);
+			const glm::mat4 world = pose.GetWorldMatrix(handle);
 			if (const ModelMesh* mesh = FindMesh(registry, handle, models))
 			{
 				// Meshes show themselves; the selected one is outlined
 				if (selected)
-					AddBox(overlay.OnTop, mesh->Bounds.Transform(world), SelectionColor);
+				{
+					const std::vector<glm::mat4> joints = pose.GetJointMatrices(handle);
+					AddBox(overlay.OnTop,
+						joints.empty() ? mesh->Bounds.Transform(world) : GetSkinnedBounds(*mesh, joints),
+						SelectionColor);
+				}
 				continue;
 			}
 
@@ -314,18 +368,22 @@ namespace Lodestone {
 		const glm::vec3 origin = glm::vec3(nearPoint) / nearPoint.w;
 		const glm::vec3 direction = glm::normalize(glm::vec3(farPoint) / farPoint.w - origin);
 
-		// Entities are hit where they're drawn, which while playing is between ticks
-		const Scene& scene = context.GetScene();
-		const entt::registry& registry = scene.GetRegistry();
-		const float interpolationFactor = GetInterpolationFactor(context);
+		// Entities are hit where they're drawn: between ticks while playing, and animated
+		const ScenePose pose = MakePose(context, models);
+		const entt::registry& registry = context.GetScene().GetRegistry();
 		UUID nearest;
 		float nearestDistance = std::numeric_limits<float>::max();
 		for (const auto [handle, id] : registry.view<const IDComponent>().each())
 		{
-			const glm::mat4 world = scene.GetWorldMatrix(MakeEntity(scene, handle), interpolationFactor);
+			const glm::mat4 world = pose.GetWorldMatrix(handle);
 			const ModelMesh* mesh = FindMesh(registry, handle, models);
-			const auto distance = mesh != nullptr ? IntersectMesh(*mesh, world, origin, direction)
-												  : MakeMarkerBox(glm::vec3(world[3])).Intersect(origin, direction);
+			std::optional<float> distance;
+			if (mesh == nullptr)
+				distance = MakeMarkerBox(glm::vec3(world[3])).Intersect(origin, direction);
+			else if (const std::vector<glm::mat4> joints = pose.GetJointMatrices(handle); !joints.empty())
+				distance = IntersectSkinnedMesh(*mesh, joints, origin, direction);
+			else
+				distance = IntersectMesh(*mesh, world, origin, direction);
 			if (distance && *distance < nearestDistance)
 			{
 				nearestDistance = *distance;
@@ -412,15 +470,21 @@ namespace Lodestone {
 	void SceneView::Render(const EditorContext& context, SceneRenderTarget& target)
 	{
 		SyncAssets(context);
-		const RenderWorld world = ExtractRenderWorld(context.GetScene(), GetInterpolationFactor(context));
-		const RenderView view = GetRenderView(context);
-		const glm::uvec2 size = target.GetSize();
-
 		nvrhi::IDevice* device = m_Device->GetNvrhiDevice();
 		m_CommandList->open();
+		// Posed with models loaded as the scene uses them, the upload recorded into this frame, as the renderer does
+		RenderAssets& assets = m_Renderer->GetAssets();
+		const ModelLookup loadModel = [this, &assets](UUID id) -> const Model*
+		{
+			const GpuModel* model = assets.GetModel(id, m_CommandList);
+			return model != nullptr ? &model->GetModel() : nullptr;
+		};
+		const ScenePose pose = MakePose(context, loadModel);
+		const RenderWorld world = ExtractRenderWorld(pose);
+		const RenderView view = GetRenderView(context);
+		const glm::uvec2 size = target.GetSize();
 		m_Renderer->Render(m_CommandList, target, world, view);
-		// After the scene, so the overlay can mark the models it just loaded
-		const SceneOverlay overlay = BuildOverlay(context, GetModelLookup());
+		const SceneOverlay overlay = BuildOverlay(context, pose);
 		const glm::mat4 viewProjection =
 			view.GetProjection(static_cast<float>(size.x) / static_cast<float>(size.y)) * view.View;
 		m_Lines->Render(m_CommandList, target.GetFramebuffer(), viewProjection, overlay.DepthTested, overlay.OnTop);

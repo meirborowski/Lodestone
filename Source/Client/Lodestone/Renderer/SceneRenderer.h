@@ -100,6 +100,9 @@ namespace Lodestone {
 			glm::mat4 World{1.0f};
 			BoundingBox Bounds;
 			bool Mirrored = false;
+			// Skinned by joints whose matrices start at JointOffset in the frame's joint buffer
+			bool Skinned = false;
+			uint32_t JointOffset = 0;
 			// Along the camera's forward direction, to the bounds' center
 			float ViewDepth = 0.0f;
 			uint32_t LightOffset = 0;
@@ -109,15 +112,17 @@ namespace Lodestone {
 		[[nodiscard]] std::expected<void, Error> CreatePipelines();
 		[[nodiscard]] std::expected<void, Error> CreateShadowMap();
 		// The pipeline for a pass and a material's kind, created the first time it's needed; null if it can't be
-		nvrhi::IGraphicsPipeline* GetMeshPipeline(MeshPass pass, AlphaMode alpha, bool doubleSided, bool mirrored);
+		nvrhi::IGraphicsPipeline* GetMeshPipeline(const Draw& draw, MeshPass pass);
 		[[nodiscard]] std::expected<void, Error> UpdateBindings(SceneRenderTarget& target) const;
 
 		void CollectDraws(const RenderWorld& world, const RenderView& view, const glm::mat4& viewProjection,
 			nvrhi::ICommandList* commandList, RenderStats& stats);
 		void AssignLights(const RenderWorld& world, const glm::vec3& cameraPosition, const glm::mat4& viewProjection);
+		// Draws in a pass, with the pass's binding sets; skinned draws add the joints' set
 		void DrawMeshes(nvrhi::ICommandList* commandList, MeshPass pass, const std::vector<Draw>& draws,
 			nvrhi::IFramebuffer* framebuffer, std::span<nvrhi::IBindingSet* const> sets,
-			const glm::mat4* shadowViewProjection, RenderStats& stats, RenderPass statsPass);
+			nvrhi::IBindingSet* skinBindings, const glm::mat4* shadowViewProjection, RenderStats& stats,
+			RenderPass statsPass);
 		void DrawFullscreen(nvrhi::ICommandList* commandList, nvrhi::IGraphicsPipeline* pipeline,
 			nvrhi::IFramebuffer* framebuffer, std::span<nvrhi::IBindingSet* const> sets, const void* constants,
 			size_t constantsSize, RenderStats& stats, RenderPass statsPass);
@@ -132,6 +137,8 @@ namespace Lodestone {
 
 		nvrhi::ShaderHandle m_MeshVertexShader;
 		nvrhi::ShaderHandle m_ShadowVertexShader;
+		nvrhi::ShaderHandle m_MeshSkinnedVertexShader;
+		nvrhi::ShaderHandle m_ShadowSkinnedVertexShader;
 		nvrhi::ShaderHandle m_ShadowMaskedPixelShader;
 		nvrhi::ShaderHandle m_PrepassPixelShader;
 		nvrhi::ShaderHandle m_PrepassMaskedPixelShader;
@@ -145,6 +152,8 @@ namespace Lodestone {
 		nvrhi::ShaderHandle m_TonemapPixelShader;
 		nvrhi::InputLayoutHandle m_MeshInputLayout;
 		nvrhi::InputLayoutHandle m_ShadowInputLayout;
+		nvrhi::InputLayoutHandle m_MeshSkinnedInputLayout;
+		nvrhi::InputLayoutHandle m_ShadowSkinnedInputLayout;
 
 		nvrhi::BindingLayoutHandle m_OcclusionLayout;
 		nvrhi::BindingLayoutHandle m_TonemapLayout;
@@ -152,8 +161,8 @@ namespace Lodestone {
 		nvrhi::GraphicsPipelineHandle m_BlurPipeline;
 		nvrhi::GraphicsPipelineHandle m_SkyPipeline;
 		nvrhi::GraphicsPipelineHandle m_TonemapPipeline;
-		// By pass (3), alpha mode (3), double-sidedness (2) and mirroring (2)
-		static constexpr size_t MeshPipelineCount = 36;
+		// By pass (3), alpha mode (3), double-sidedness (2), mirroring (2) and skinning (2)
+		static constexpr size_t MeshPipelineCount = 72;
 		std::array<nvrhi::GraphicsPipelineHandle, MeshPipelineCount> m_MeshPipelines;
 		std::array<bool, MeshPipelineCount> m_MeshPipelineFailed{};
 
