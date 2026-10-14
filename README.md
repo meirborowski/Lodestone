@@ -54,5 +54,8 @@ AI agents drive the editor through MCP. The repository's `.mcp.json` gives Claud
 - [Architecture](docs/Architecture.md), [Tech Stack & Build](docs/TechStack.md), [Code Style](docs/CodeStyle.md) and [Testing & CI](docs/Testing.md)
 - [Decisions](docs/Decisions/README.md) - why things are the way they are
 
+## License
+Lodestone is proprietary: copyright (c) 2026 Meir Borowski, all rights reserved. No license is granted to use, copy, modify or distribute it without written permission - see [LICENSE](LICENSE).
+
 ## Third-Party Software
 Lodestone's dependencies and their licenses are listed in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

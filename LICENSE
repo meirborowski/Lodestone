@@ -1,0 +1,20 @@
+Copyright (c) 2026 Meir Borowski. All rights reserved.
+
+Lodestone - its source code, documentation, tools, test assets and the other files in this
+repository, except the third-party software and assets described below (the "Software") - is
+proprietary. No license is granted to use, copy, modify, merge, publish, distribute, sublicense or
+sell the Software, in whole or in part, or to create derivative works of it, without the prior
+written permission of the copyright holder.
+
+The Software is published in a public GitHub repository. GitHub's Terms of Service allow GitHub's
+users to view and fork it on GitHub; no other rights are granted.
+
+Third-party software and assets, whether in this repository or downloaded by the build, are not
+part of the Software. They are licensed under their own terms, listed in THIRD_PARTY_LICENSES.md,
+and nothing in this notice limits the rights those licenses grant.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
