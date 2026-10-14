@@ -304,6 +304,10 @@ target_compile_definitions(lua PRIVATE
 	$<$<NOT:$<PLATFORM_ID:Windows>>:LUA_USE_POSIX>
 	# Check arguments passed to the Lua C API in Debug builds
 	$<$<CONFIG:Debug>:LUA_USE_APICHECK>
+	# A fixed string hash seed, so tables iterate in the same order every run, as the simulation needs (see
+	# docs/Decisions/0022-scripting.md). Lua otherwise mixes the time and addresses into it. lstate.c calls
+	# luai_makeseed(L), which this makes 0 * sizeof(L): zero
+	"luai_makeseed=0 * sizeof"
 )
 
 # Lua and sol2, configured the way Lodestone uses them

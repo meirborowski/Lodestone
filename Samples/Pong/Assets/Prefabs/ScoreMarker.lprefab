@@ -1,0 +1,42 @@
+{
+  "format": "Lodestone.Prefab",
+  "version": 1,
+  "entities": [
+    {
+      "components": {
+        "ID": {
+          "ID": "086b6383-faa9-43e9-a994-aacf31ae1817"
+        },
+        "Name": {
+          "Name": "Score Marker"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            0.3,
+            0.3,
+            0.3
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 1,
+          "CastShadows": true
+        }
+      }
+    }
+  ]
+}

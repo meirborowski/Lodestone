@@ -47,6 +47,8 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Core/Log.h
 	Lodestone/Core/RandomGenerator.cpp
 	Lodestone/Core/RandomGenerator.h
+	Lodestone/Core/Rotation.cpp
+	Lodestone/Core/Rotation.h
 	Lodestone/Core/RunMain.cpp
 	Lodestone/Core/RunMain.h
 	Lodestone/Core/UUID.cpp
@@ -73,6 +75,19 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Reflection/FieldValue.cpp
 	Lodestone/Reflection/FieldValue.h
 	Lodestone/Reflection/SnapshotArchive.h
+	Lodestone/Scripting/LuaAnnotations.cpp
+	Lodestone/Scripting/LuaAnnotations.h
+	Lodestone/Scripting/LuaApi.lua
+	Lodestone/Scripting/ScriptAssets.cpp
+	Lodestone/Scripting/ScriptAssets.h
+	Lodestone/Scripting/ScriptBindings.cpp
+	Lodestone/Scripting/ScriptBindings.h
+	Lodestone/Scripting/ScriptComponents.cpp
+	Lodestone/Scripting/ScriptComponents.h
+	Lodestone/Scripting/ScriptRuntime.cpp
+	Lodestone/Scripting/ScriptRuntime.h
+	Lodestone/Scripting/ScriptSystem.cpp
+	Lodestone/Scripting/ScriptSystem.h
 	Lodestone/Scene/Components.cpp
 	Lodestone/Scene/Components.h
 	Lodestone/Scene/Entity.h
@@ -97,9 +112,24 @@ target_sources(LodestoneCore PRIVATE
 	ThirdPartyConfig/entt/ext/config.h
 )
 
+# sol2's templates give the files that bind the scripting API more sections than MSVC's default object format holds
+if(MSVC)
+	set_source_files_properties(
+		Lodestone/Scripting/ScriptBindings.cpp Lodestone/Scripting/ScriptRuntime.cpp Lodestone/Scripting/ScriptSystem.cpp
+		PROPERTIES COMPILE_OPTIONS /bigobj)
+endif()
+
 set(LS_CORE_GENERATED_DIR "${PROJECT_BINARY_DIR}/Generated/Core")
 configure_file(Lodestone/Core/Version.h.in "${LS_CORE_GENERATED_DIR}/Lodestone/Core/Version.h" @ONLY)
 target_sources(LodestoneCore PRIVATE "${LS_CORE_GENERATED_DIR}/Lodestone/Core/Version.h")
+
+# The scripting API's hand-written annotations, embedded as character literals for LuaAnnotations.cpp. Configuring again
+# when the file changes keeps the copy current
+set(LS_LUA_API "${CMAKE_CURRENT_SOURCE_DIR}/Lodestone/Scripting/LuaApi.lua")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LS_LUA_API}")
+file(READ "${LS_LUA_API}" LS_LUA_API_HEX HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "'\\\\x\\1'," LS_LUA_API_CHARACTERS "${LS_LUA_API_HEX}")
+file(CONFIGURE OUTPUT "${LS_CORE_GENERATED_DIR}/Lodestone/Scripting/LuaApi.inc" CONTENT "${LS_LUA_API_CHARACTERS}\n")
 
 target_include_directories(LodestoneCore PUBLIC
 	"${CMAKE_CURRENT_SOURCE_DIR}"
@@ -117,7 +147,7 @@ target_compile_definitions(LodestoneCore PUBLIC
 
 target_link_libraries(LodestoneCore
 	PUBLIC spdlog::spdlog glm::glm EnTT::EnTT nlohmann_json::nlohmann_json
-	PRIVATE stb::stb cgltf::cgltf Jolt::Jolt
+	PRIVATE stb::stb cgltf::cgltf Jolt::Jolt Lodestone::Lua
 )
 
 ls_configure_target(LodestoneCore)

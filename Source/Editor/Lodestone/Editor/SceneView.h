@@ -35,6 +35,15 @@ namespace Lodestone {
 		std::vector<LineVertex> OnTop;
 	};
 
+	// Which camera a capture sees the scene from
+	enum class CaptureCamera
+	{
+		// The editor camera, with the editor's overlay: what the viewport shows
+		Editor,
+		// The scene's primary camera, without the overlay: what the game shows
+		Scene,
+	};
+
 	// Renders the open document from the editor camera with the scene renderer, with the editor's overlay on top - a
 	// ground grid, a marker for each entity that draws nothing of its own (lights, cameras, empty entities), and the
 	// selection outlined. It renders into the viewport's target each frame, and into a separate one for screenshots,
@@ -68,8 +77,9 @@ namespace Lodestone {
 		[[nodiscard]] std::expected<nvrhi::ITexture*, Error> PrepareViewport(glm::uvec2 size);
 		// Renders into the viewport's render target, if PrepareViewport() created it
 		void RenderViewport(const EditorContext& context);
-		// Renders an image of a size and reads it back
-		[[nodiscard]] std::expected<Image, Error> Capture(const EditorContext& context, glm::uvec2 size);
+		// Renders an image of a size and reads it back. From the scene's camera, it fails if the scene has none
+		[[nodiscard]] std::expected<Image, Error> Capture(
+			const EditorContext& context, glm::uvec2 size, CaptureCamera camera = CaptureCamera::Editor);
 
 		// The latest frame's stats: the viewport's, or for an editor without one, the latest screenshot's. Empty
 		// before anything renders
@@ -98,7 +108,8 @@ namespace Lodestone {
 		void SyncAssets(const EditorContext& context);
 		// Notes when an asset's file last changed, as it's loaded
 		void RecordWriteTime(const AssetRegistry& registry, UUID id);
-		void Render(const EditorContext& context, SceneRenderTarget& target);
+		// Whether there was a camera to render from: the scene may have none
+		bool Render(const EditorContext& context, SceneRenderTarget& target, CaptureCamera camera);
 
 	private:
 		GraphicsDevice* m_Device;

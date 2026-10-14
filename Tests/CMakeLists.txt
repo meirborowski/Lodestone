@@ -6,6 +6,9 @@
 #
 # Each test executable links only what it tests: LodestoneCore tests run without a window, GPU or audio device.
 
+# Python runs the test scripts in tools/ and Tests/
+find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter)
+
 # Helpers shared by the test executables
 add_library(LodestoneTestSupport STATIC
 	Common/LogCapture.cpp
@@ -31,6 +34,8 @@ target_compile_definitions(LodestoneTestSupport
 		DOCTEST_CONFIG_USE_STD_HEADERS
 		# Files that tests load: documents in older format versions, scenes and asset metadata
 		LS_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
+		# The sample games, which tests play and check
+		LS_SAMPLES_DIR="${PROJECT_SOURCE_DIR}/Samples"
 	PRIVATE
 		# Reference images are stored with Git LFS; failed comparisons are written to the build tree, which CI uploads
 		LS_REFERENCE_IMAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ReferenceImages"
@@ -89,6 +94,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/JsonTests.cpp
 		Core/LanguageSupportTests.cpp
 		Core/LogTests.cpp
+		Core/LuaAnnotationsTests.cpp
 		Core/ModelCacheTests.cpp
 		Core/ModelEntitiesTests.cpp
 		Core/ModelImporterTests.cpp
@@ -99,10 +105,13 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
 		Core/RenderComponentsTests.cpp
+		Core/RotationTests.cpp
 		Core/RunMainTests.cpp
 		Core/ScenePoseTests.cpp
 		Core/SceneSerializerTests.cpp
 		Core/SceneTests.cpp
+		Core/ScriptSystemTests.cpp
+		Core/ScriptingApiTests.cpp
 		Core/SimulationTests.cpp
 		Core/UUIDTests.cpp
 		Scripting/LuaSmokeTests.cpp
@@ -182,18 +191,19 @@ if(TARGET LodestoneEditorLib)
 
 	# MCP over real connections: the HTTP transport on a loopback port, in-process; and the editor executable
 	# driven over stdio and HTTP by a separate client, as an agent would - including the agent smoke test that builds a
-	# scene with MCP tools alone (Milestone 4's acceptance test)
+	# scene with MCP tools alone (Milestone 4's acceptance test). And the sample games, played in play mode from start
+	# to finish (Milestone 8's)
 	ls_add_test_executable(LodestoneEditorIntegrationTests
 		PREFIX Editor
 		LABELS integration
 		SOURCES
 			Editor/HttpTransportTests.cpp
+			Editor/SampleGameTests.cpp
 		LIBRARIES
 			LodestoneEditorLib
 			httplib
 	)
 
-	find_package(Python3 3.12 REQUIRED COMPONENTS Interpreter)
 	foreach(transport IN ITEMS stdio http)
 		set(name "Editor.Agent smoke test over ${transport}")
 		set(arguments --editor "$<TARGET_FILE:LodestoneEditor>" --transport ${transport}
@@ -257,6 +267,34 @@ ls_add_test_executable(LodestoneFuzzTests
 	SOURCES
 		Fuzz/LoaderFuzzTests.cpp
 )
+
+# Scripts type-check against the engine's annotations with lua-language-server (tools/check-lua.py): the test and
+# sample scripts, which must have no problems, and scripts full of marked mistakes, which must have exactly those
+if(LS_LUALS_EXECUTABLE)
+	foreach(check IN ITEMS Scripts Mistakes)
+		if(check STREQUAL "Scripts")
+			set(name "Scripting.Scripts type-check against the annotations")
+			set(arguments "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/Scripting" "${PROJECT_SOURCE_DIR}/Samples/Pong")
+		else()
+			set(name "Scripting.The script type-check finds mistakes")
+			set(arguments --expect-marked "${CMAKE_CURRENT_SOURCE_DIR}/Fixtures/ScriptingMistakes")
+		endif()
+		add_test(NAME "${name}"
+			COMMAND Python3::Interpreter -I "${PROJECT_SOURCE_DIR}/tools/check-lua.py" --luals "${LS_LUALS_EXECUTABLE}"
+				--work-dir "${CMAKE_CURRENT_BINARY_DIR}/LuaCheck/${check}" ${arguments}
+		)
+		set_tests_properties("${name}" PROPERTIES LABELS unit TIMEOUT 300)
+	endforeach()
+else()
+	# Skipped rather than silently missing, so the reason shows in every test run
+	add_test(NAME "Scripting.Scripts type-check against the annotations"
+		COMMAND "${CMAKE_COMMAND}" -E echo "Skipped: ${LS_LUALS_UNAVAILABLE_REASON}"
+	)
+	set_tests_properties("Scripting.Scripts type-check against the annotations" PROPERTIES
+		LABELS unit
+		SKIP_REGULAR_EXPRESSION "Skipped:"
+	)
+endif()
 
 # The default assert handler ends the process, so it's tested from a separate executable
 add_executable(LodestoneAssertAbortTest Core/AssertAbortTestMain.cpp)

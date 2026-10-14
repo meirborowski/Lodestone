@@ -11,7 +11,7 @@ Lodestone is under construction, milestone by milestone - see [Milestones](docs/
 ### Prerequisites
 - CMake 3.28+ and Ninja
 - Git LFS (`git lfs install` once, before cloning)
-- Python 3.12+, for the code style scripts and the editor's MCP end-to-end tests
+- Python 3.12+, for the code style scripts, the script type-check and the editor's MCP end-to-end tests
 - A C++23 compiler:
   - **Windows** - Visual Studio 2026 (MSVC Build Tools 14.50+) with the "Desktop development with C++" workload
   - **macOS** - Xcode 16.3+
@@ -45,7 +45,7 @@ python tools/tidy.py --build-dir build/debug
 ```sh
 build/debug/Source/Editor/LodestoneEditor [--project <directory>]
 ```
-Create or open a project from the File menu, then build scenes in the viewport, hierarchy and inspector (see [Editor](docs/Features/Editor.md)).
+Create or open a project from the File menu, then build scenes in the viewport, hierarchy and inspector, and script them in Lua (see [Editor](docs/Features/Editor.md) and [Scripting](docs/Features/Scripting.md)). [Samples/Pong](Samples/Pong) is a small game to start from.
 
 AI agents drive the editor through MCP. The repository's `.mcp.json` gives Claude Code two servers: `lodestone-editor`, which attaches to a running editor over HTTP on `127.0.0.1:7850`, and `lodestone-headless`, which starts a headless editor of its own over stdio (`--headless --mcp-stdio`). See [AI Control](docs/AIControl.md) for the tools.
 

@@ -1,0 +1,91 @@
+-- The math types: vec2, vec3, vec4 and quat
+
+local Check = require("Scripts.Check")
+
+---@class MathTest : Behavior
+local MathTest = {}
+
+function MathTest:OnCreate()
+	-- vec2
+	Check.Equal(vec2(), vec2(0, 0), "vec2()")
+	Check.Equal(vec2(2), vec2(2, 2), "vec2(s)")
+	local a = vec2(3, 4)
+	Check.Equal(a.x + a.y, 7, "vec2 components")
+	Check.Equal(a + vec2(1, 1), vec2(4, 5), "vec2 +")
+	Check.Equal(a - vec2(1, 1), vec2(2, 3), "vec2 -")
+	Check.Equal(a * vec2(2, 3), vec2(6, 12), "vec2 * vec2")
+	Check.Equal(a * 2, vec2(6, 8), "vec2 * number")
+	Check.Equal(2 * a, vec2(6, 8), "number * vec2")
+	Check.Equal(a / vec2(3, 4), vec2(1, 1), "vec2 / vec2")
+	Check.Equal(a / 2, vec2(1.5, 2), "vec2 / number")
+	Check.Equal(-a, vec2(-3, -4), "-vec2")
+	Check.Equal(a:Length(), 5, "vec2:Length")
+	Check.Near(a:Normalized(), vec2(0.6, 0.8), "vec2:Normalized")
+	Check.Equal(vec2():Normalized(), vec2(), "a zero vec2 normalized")
+	Check.Equal(a:Dot(vec2(1, 2)), 11, "vec2:Dot")
+	Check.Equal(a:Distance(vec2(0, 0)), 5, "vec2:Distance")
+	Check.Equal(a:Lerp(vec2(5, 6), 0.5), vec2(4, 5), "vec2:Lerp")
+	Check.Equal(tostring(vec2(1, 2)), "vec2(1, 2)", "tostring(vec2)")
+
+	-- vec3
+	Check.Equal(vec3(), vec3(0, 0, 0), "vec3()")
+	Check.Equal(vec3(1), vec3(1, 1, 1), "vec3(s)")
+	local b = vec3(1, 2, 2)
+	Check.Equal(b.x + b.y + b.z, 5, "vec3 components")
+	Check.Equal(b + vec3(1), vec3(2, 3, 3), "vec3 +")
+	Check.Equal(b - vec3(1), vec3(0, 1, 1), "vec3 -")
+	Check.Equal(b * vec3(2), vec3(2, 4, 4), "vec3 * vec3")
+	Check.Equal(b * 3, vec3(3, 6, 6), "vec3 * number")
+	Check.Equal(3 * b, vec3(3, 6, 6), "number * vec3")
+	Check.Equal(b / vec3(1, 2, 2), vec3(1), "vec3 / vec3")
+	Check.Equal(b / 2, vec3(0.5, 1, 1), "vec3 / number")
+	Check.Equal(-b, vec3(-1, -2, -2), "-vec3")
+	Check.Equal(b:Length(), 3, "vec3:Length")
+	Check.Near(b:Normalized(), vec3(1 / 3, 2 / 3, 2 / 3), "vec3:Normalized")
+	Check.Equal(b:Dot(vec3(1, 1, 1)), 5, "vec3:Dot")
+	Check.Equal(vec3(1, 0, 0):Cross(vec3(0, 1, 0)), vec3(0, 0, 1), "vec3:Cross")
+	Check.Equal(b:Distance(vec3(1, 2, 0)), 2, "vec3:Distance")
+	Check.Equal(b:Lerp(vec3(3, 4, 4), 0.5), vec3(2, 3, 3), "vec3:Lerp")
+	Check.Equal(tostring(vec3(1, 2, 3)), "vec3(1, 2, 3)", "tostring(vec3)")
+
+	-- vec4
+	Check.Equal(vec4(), vec4(0, 0, 0, 0), "vec4()")
+	Check.Equal(vec4(1), vec4(1, 1, 1, 1), "vec4(s)")
+	local c = vec4(2, 0, 0, 0)
+	Check.Equal(c.x + c.y + c.z + c.w, 2, "vec4 components")
+	Check.Equal(c + vec4(1), vec4(3, 1, 1, 1), "vec4 +")
+	Check.Equal(c - vec4(1), vec4(1, -1, -1, -1), "vec4 -")
+	Check.Equal(c * vec4(2), vec4(4, 0, 0, 0), "vec4 * vec4")
+	Check.Equal(c * 2, vec4(4, 0, 0, 0), "vec4 * number")
+	Check.Equal(2 * c, vec4(4, 0, 0, 0), "number * vec4")
+	Check.Equal(c / vec4(2), vec4(1, 0, 0, 0), "vec4 / vec4")
+	Check.Equal(c / 2, vec4(1, 0, 0, 0), "vec4 / number")
+	Check.Equal(-c, vec4(-2, 0, 0, 0), "-vec4")
+	Check.Equal(c:Length(), 2, "vec4:Length")
+	Check.Equal(c:Normalized(), vec4(1, 0, 0, 0), "vec4:Normalized")
+	Check.Equal(c:Dot(vec4(3, 1, 1, 1)), 6, "vec4:Dot")
+	Check.Equal(c:Distance(vec4(0, 0, 0, 0)), 2, "vec4:Distance")
+	Check.Equal(c:Lerp(vec4(4, 0, 0, 0), 0.5), vec4(3, 0, 0, 0), "vec4:Lerp")
+	Check.Equal(tostring(vec4(1, 2, 3, 4)), "vec4(1, 2, 3, 4)", "tostring(vec4)")
+
+	-- quat
+	local identity = quat()
+	Check.Equal(identity, quat(1, 0, 0, 0), "quat()")
+	Check.Equal(identity.w + identity.x + identity.y + identity.z, 1, "quat components")
+	local turn = quat.AngleAxis(90, vec3(0, 1, 0))
+	Check.Near(turn * vec3(0, 0, -1), vec3(-1, 0, 0), "a quarter turn around Y")
+	Check.Near(turn * turn * vec3(0, 0, -1), vec3(0, 0, 1), "quat * quat")
+	Check.Near(quat.FromEuler(vec3(0, 90, 0)) * vec3(0, 0, -1), vec3(-1, 0, 0), "quat.FromEuler")
+	Check.Near(turn:ToEuler(), vec3(0, 90, 0), "quat:ToEuler", 1e-3)
+	Check.Near(turn:Inverse() * turn * vec3(1, 2, 3), vec3(1, 2, 3), "quat:Inverse")
+	Check.Near(quat(2, 0, 0, 0):Normalized(), quat(), "quat:Normalized")
+	Check.Near(identity:Slerp(turn, 0.5) * vec3(0, 0, -1), vec3(-math.sqrt(0.5), 0, -math.sqrt(0.5)), "quat:Slerp")
+	Check.Near(quat.LookRotation(vec3(1, 0, 0)) * vec3(0, 0, -1), vec3(1, 0, 0), "quat.LookRotation")
+	Check.Near(quat.LookRotation(vec3(0, 0, 1), vec3(0, 1, 0)) * vec3(0, 0, -1), vec3(0, 0, 1), "quat.LookRotation with up")
+	Check.Equal(quat.AngleAxis(45, vec3()), quat(), "a rotation around no axis")
+	Check.Equal(tostring(quat()), "quat(1, 0, 0, 0)", "tostring(quat)")
+
+	self.Entity:SetName("Passed")
+end
+
+return MathTest

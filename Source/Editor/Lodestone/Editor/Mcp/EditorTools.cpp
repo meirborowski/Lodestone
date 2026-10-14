@@ -8,6 +8,9 @@
 #include "Lodestone/Input/InputCodes.h"
 #include "Lodestone/Physics/PhysicsWorld.h"
 #include "Lodestone/Scene/Entity.h"
+#include "Lodestone/Scripting/LuaAnnotations.h"
+#include "Lodestone/Scripting/ScriptAssets.h"
+#include "Lodestone/Scripting/ScriptSystem.h"
 
 #include <glm/geometric.hpp>
 #include <glm/vec4.hpp>
@@ -766,8 +769,11 @@ namespace Lodestone {
 
 			server.AddTool({.Name = "component_set",
 				.Title = "Set component fields",
-				.Description = "Sets fields of an entity's component, such as {\"Position\": [1, 0, 2]} for Transform. "
-							   "Vectors are arrays, rotations are quaternions [x, y, z, w], UUIDs are strings",
+				.Description =
+					"Sets fields of an entity's component, such as {\"Position\": [1, 0, 2]} for Transform. "
+					"Vectors are arrays, UUIDs are strings, and rotations are quaternions [x, y, z, w] or Euler "
+					"angles in degrees, as the inspector shows them: {\"degrees\": [x, y, z]}, turning around X, "
+					"then Y, then Z",
 				.InputSchema = Schema(R"({"type": "object", "properties": {
 					"entity": {"type": "string", "description": "UUID"},
 					"component": {"type": "string"},
@@ -1125,34 +1131,43 @@ namespace Lodestone {
 			server.AddTool({.Name = "viewport_screenshot",
 				.Title = "Screenshot the viewport",
 				.Description =
-					"Renders the open document from the editor camera and returns it as a PNG: the scene as "
-					"it's lit and shaded, with the editor's overlay - a ground grid, a marker for each entity "
-					"that draws nothing itself (lights yellow, cameras blue, others grey), and the selection "
-					"outlined in orange",
+					"Renders the open document and returns it as a PNG: the scene as it's lit and shaded. From the "
+					"editor camera (see camera_set), with the editor's overlay - a ground grid, a marker for each "
+					"entity that draws nothing itself (lights yellow, cameras blue, others grey), and the selection "
+					"outlined in orange; or from the scene's primary camera, as the game shows it",
 				.InputSchema = Schema(R"({"type": "object", "properties": {
 					"width": {"type": "integer", "minimum": 16, "maximum": 4096, "description": "1280 by default"},
-					"height": {"type": "integer", "minimum": 16, "maximum": 4096, "description": "720 by default"}}})"),
+					"height": {"type": "integer", "minimum": 16, "maximum": 4096, "description": "720 by default"},
+					"camera": {"type": "string", "enum": ["editor", "scene"], "description": "editor by default"}}})"),
 				.ReadOnly = true,
 				.Handler = [capture = std::move(capture)](const Json::Value& json)
 				{
 					const Arguments arguments(json);
 					const auto width = arguments.UInt("width", 1280, MinScreenshotSize, MaxScreenshotSize);
 					const auto height = arguments.UInt("height", 720, MinScreenshotSize, MaxScreenshotSize);
+					const auto cameraName = arguments.OptionalString("camera");
 					if (!width)
 						return Fail(width.error());
 					if (!height)
 						return Fail(height.error());
+					if (!cameraName)
+						return Fail(cameraName.error());
+					const std::string camera = cameraName->value_or("editor");
+					if (camera != "editor" && camera != "scene")
+						return Fail(ArgumentError("'camera' is editor or scene"));
 					if (!capture)
 						return McpToolResult::Failure(
 							"Screenshots aren't available: the editor has no graphics device");
-					const auto image = capture(*width, *height);
+					const auto image =
+						capture(*width, *height, camera == "scene" ? CaptureCamera::Scene : CaptureCamera::Editor);
 					if (!image)
 						return Fail(image.error());
 					const auto png = image->EncodePng();
 					if (!png)
 						return Fail(png.error());
-					return McpToolResult::Image(
-						EncodeBase64(*png), "image/png", fmt::format("The viewport, {}x{} pixels", *width, *height));
+					return McpToolResult::Image(EncodeBase64(*png), "image/png",
+						fmt::format("{}, {}x{} pixels", camera == "scene" ? "The scene's camera" : "The viewport",
+							*width, *height));
 				}});
 
 			server.AddTool({.Name = "camera_set",
@@ -1467,6 +1482,105 @@ namespace Lodestone {
 				}});
 		}
 
+		std::expected<std::filesystem::path, Error> ResolveScriptPath(
+			const EditorContext& context, std::string_view path)
+		{
+			auto resolved = context.ResolveAssetPath(path);
+			if (resolved && resolved->extension() != ".lua")
+				return std::unexpected(
+					Error(ErrorCode::InvalidArgument, fmt::format("'{}' must have the .lua extension", path)));
+			return resolved;
+		}
+
+		void AddScriptTools(McpServer& server, EditorContext& context)
+		{
+			server.AddTool({.Name = "script_write",
+				.Title = "Write a script",
+				.Description =
+					"Creates or replaces a Lua script in the project's assets. It's compiled first: a syntax error "
+					"comes back with its line, and nothing is written. In play mode, the scripts load again at once, "
+					"keeping their instances' fields. Returns the script's asset UUID, which a Script component "
+					"names. script_api has the API scripts use",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"path": {"type": "string", "description": "Where it goes, relative to the project's Assets directory, ending in .lua, such as Scripts/Paddle.lua. Other scripts require it by that path with dots for slashes and no extension: Scripts.Paddle"},
+					"source": {"type": "string", "description": "The script's Lua source"}},
+					"required": ["path", "source"]})"),
+				.Handler = [&context](const Json::Value& json)
+				{
+					const Arguments arguments(json);
+					const auto path = arguments.String("path");
+					const auto source = arguments.String("source");
+					if (!path)
+						return Fail(path.error());
+					if (!source)
+						return Fail(source.error());
+					const auto destination = ResolveScriptPath(context, *path);
+					if (!destination)
+						return Fail(destination.error());
+					if (source->size() > ProjectScriptAssets::MaxScriptSize)
+						return McpToolResult::Failure(fmt::format("The script is {} bytes; scripts can be {} at most",
+							source->size(), ProjectScriptAssets::MaxScriptSize));
+					if (auto compiled = ScriptSystem::CheckSyntax(*source, *path); !compiled)
+						return Fail(compiled.error());
+
+					std::error_code error;
+					std::filesystem::create_directories(destination->parent_path(), error);
+					if (error)
+						return McpToolResult::Failure(fmt::format(
+							"Can't create the directory {}: {}", destination->parent_path(), error.message()));
+					if (auto written = WriteFileAtomically(*destination, *source); !written)
+						return Fail(written.error());
+					if (auto scanned = context.ScanAssets(); !scanned)
+						return Fail(scanned.error());
+					const AssetInfo* asset = context.GetAssets()->FindByPath(PathFromUtf8(*path));
+					if (asset == nullptr)
+						return McpToolResult::Failure(
+							fmt::format("{} was written but couldn't be registered (see the log)", *path));
+					const bool reloaded = context.GetPlayState() != PlayState::Editing;
+					context.ReloadScripts();
+					return McpToolResult::Structured(
+						{{"id", asset->Metadata.Id.ToString()}, {"path", asset->Path}, {"reloaded", reloaded}});
+				}});
+
+			server.AddTool({.Name = "script_read",
+				.Title = "Read a script",
+				.Description = "A Lua script from the project's assets: its source, and its asset UUID",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"path": {"type": "string", "description": "Relative to the project's Assets directory, such as Scripts/Paddle.lua"}},
+					"required": ["path"]})"),
+				.ReadOnly = true,
+				.Handler = [&context](const Json::Value& json)
+				{
+					const auto path = Arguments(json).String("path");
+					if (!path)
+						return Fail(path.error());
+					const auto file = ResolveScriptPath(context, *path);
+					if (!file)
+						return Fail(file.error());
+					auto source = ReadFile(*file, ProjectScriptAssets::MaxScriptSize);
+					if (!source)
+						return Fail(source.error());
+					const AssetInfo* asset = context.GetAssets()->FindByPath(PathFromUtf8(*path));
+					return McpToolResult::Structured(
+						{{"id", asset != nullptr ? Json::Value(asset->Metadata.Id.ToString()) : Json::Value()},
+							{"path", *path}, {"source", std::move(*source)}});
+				}});
+
+			server.AddTool({.Name = "script_api",
+				.Title = "Scripting API",
+				.Description =
+					"The scripting API, as lua-language-server annotations: the global tables (Scene, Input, "
+					"Physics, Animation, Time, Log), the math types (vec2, vec3, vec4, quat), Entity, each component "
+					"with its fields, and the Behavior callbacks a script's table can have (OnCreate, OnUpdate, "
+					"OnDestroy, OnCollisionBegin, OnCollisionEnd, OnTriggerEnter, OnTriggerExit, OnReload). A script "
+					"returns its table; a Script component runs it on an entity, with its Properties (JSON) "
+					"overriding the table's Properties defaults",
+				.InputSchema = Schema(R"({"type": "object", "properties": {}})"),
+				.ReadOnly = true,
+				.Handler = [&context](const Json::Value&)
+				{ return McpToolResult::Text(GenerateLuaAnnotations(context.GetScene().GetComponentRegistry())); }});
+		}
+
 		Json::Value DescribeHit(const Scene& scene, const RaycastHit& hit)
 		{
 			const auto* name = scene.GetRegistry().try_get<NameComponent>(scene.FindHandle(hit.Entity));
@@ -1588,6 +1702,7 @@ namespace Lodestone {
 		AddPlayTools(server, context);
 		AddAnimationTools(server, context);
 		AddPhysicsTools(server, context);
+		AddScriptTools(server, context);
 		AddViewTools(server, context, std::move(host.Capture), std::move(host.GetRenderStats));
 		AddLogAndAssetTools(server, context);
 	}

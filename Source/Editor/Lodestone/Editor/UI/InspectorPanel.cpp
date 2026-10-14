@@ -2,6 +2,7 @@
 
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Core/Log.h"
+#include "Lodestone/Core/Rotation.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Editor/UI/UIHelpers.h"
 #include "Lodestone/Serialization/Json.h"
@@ -184,15 +185,12 @@ namespace Lodestone {
 				auto& rotation = std::get<glm::quat>(value);
 				const std::string key = type.GetName() + "." + field.GetName();
 				if (!m_Euler || m_Euler->Entity != id || m_Euler->Field != key || m_Euler->Rotation != rotation)
-					m_Euler = EulerAngles{.Entity = id,
-						.Field = key,
-						.Rotation = rotation,
-						// Adding zero turns -0 into 0, which shows better
-						.Degrees = glm::degrees(glm::eulerAngles(rotation)) + glm::vec3(0.0f)};
+					m_Euler = EulerAngles{
+						.Entity = id, .Field = key, .Rotation = rotation, .Degrees = EulerFromQuaternion(rotation)};
 				if (!ImGui::DragFloat3(
 						label.c_str(), glm::value_ptr(m_Euler->Degrees), AngleDragSpeed, 0.0f, 0.0f, "%.1f\xC2\xB0"))
 					return false;
-				rotation = glm::normalize(glm::quat(glm::radians(m_Euler->Degrees)));
+				rotation = glm::normalize(QuaternionFromEuler(m_Euler->Degrees));
 				m_Euler->Rotation = rotation;
 				return true;
 			}

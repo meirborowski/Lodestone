@@ -53,7 +53,7 @@ namespace Lodestone {
 		CHECK(ToString(GamepadAxis::RightTrigger) == "RightTrigger");
 	}
 
-	TEST_CASE("Every key and mouse button is found by its name")
+	TEST_CASE("Every key, mouse button and gamepad button and axis is found by its name")
 	{
 		for (int code = 0; std::cmp_less(code, KeyCodeCount); ++code)
 		{
@@ -68,9 +68,19 @@ namespace Lodestone {
 			const auto button = static_cast<MouseButton>(index);
 			CHECK(MouseButtonFromName(ToString(button)) == button);
 		}
+		for (uint32_t index = 0; index < GamepadButtonCount; ++index)
+		{
+			const auto button = static_cast<GamepadButton>(index);
+			CHECK(GamepadButtonFromName(ToString(button)) == button);
+		}
+		for (uint32_t index = 0; index < GamepadAxisCount; ++index)
+		{
+			const auto axis = static_cast<GamepadAxis>(index);
+			CHECK(GamepadAxisFromName(ToString(axis)) == axis);
+		}
 	}
 
-	TEST_CASE("Names that aren't keys or mouse buttons aren't found")
+	TEST_CASE("Names that aren't keys, buttons or axes aren't found")
 	{
 		// Names are case-sensitive
 		for (const std::string_view name : {"", "w", "SPACE", "Unknown", "Key", "Left ", "Button9"})
@@ -78,7 +88,11 @@ namespace Lodestone {
 			CAPTURE(name);
 			CHECK_FALSE(KeyFromName(name).has_value());
 			CHECK_FALSE(MouseButtonFromName(name).has_value());
+			CHECK_FALSE(GamepadButtonFromName(name).has_value());
+			CHECK_FALSE(GamepadAxisFromName(name).has_value());
 		}
+		CHECK(GamepadButtonFromName("a").has_value() == false);
+		CHECK(GamepadAxisFromName("LeftX") == GamepadAxis::LeftX);
 		CHECK(KeyFromName("Left") == Key::Left);
 		CHECK(MouseButtonFromName("Left") == MouseButton::Left);
 	}

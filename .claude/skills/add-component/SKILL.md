@@ -35,4 +35,6 @@ In `Tests/Core` (or the module's test executable):
 - If systems change it during the simulation: restoring a snapshot and re-simulating the same input commands gives the same result
 - Any custom handling
 
+Scripts reach the component through reflection, and the scripting API's annotations get a class for it: update the committed copies by running `LodestoneCoreTests` with `LS_UPDATE_LUA_ANNOTATIONS=1` (see the `add-script-binding` skill).
+
 Then follow `build-and-test` and `ship-change`.

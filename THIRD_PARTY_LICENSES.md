@@ -463,3 +463,4 @@ These aren't linked into Lodestone or shipped with exported games:
 | [DirectX Shader Compiler](https://github.com/microsoft/DirectXShaderCompiler) | 1.9.2609 | University of Illinois/NCSA (LLVM) and MIT | Compiling HLSL to SPIR-V. Only `dxc` and `dxcompiler` are used, not the Microsoft-licensed `dxil` library |
 | [Mesa](https://mesa3d.org/) lavapipe, and [mesa-dist-win](https://github.com/pal1000/mesa-dist-win) on Windows | 26.2.4 | MIT (LLVM, linked into lavapipe: Apache 2.0 with LLVM exception) | Software Vulkan driver for rendering tests |
 | [Vulkan SDK](https://vulkan.lunarg.com/) | 1.4.363.0 | Apache 2.0 and MIT (per component) | DXC and MoltenVK on macOS, the Vulkan loader on Windows CI, and the validation layers |
+| [lua-language-server](https://github.com/LuaLS/lua-language-server) | 3.19.1 | MIT | Type-checking the test and sample scripts against the engine's annotations |

@@ -378,11 +378,11 @@ namespace Lodestone {
 	{
 		if (!m_Viewport)
 			return;
-		Render(context, *m_Viewport);
+		Render(context, *m_Viewport, CaptureCamera::Editor);
 		m_ViewportRendered = true;
 	}
 
-	std::expected<Image, Error> SceneView::Capture(const EditorContext& context, glm::uvec2 size)
+	std::expected<Image, Error> SceneView::Capture(const EditorContext& context, glm::uvec2 size, CaptureCamera camera)
 	{
 		if (!m_Capture)
 		{
@@ -395,7 +395,9 @@ namespace Lodestone {
 		{
 			return std::unexpected(resized.error());
 		}
-		Render(context, *m_Capture);
+		if (!Render(context, *m_Capture, camera))
+			return std::unexpected(Error(ErrorCode::NotFound,
+				"The scene has no camera to render from: an entity with a Camera component that's Primary"));
 		m_CaptureRendered = true;
 		return ReadTexture(m_Device->GetNvrhiDevice(), m_Capture->GetColor());
 	}
@@ -614,7 +616,7 @@ namespace Lodestone {
 		};
 	}
 
-	void SceneView::Render(const EditorContext& context, SceneRenderTarget& target)
+	bool SceneView::Render(const EditorContext& context, SceneRenderTarget& target, CaptureCamera camera)
 	{
 		SyncAssets(context);
 		nvrhi::IDevice* device = m_Device->GetNvrhiDevice();
@@ -628,17 +630,26 @@ namespace Lodestone {
 		};
 		const ScenePose pose = MakePose(context, loadModel);
 		const RenderWorld world = ExtractRenderWorld(pose);
-		const RenderView view = GetRenderView(context);
-		const glm::uvec2 size = target.GetSize();
-		m_Renderer->Render(m_CommandList, target, world, view);
-		const SceneOverlay overlay = BuildOverlay(context, pose);
-		const glm::mat4 viewProjection =
-			view.GetProjection(static_cast<float>(size.x) / static_cast<float>(size.y)) * view.View;
-		m_Lines->Render(m_CommandList, target.GetFramebuffer(), viewProjection, overlay.DepthTested, overlay.OnTop);
+		const std::optional<RenderView> view = camera == CaptureCamera::Scene ? world.Camera : GetRenderView(context);
+		if (view)
+		{
+			m_Renderer->Render(m_CommandList, target, world, *view);
+			if (camera == CaptureCamera::Editor)
+			{
+				const glm::uvec2 size = target.GetSize();
+				const SceneOverlay overlay = BuildOverlay(context, pose);
+				const glm::mat4 viewProjection =
+					view->GetProjection(static_cast<float>(size.x) / static_cast<float>(size.y)) * view->View;
+				m_Lines->Render(
+					m_CommandList, target.GetFramebuffer(), viewProjection, overlay.DepthTested, overlay.OnTop);
+			}
+		}
+		// Executed even without a view: posing the scene may have recorded model uploads
 		m_CommandList->close();
 		device->executeCommandList(m_CommandList);
 		// Frees what earlier frames no longer use, which the windowed editor's swapchain otherwise does
 		device->runGarbageCollection();
+		return view.has_value();
 	}
 
 }
