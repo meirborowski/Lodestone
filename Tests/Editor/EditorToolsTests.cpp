@@ -5,8 +5,11 @@
 #include "Common/TemporaryDirectory.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Scene/Entity.h"
+#include "Lodestone/Scripting/LuaAnnotations.h"
+#include "Lodestone/Scripting/ScriptAssets.h"
 
 #include <doctest/doctest.h>
+#include <spdlog/fmt/fmt.h>
 
 #include <algorithm>
 #include <array>
@@ -23,14 +26,15 @@ namespace Lodestone {
 	namespace {
 
 		// Every tool the editor offers. A new tool is added here deliberately, with its tests
-		constexpr std::array<std::string_view, 44> ToolNames = {"project_info", "project_create", "project_open",
+		constexpr std::array<std::string_view, 47> ToolNames = {"project_info", "project_create", "project_open",
 			"scene_new", "scene_open", "prefab_open", "document_save", "scene_hierarchy", "entity_create",
 			"entity_delete", "entity_duplicate", "entity_set_parent", "entity_get", "entity_find", "selection_set",
 			"component_types", "component_add", "component_remove", "component_set", "prefab_create",
 			"prefab_instantiate", "model_instantiate", "edit_undo", "edit_redo", "edit_history", "play_start",
 			"play_stop", "play_pause", "play_step", "play_status", "input_send", "animation_clips", "animation_preview",
-			"physics_raycast", "physics_events", "viewport_screenshot", "render_stats", "camera_set", "camera_frame",
-			"log_read", "asset_list", "asset_import", "asset_rescan", "editor_quit"};
+			"physics_raycast", "physics_events", "script_write", "script_read", "script_api", "viewport_screenshot",
+			"render_stats", "camera_set", "camera_frame", "log_read", "asset_list", "asset_import", "asset_rescan",
+			"editor_quit"};
 
 		UUID ToId(const std::string& text)
 		{
@@ -71,9 +75,11 @@ namespace Lodestone {
 			{
 				EditorToolHost host;
 				host.RequestQuit = [this] { ++QuitRequests; };
-				host.Capture = [this](uint32_t width, uint32_t height) -> std::expected<Image, Error>
+				host.Capture = [this](
+								   uint32_t width, uint32_t height, CaptureCamera camera) -> std::expected<Image, Error>
 				{
 					++CaptureCount;
+					LastCaptureCamera = camera;
 					if (CaptureFails)
 						return std::unexpected(Error(ErrorCode::DeviceError, "No GPU today"));
 					Image image(width, height);
@@ -135,6 +141,7 @@ namespace Lodestone {
 			Testing::TemporaryDirectory Directory{"EditorTools"};
 			EditorContext Context;
 			int CaptureCount = 0;
+			std::optional<CaptureCamera> LastCaptureCamera;
 			bool CaptureFails = false;
 			// What the stand-in renderer reports
 			std::optional<RenderStats> Stats;
@@ -842,6 +849,95 @@ namespace Lodestone {
 		fixture.Ok("play_start", {{"paused", true}});
 		CHECK(fixture.Ok("physics_events")["events"].empty());
 	}
+	TEST_CASE("script_write checks and writes a script, and script_read reads it back")
+	{
+		Fixture fixture;
+		const std::string source = "local Mover = {}\nreturn Mover\n";
+		const Json::Value written = fixture.Ok("script_write", {{"path", "Scripts/Mover.lua"}, {"source", source}});
+		CHECK(written["path"] == "Scripts/Mover.lua");
+		CHECK(written["reloaded"] == false);
+		const AssetInfo* asset = fixture.Context.GetAssets()->FindByPath("Scripts/Mover.lua");
+		REQUIRE(asset != nullptr);
+		CHECK(asset->Metadata.Type == AssetType::Script);
+		CHECK(written["id"] == asset->Metadata.Id.ToString());
+		CHECK(ReadFile(fixture.GetAssetDirectory() / "Scripts" / "Mover.lua") == source);
+
+		const Json::Value read = fixture.Ok("script_read", {{"path", "Scripts/Mover.lua"}});
+		CHECK(read["source"] == source);
+		CHECK(read["id"] == written["id"]);
+
+		// Replacing it keeps its UUID
+		const std::string replaced = "return {}\n";
+		CHECK(fixture.Ok("script_write", {{"path", "Scripts/Mover.lua"}, {"source", replaced}})["id"] == written["id"]);
+		CHECK(fixture.Ok("script_read", {{"path", "Scripts/Mover.lua"}})["source"] == replaced);
+
+		// A syntax error comes back with its line, and nothing is written
+		const std::string error =
+			fixture.Fails("script_write", {{"path", "Scripts/Broken.lua"}, {"source", "local x = 1\nlocal y = = 2\n"}});
+		CHECK(error.find("Scripts/Broken.lua:2:") != std::string::npos);
+		CHECK_FALSE(std::filesystem::exists(fixture.GetAssetDirectory() / "Scripts" / "Broken.lua"));
+
+		CHECK(fixture.Fails("script_write", {{"path", "Scripts/Mover.txt"}, {"source", source}}).find(".lua") !=
+			std::string::npos);
+		fixture.Fails("script_write", {{"path", "../Outside.lua"}, {"source", source}});
+		fixture.Fails("script_write",
+			{{"path", "Scripts/Huge.lua"}, {"source", std::string(ProjectScriptAssets::MaxScriptSize + 1, ' ')}});
+		fixture.Fails("script_read", {{"path", "Scripts/Missing.lua"}});
+		fixture.Fails("script_read", {{"path", "Scenes/Main.lscene"}});
+	}
+
+	TEST_CASE("In play mode, scripts run on their entities, and script_write reloads them at once")
+	{
+		Fixture fixture;
+		const auto writeScript = [&fixture](std::string_view version)
+		{
+			return fixture.Ok("script_write",
+				{{"path", "Scripts/Namer.lua"},
+					{"source",
+						fmt::format(R"(
+				local Namer = {{}}
+				function Namer:OnUpdate()
+					self.Entity:SetName("{} " .. Time.Tick)
+				end
+				function Namer:OnDestroy()
+					Log.Warn("Namer {} ended")
+				end
+				return Namer
+			)",
+							version, version)}});
+		};
+		const std::string script = writeScript("First")["id"].get<std::string>();
+		const std::string entity = fixture.CreateEntity("Named", Json::Value(), {{"Script", {{"Script", script}}}});
+
+		fixture.Ok("play_start");
+		fixture.Ok("play_step", {{"ticks", 2}});
+		CHECK(fixture.Get(entity).GetName() == "First 1");
+		REQUIRE(fixture.Context.GetScripts() != nullptr);
+		CHECK(fixture.Context.GetScripts()->GetInstanceCount() == 1);
+
+		CHECK(writeScript("Second")["reloaded"] == true);
+		fixture.Ok("play_step");
+		CHECK(fixture.Get(entity).GetName() == "Second 2");
+
+		// Stopping ends the scripts on the play scene, then restores the document
+		const uint64_t before = fixture.Context.GetLog().GetLatestSequence();
+		fixture.Ok("play_stop");
+		CHECK(fixture.Get(entity).GetName() == "Named");
+		CHECK(fixture.Context.GetScripts() == nullptr);
+		const Json::Value log = fixture.Ok("log_read", {{"after", before}, {"level", "warn"}});
+		CHECK(std::ranges::any_of(
+			log["entries"], [](const Json::Value& entry) { return entry["message"] == "Namer Second ended"; }));
+	}
+
+	TEST_CASE("script_api gives the scripting API's annotations")
+	{
+		Fixture fixture(false);
+		const std::string api = fixture.Ok("script_api").get<std::string>();
+		CHECK(api == GenerateLuaAnnotations());
+		CHECK(api.find("---@class Behavior") != std::string::npos);
+		CHECK(api.find("---@class TransformComponent : Component") != std::string::npos);
+	}
+
 	TEST_CASE("input_send queues held, tapped and clicked input for the coming ticks")
 	{
 		Fixture fixture;
@@ -896,6 +992,7 @@ namespace Lodestone {
 		REQUIRE_FALSE(result.IsError);
 		REQUIRE(result.Content.size() == 2);
 		CHECK(result.Content[0]["text"] == "The viewport, 64x32 pixels");
+		CHECK(fixture.LastCaptureCamera == CaptureCamera::Editor);
 		CHECK(result.Content[1]["type"] == "image");
 		CHECK(result.Content[1]["mimeType"] == "image/png");
 		const std::vector<uint8_t> png = DecodeBase64(result.Content[1]["data"].get<std::string>());
@@ -907,6 +1004,16 @@ namespace Lodestone {
 		CHECK(fixture.CaptureCount == 1);
 	}
 
+	TEST_CASE("viewport_screenshot can show the scene from its own camera, as the game does")
+	{
+		Fixture fixture;
+		const McpToolResult result =
+			fixture.Call("viewport_screenshot", {{"width", 64}, {"height", 32}, {"camera", "scene"}});
+		REQUIRE_FALSE(result.IsError);
+		CHECK(result.Content[0]["text"] == "The scene's camera, 64x32 pixels");
+		CHECK(fixture.LastCaptureCamera == CaptureCamera::Scene);
+	}
+
 	TEST_CASE("viewport_screenshot defaults to 1280x720 and limits the size")
 	{
 		Fixture fixture;
@@ -915,6 +1022,7 @@ namespace Lodestone {
 		fixture.Fails("viewport_screenshot", {{"width", 15}});
 		fixture.Fails("viewport_screenshot", {{"height", 4097}});
 		fixture.Fails("viewport_screenshot", {{"width", 100.5}});
+		fixture.Fails("viewport_screenshot", {{"camera", "player"}});
 		CHECK(fixture.CaptureCount == 1);
 	}
 

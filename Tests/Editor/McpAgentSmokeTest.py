@@ -2,8 +2,9 @@
 
 An agent - this script - starts the headless editor and builds a scene with MCP tools alone: it imports a model,
 creates entities and sets their components - meshes and lights among them - makes a prefab and instances it, instances
-the model, saves the scene, reloads it, screenshots it and reads the renderer's stats, plays it with input, and
-previews an animated model's clips, checking the result of every step. It talks to the editor as Claude Code would,
+the model, saves the scene, reloads it, screenshots it and reads the renderer's stats, plays it with input, previews an
+animated model's clips, drops a crate through a trigger, writes a script that turns an entity - reloading it while
+playing - and sees the scene from its own camera, checking the result of every step. It talks to the editor as Claude Code would,
 over stdio (the editor started with --headless --mcp-stdio) or over HTTP (the editor started with --headless
 --mcp-port 0), so it also tests both transports end to end.
 
@@ -233,8 +234,8 @@ def decode_png(data):
     return width, height, bytes(pixels)
 
 
-def screenshot(agent, width, height):
-    result = agent.tool("viewport_screenshot", {"width": width, "height": height})
+def screenshot(agent, width, height, camera="editor"):
+    result = agent.tool("viewport_screenshot", {"width": width, "height": height, "camera": camera})
     images = [content for content in result["content"] if content["type"] == "image"]
     check(len(images) == 1 and images[0]["mimeType"] == "image/png", "The screenshot has no PNG")
     size_x, size_y, pixels = decode_png(base64.b64decode(images[0]["data"]))
@@ -257,14 +258,14 @@ def run(agent, project_directory, client, model_file, animated_file):
     for needed in ["project_create", "asset_import", "entity_create", "component_set", "prefab_create",
                    "prefab_instantiate", "model_instantiate", "document_save", "scene_open", "viewport_screenshot",
                    "render_stats", "play_start", "input_send", "animation_clips", "animation_preview",
-                   "physics_raycast", "physics_events"]:
+                   "physics_raycast", "physics_events", "script_write", "script_read", "script_api"]:
         check(needed in tools, f"The editor has no {needed} tool")
 
     # A project, and what components exist
     agent.tool("project_create", {"directory": str(project_directory), "name": "Smoke Test"})
     components = {component["name"] for component in agent.data("component_types")["components"]}
     check({"Name", "Transform", "Hierarchy", "MeshRenderer", "DirectionalLight", "PointLight", "RigidBody", "BoxCollider",
-           "CharacterController"} <= components,
+           "CharacterController", "Script", "Camera"} <= components,
           f"Missing components in {components}")
 
     # The empty scene, to compare the finished one with
@@ -401,6 +402,42 @@ def run(agent, project_directory, client, model_file, animated_file):
     agent.data("play_stop")
     placed = agent.data("entity_get", {"entity": crate})["worldPosition"]
     check(placed == [4, 4, -3], f"Play mode didn't put the crate back: it's at {placed}")
+
+    # Scripting: a script that turns its entity, checked as it's written, run in play mode and reloaded while playing.
+    # Its API is there to read
+    api = agent.tool("script_api")["content"][0]["text"]
+    check("function Entity:GetName() end" in api and "---@class TransformComponent : Component" in api,
+          "script_api didn't give the API's annotations")
+    agent.failing_tool("script_write", {"path": "Scripts/Turn.lua", "source": "local Turn = {"})
+    turn = """local Turn = {Properties = {Speed = 90}}
+function Turn:OnUpdate(dt)
+    local transform = self.Entity:Get("Transform")
+    transform.Rotation = quat.AngleAxis(self.Speed * dt, vec3(0, 1, 0)) * transform.Rotation
+end
+return Turn
+"""
+    script = agent.data("script_write", {"path": "Scripts/Turn.lua", "source": turn})["id"]
+    check(agent.data("script_read", {"path": "Scripts/Turn.lua"})["source"] == turn, "script_read differs")
+    agent.data("component_add", {"entity": tower, "component": "Script",
+                                 "fields": {"Script": script, "Properties": "{\"Speed\": 180}"}})
+    agent.data("play_start", {"paused": True})
+    # Half a second at 180 degrees a second: a quarter turn around Y
+    agent.data("play_step", {"ticks": 30})
+    rotation = agent.data("entity_get", {"entity": tower})["components"]["Transform"]["Rotation"]
+    check(abs(rotation[1] - 0.7071068) < 1e-3, f"After a quarter turn, the tower's rotation is {rotation}")
+    reloaded = agent.data("script_write", {"path": "Scripts/Turn.lua", "source": turn.replace("self.Speed", "-self.Speed")})
+    check(reloaded["reloaded"], "Writing a script while playing didn't reload it")
+    agent.data("play_step", {"ticks": 30})
+    rotation = agent.data("entity_get", {"entity": tower})["components"]["Transform"]["Rotation"]
+    check(abs(rotation[1]) < 1e-3, f"Turned back, the tower's rotation is {rotation}")
+    agent.data("play_stop")
+
+    # The scene's own camera, looking straight down (rotations can be given in degrees), shows what the game would
+    agent.data("entity_create", {"name": "Camera", "components": {
+        "Transform": {"Position": [0, 15, 0], "Rotation": {"degrees": [-90, 0, 0]}}, "Camera": {}}})
+    from_above = screenshot(agent, 320, 180, "scene")
+    check(from_above != plain and all(from_above[index] == 255 for index in range(3, len(from_above), 4)),
+          "The scene's camera didn't show the scene from above")
     # Nothing went wrong along the way
     errors = agent.data("log_read", {"level": "error"})["entries"]
     check(not errors, f"The editor logged errors: {[entry['message'] for entry in errors]}")

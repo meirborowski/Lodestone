@@ -9,9 +9,11 @@
 #include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
+#include "Lodestone/Scripting/LuaAnnotations.h"
 
 #include <doctest/doctest.h>
 #include <glm/vec4.hpp>
+#include <spdlog/fmt/fmt.h>
 
 #include <cmath>
 #include <filesystem>
@@ -495,6 +497,97 @@ namespace Lodestone {
 				  .value_or(RaycastHit{})
 				  .Entity == floor);
 	}
+	TEST_CASE("Projects get lua-language-server files, so editors complete and check their scripts")
+	{
+		Fixture fixture;
+		const std::filesystem::path project = fixture.Directory.GetPath() / "Game";
+		const std::filesystem::path annotations = project / LuaAnnotationsDirectory / LuaAnnotationsFileName;
+		CHECK(ReadFile(annotations) == GenerateLuaAnnotations());
+		CHECK(ReadFile(project / LuaLanguageServerConfigFileName) == GenerateLuaLanguageServerConfig());
+
+		// Opening a project brings its annotations up to date
+		REQUIRE(WriteFileAtomically(annotations, "---@meta Lodestone\n").has_value());
+		REQUIRE(fixture.Context.OpenProject(project).has_value());
+		CHECK(ReadFile(annotations) == GenerateLuaAnnotations());
+	}
+
+	TEST_CASE(
+		"Play mode runs scripts before physics, which they can query from the first tick, and gives them its events")
+	{
+		Fixture fixture;
+		const std::filesystem::path scripts = fixture.GetAssetDirectory() / "Scripts";
+		std::filesystem::create_directories(scripts);
+		REQUIRE(WriteFileAtomically(scripts / "Faller.lua", R"(
+			local Faller = {}
+			function Faller:OnCreate()
+				-- The floor is in the physics world from the first tick
+				local hit = Physics.Raycast(vec3(0, 10, 0), vec3(0, -1, 0), {Ignore = self.Entity})
+				self.Entity:SetName(hit ~= nil and hit.Entity:GetName() or "Nothing")
+			end
+			function Faller:OnCollisionBegin(other)
+				self.Entity:SetName("Landed on " .. other:GetName())
+			end
+			return Faller
+		)")
+				.has_value());
+		REQUIRE(fixture.Context.ScanAssets().has_value());
+		const AssetInfo* script = fixture.Context.GetAssets()->FindByPath("Scripts/Faller.lua");
+		REQUIRE(script != nullptr);
+
+		fixture.CreateEntity("Floor", {},
+			{{"Transform", {{"Position", {0.0, -0.5, 0.0}}}}, {"RigidBody", {{"Type", 0}}},
+				{"BoxCollider", {{"Size", {10.0, 1.0, 10.0}}}}});
+		const UUID faller = fixture.CreateEntity("Faller", {},
+			{{"Transform", {{"Position", {0.0, 1.0, 0.0}}}}, {"RigidBody", Json::Value::object()},
+				{"SphereCollider", {{"Radius", 0.5}}}, {"Script", {{"Script", script->Metadata.Id.ToString()}}}});
+
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		REQUIRE(fixture.Context.Step(1).has_value());
+		CHECK(fixture.Context.GetScene().FindEntity(faller).GetName() == "Floor");
+		REQUIRE(fixture.Context.Step(60).has_value());
+		CHECK(fixture.Context.GetScene().FindEntity(faller).GetName() == "Landed on Floor");
+		REQUIRE(fixture.Context.StopPlay().has_value());
+	}
+
+	TEST_CASE("Play mode loads changed scripts again as it runs")
+	{
+		Fixture fixture;
+		const std::filesystem::path file = fixture.GetAssetDirectory() / "Counter.lua";
+		const auto write = [&file](std::string_view name)
+		{
+			REQUIRE(WriteFileAtomically(file,
+				fmt::format(R"(
+				local Counter = {{}}
+				function Counter:OnUpdate() self.Entity:SetName("{}") end
+				return Counter
+			)",
+					name))
+					.has_value());
+		};
+		write("Before");
+		REQUIRE(fixture.Context.ScanAssets().has_value());
+		const AssetInfo* script = fixture.Context.GetAssets()->FindByPath("Counter.lua");
+		REQUIRE(script != nullptr);
+		const UUID counter =
+			fixture.CreateEntity("Counter", {}, {{"Script", {{"Script", script->Metadata.Id.ToString()}}}});
+
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		REQUIRE(fixture.Context.SetPaused(true).has_value());
+		REQUIRE(fixture.Context.Step(1).has_value());
+		CHECK(fixture.Context.GetScene().FindEntity(counter).GetName() == "Before");
+
+		write("After, longer");
+		// Checked every so often, paused too
+		fixture.Context.Update(0.1);
+		REQUIRE(fixture.Context.Step(1).has_value());
+		CHECK(fixture.Context.GetScene().FindEntity(counter).GetName() == "Before");
+		fixture.Context.Update(1.0);
+		REQUIRE(fixture.Context.Step(1).has_value());
+		CHECK(fixture.Context.GetScene().FindEntity(counter).GetName() == "After, longer");
+		CHECK_FALSE(fixture.Context.ReloadChangedScripts());
+		REQUIRE(fixture.Context.StopPlay().has_value());
+	}
+
 	TEST_CASE("An animation preview poses an animator without editing the document, and can play on")
 	{
 		Fixture fixture;

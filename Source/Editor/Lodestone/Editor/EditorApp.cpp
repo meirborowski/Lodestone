@@ -151,7 +151,7 @@ namespace Lodestone {
 			{
 			}
 
-			std::expected<Image, Error> Capture(const EditorContext& context, glm::uvec2 size)
+			std::expected<Image, Error> Capture(const EditorContext& context, glm::uvec2 size, CaptureCamera camera)
 			{
 				if (m_Failure)
 					return std::unexpected(*m_Failure);
@@ -164,7 +164,7 @@ namespace Lodestone {
 						return std::unexpected(*m_Failure);
 					}
 				}
-				return m_View->Capture(context, size);
+				return m_View->Capture(context, size, camera);
 			}
 
 			// The latest screenshot's render stats
@@ -203,8 +203,8 @@ namespace Lodestone {
 			// Set on the main thread, by editor_quit
 			bool quit = false;
 			EditorToolHost host;
-			host.Capture = [&capture, &context](uint32_t width, uint32_t height)
-			{ return capture.Capture(context, glm::uvec2(width, height)); };
+			host.Capture = [&capture, &context](uint32_t width, uint32_t height, CaptureCamera camera)
+			{ return capture.Capture(context, glm::uvec2(width, height), camera); };
 			host.GetRenderStats = [&capture] { return capture.GetStats(); };
 			if (!options.McpStdio)
 				host.RequestQuit = [&quit] { quit = true; };
@@ -307,8 +307,8 @@ namespace Lodestone {
 			// Set on the main thread, by editor_quit, which asks about unsaved changes itself
 			bool quit = false;
 			EditorToolHost host;
-			host.Capture = [&sceneView, &context](uint32_t width, uint32_t height)
-			{ return (*sceneView)->Capture(context, glm::uvec2(width, height)); };
+			host.Capture = [&sceneView, &context](uint32_t width, uint32_t height, CaptureCamera camera)
+			{ return (*sceneView)->Capture(context, glm::uvec2(width, height), camera); };
 			host.GetRenderStats = [&sceneView] { return (*sceneView)->GetStats(); };
 			host.RequestQuit = [&quit] { quit = true; };
 			RegisterEditorTools(server, context, std::move(host));

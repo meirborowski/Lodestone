@@ -111,7 +111,7 @@ jobs:
         with:
           compiler: ${{ matrix.toolchain.compiler }}
 
-      # The MCP end-to-end tests drive the editor from Python, as an agent would
+      # The MCP end-to-end tests drive the editor from Python, as an agent would, and Python runs the script type-check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -126,16 +126,16 @@ jobs:
           key: ${{ matrix.toolchain.id }}-${{ matrix.preset }}
           max-size: 500M
 
-      # Per OS, since each one downloads different archives (DXC, lavapipe)
+      # Per OS, since each one downloads different archives (DXC, lavapipe, lua-language-server)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env', 'tools/luals.env') }}
           restore-keys: dependencies-${{ runner.os }}-
 
       - name: Configure
-        run: cmake --preset ${{ matrix.preset }} -DLS_REQUIRE_LAVAPIPE=${{ matrix.toolchain.lavapipe }}
+        run: cmake --preset ${{ matrix.preset }} -DLS_REQUIRE_LAVAPIPE=${{ matrix.toolchain.lavapipe }} -DLS_REQUIRE_LUA_LANGUAGE_SERVER=ON
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
@@ -241,7 +241,7 @@ jobs:
         with:
           compiler: clang
 
-      # The MCP end-to-end tests drive the editor from Python, as an agent would
+      # The MCP end-to-end tests drive the editor from Python, as an agent would, and Python runs the script type-check
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
@@ -256,12 +256,12 @@ jobs:
           key: ubuntu-clang19-asan
           max-size: 500M
 
-      # Per OS, since each one downloads different archives (DXC, lavapipe)
+      # Per OS, since each one downloads different archives (DXC, lavapipe, lua-language-server)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env', 'tools/luals.env') }}
           restore-keys: dependencies-${{ runner.os }}-
 
       # The runner's address space layout randomization uses more bits than AddressSanitizer's shadow memory layout
@@ -270,7 +270,7 @@ jobs:
         run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Configure
-        run: cmake --preset asan -DLS_REQUIRE_LAVAPIPE=ON
+        run: cmake --preset asan -DLS_REQUIRE_LAVAPIPE=ON -DLS_REQUIRE_LUA_LANGUAGE_SERVER=ON
 
       - name: Build
         run: cmake --build --preset asan
@@ -323,7 +323,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env', 'tools/luals.env') }}
           restore-keys: dependencies-${{ runner.os }}-
 
       # ThreadSanitizer's memory layout needs fewer address space randomization bits than the runner uses
@@ -331,7 +331,7 @@ jobs:
         run: sudo sysctl vm.mmap_rnd_bits=28
 
       - name: Configure
-        run: cmake --preset tsan
+        run: cmake --preset tsan -DLS_REQUIRE_LUA_LANGUAGE_SERVER=ON
 
       - name: Build
         run: cmake --build --preset tsan
@@ -362,12 +362,12 @@ jobs:
       - name: Install the pinned clang-tidy
         run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
 
-      # Per OS, since each one downloads different archives (DXC, lavapipe)
+      # Per OS, since each one downloads different archives (DXC, lavapipe, lua-language-server)
       - name: Restore dependency archives
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/dependencies
-          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env') }}
+          key: dependencies-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'cmake/Shaders.cmake', 'tools/lavapipe.env', 'tools/luals.env') }}
           restore-keys: dependencies-${{ runner.os }}-
 
       # clang-tidy needs the compilation database, the fetched dependencies and the generated shader headers, so only

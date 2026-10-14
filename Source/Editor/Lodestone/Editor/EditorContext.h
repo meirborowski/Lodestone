@@ -14,6 +14,8 @@
 #include "Lodestone/Physics/PhysicsWorld.h"
 #include "Lodestone/Project/Project.h"
 #include "Lodestone/Scene/Scene.h"
+#include "Lodestone/Scripting/ScriptAssets.h"
+#include "Lodestone/Scripting/ScriptSystem.h"
 #include "Lodestone/Simulation/Simulation.h"
 
 #include <glm/vec3.hpp>
@@ -130,8 +132,8 @@ namespace Lodestone {
 
 		// Play mode
 		PlayState GetPlayState() const { return m_PlayState; }
-		// A system that every play session's simulation runs, after the ones added before it - how gameplay modules
-		// such as physics and scripting join play mode
+		// A system that every play session's simulation runs, after the ones added before it and before scripts -
+		// how gameplay modules join play mode
 		void AddPlaySystem(std::string name, SystemFunction system);
 		[[nodiscard]] std::expected<void, Error> StartPlay();
 		[[nodiscard]] std::expected<void, Error> StopPlay();
@@ -192,9 +194,20 @@ namespace Lodestone {
 		std::vector<RaycastHit> RaycastAll(
 			const glm::vec3& origin, const glm::vec3& direction, const RaycastOptions& options = {});
 
+		// Scripting (see docs/Decisions/0022-scripting.md). Play mode runs the scene's scripts after the play systems
+		// and before physics, and gives them physics' events after it. The play session's scripts, or nullptr while
+		// editing
+		const ScriptSystem* GetScripts() const { return m_Scripts.get(); }
+		// Loads the play session's scripts again (see ScriptSystem::Reload()); does nothing while editing
+		void ReloadScripts();
+		// ReloadScripts() if any of their files changed; whether they had. Update() checks every so often while
+		// playing or paused
+		bool ReloadChangedScripts();
+
 		LogBuffer& GetLog() { return m_Log; }
 
 	private:
+		void SetProject(Project project);
 		void ReplaceScene(Scope<Scene> scene, DocumentKind kind, std::optional<std::string> path);
 		[[nodiscard]] std::expected<void, Error> RequireEditing() const;
 		std::vector<InputCommand> SampleInput(uint64_t tick, const Simulation::InputSampler& live);
@@ -207,6 +220,7 @@ namespace Lodestone {
 		const ComponentRegistry* m_Components;
 		Scope<Project> m_Project;
 		Scope<AssetRegistry> m_Assets;
+		Scope<ProjectScriptAssets> m_ScriptAssets;
 		uint64_t m_AssetGeneration = 0;
 
 		Scope<Scene> m_Scene;
@@ -219,8 +233,11 @@ namespace Lodestone {
 
 		PlayState m_PlayState = PlayState::Editing;
 		std::vector<std::pair<std::string, SystemFunction>> m_PlaySystems;
-		// Before the simulation, which runs it, so it's destroyed after
+		// Before the simulation, which runs them, so they're destroyed after it - and physics before the scripts,
+		// which use it
 		Scope<PhysicsWorld> m_Physics;
+		Scope<ScriptSystem> m_Scripts;
+		double m_SinceScriptCheck = 0.0;
 		std::deque<RecentPhysicsEvent> m_RecentPhysicsEvents;
 		Scope<Simulation> m_Simulation;
 		SceneSnapshot m_EditSnapshot;

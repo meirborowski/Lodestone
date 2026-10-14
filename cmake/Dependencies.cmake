@@ -274,8 +274,16 @@ function(ls_add_jolt)
 		target_compile_definitions(Jolt PUBLIC JPH_USE_SSE4_1 JPH_USE_SSE4_2)
 	endif()
 	# Jolt's asserts go through the engine's (see Source/Core/Lodestone/Physics/JoltRuntime.cpp), in the configurations
-	# with asserts
-	target_compile_definitions(Jolt PUBLIC $<$<CONFIG:Debug,Release>:JPH_ENABLE_ASSERTS>)
+	# with asserts - except under ThreadSanitizer. With asserts, Jolt's mutexes note which thread holds them, and read
+	# that outside the lock to check a thread doesn't lock twice (Jolt/Core/Mutex.h): a race in the checking itself,
+	# which ThreadSanitizer rightly reports when physics jobs on several threads share a lock. Without asserts it checks
+	# Jolt's actual locking, and every other build runs Jolt's asserts. Jolt turns them on by itself in builds without
+	# NDEBUG, unless JPH_NO_DEBUG says not to
+	if(LS_ENABLE_THREAD_SANITIZER)
+		target_compile_definitions(Jolt PUBLIC JPH_NO_DEBUG)
+	else()
+		target_compile_definitions(Jolt PUBLIC $<$<CONFIG:Debug,Release>:JPH_ENABLE_ASSERTS>)
+	endif()
 	# Under sanitizers, Jolt allocates with the system allocator, so every allocation is checked
 	if(LS_ENABLE_SANITIZERS OR LS_ENABLE_THREAD_SANITIZER)
 		target_compile_definitions(Jolt PUBLIC JPH_DISABLE_TEMP_ALLOCATOR JPH_DISABLE_CUSTOM_ALLOCATOR)
@@ -304,6 +312,10 @@ target_compile_definitions(lua PRIVATE
 	$<$<NOT:$<PLATFORM_ID:Windows>>:LUA_USE_POSIX>
 	# Check arguments passed to the Lua C API in Debug builds
 	$<$<CONFIG:Debug>:LUA_USE_APICHECK>
+	# A fixed string hash seed, so tables iterate in the same order every run, as the simulation needs (see
+	# docs/Decisions/0022-scripting.md). Lua otherwise mixes the time and addresses into it. lstate.c calls
+	# luai_makeseed(L), which this makes 0 * sizeof(L): zero
+	"luai_makeseed=0 * sizeof"
 )
 
 # Lua and sol2, configured the way Lodestone uses them

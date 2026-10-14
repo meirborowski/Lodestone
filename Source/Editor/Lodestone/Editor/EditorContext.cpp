@@ -10,6 +10,7 @@
 #include "Lodestone/Scene/ModelEntities.h"
 #include "Lodestone/Scene/PrefabSerializer.h"
 #include "Lodestone/Scene/SceneSerializer.h"
+#include "Lodestone/Scripting/LuaAnnotations.h"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
@@ -25,6 +26,8 @@ namespace Lodestone {
 	namespace {
 
 		constexpr uint32_t DefaultTickRate = 60;
+		// How often play mode looks for changed scripts, in seconds
+		constexpr double ScriptCheckInterval = 0.5;
 
 		std::expected<void, Error> RequireExtension(const std::filesystem::path& path, std::string_view extension)
 		{
@@ -82,10 +85,7 @@ namespace Lodestone {
 		auto project = Project::Create(directory, name);
 		if (!project)
 			return std::unexpected(project.error());
-		m_Project = CreateScope<Project>(std::move(*project));
-		m_Assets = CreateScope<AssetRegistry>(m_Project->GetAssetDirectory());
-		m_ModelCache = CreateScope<ModelCache>(*m_Assets);
-		RescanAssets();
+		SetProject(std::move(*project));
 		return NewScene();
 	}
 
@@ -96,11 +96,22 @@ namespace Lodestone {
 		auto project = Project::Open(directory);
 		if (!project)
 			return std::unexpected(project.error());
-		m_Project = CreateScope<Project>(std::move(*project));
+		SetProject(std::move(*project));
+		return NewScene();
+	}
+
+	void EditorContext::SetProject(Project project)
+	{
+		m_Project = CreateScope<Project>(std::move(project));
+		m_ScriptAssets.reset();
+		m_ModelCache.reset();
 		m_Assets = CreateScope<AssetRegistry>(m_Project->GetAssetDirectory());
 		m_ModelCache = CreateScope<ModelCache>(*m_Assets);
+		m_ScriptAssets = CreateScope<ProjectScriptAssets>(*m_Assets);
 		RescanAssets();
-		return NewScene();
+		// So editors complete and check the project's scripts against this engine's API
+		if (auto written = WriteLuaLanguageServerFiles(m_Project->GetDirectory()); !written)
+			LS_CORE_WARN("The project's lua-language-server files couldn't be written: {}", written.error());
 	}
 
 	std::expected<std::filesystem::path, Error> EditorContext::ResolveAssetPath(std::string_view relativePath) const
@@ -354,14 +365,21 @@ namespace Lodestone {
 		const uint32_t tickRate = m_Project ? m_Project->GetSettings().TickRate : DefaultTickRate;
 		m_Simulation = CreateScope<Simulation>(*m_Scene, SimulationConfig{.TickRate = tickRate});
 		m_Physics = CreateScope<PhysicsWorld>(*m_Scene, PhysicsWorldConfig{.Models = m_ModelLookup});
+		// In line with the scene from the start, so the first tick's scripts can query it
+		m_Physics->Sync();
+		m_Scripts = CreateScope<ScriptSystem>(*m_Scene,
+			ScriptSystemConfig{.Assets = m_ScriptAssets.get(), .Models = m_ModelLookup, .Physics = m_Physics.get()});
+		m_SinceScriptCheck = 0.0;
 		m_RecentPhysicsEvents.clear();
 		for (const auto& [name, system] : m_PlaySystems)
 			m_Simulation->AddSystem(name, system);
+		m_Simulation->AddSystem("Scripts", [this](SimulationContext& simulation) { m_Scripts->Update(simulation); });
 		// Physics steps after gameplay, which may have moved bodies this tick
 		m_Simulation->AddSystem("Physics", *m_Physics);
 		m_Simulation->AddSystem("PhysicsEvents",
 			[this](SimulationContext& simulation)
 			{
+				m_Scripts->DeliverEvents(simulation, m_Physics->GetEvents());
 				for (const PhysicsEvent& event : m_Physics->GetEvents())
 				{
 					if (m_RecentPhysicsEvents.size() == MaxRecentPhysicsEvents)
@@ -386,7 +404,10 @@ namespace Lodestone {
 	{
 		if (m_PlayState == PlayState::Editing)
 			return std::unexpected(Error(ErrorCode::InvalidState, "Play mode isn't running"));
+		// Scripts end on the play scene, before it's restored
+		m_Scripts->Shutdown();
 		m_Simulation.reset();
+		m_Scripts.reset();
 		m_Physics.reset();
 		m_Scene->RestoreSnapshot(m_EditSnapshot);
 		m_EditSnapshot = SceneSnapshot();
@@ -416,10 +437,30 @@ namespace Lodestone {
 	void EditorContext::Update(double elapsedSeconds, const Simulation::InputSampler& live)
 	{
 		if (m_PlayState == PlayState::Editing)
+		{
 			UpdateAnimationPreview(elapsedSeconds);
+			return;
+		}
+		m_SinceScriptCheck += elapsedSeconds;
+		if (m_SinceScriptCheck >= ScriptCheckInterval)
+		{
+			m_SinceScriptCheck = 0.0;
+			ReloadChangedScripts();
+		}
 		if (m_PlayState != PlayState::Playing)
 			return;
 		m_Simulation->Advance(elapsedSeconds, [this, &live](uint64_t tick) { return SampleInput(tick, live); });
+	}
+
+	void EditorContext::ReloadScripts()
+	{
+		if (m_Scripts)
+			m_Scripts->Reload();
+	}
+
+	bool EditorContext::ReloadChangedScripts()
+	{
+		return m_Scripts && m_Scripts->ReloadChanged();
 	}
 
 	std::expected<void, Error> EditorContext::SetAnimationPreview(UUID entity, uint32_t clip, float time, bool playing)

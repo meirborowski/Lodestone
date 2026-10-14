@@ -25,3 +25,6 @@ compile_commands.json
 
 # Git LFS object list written by CI (see .github/actions/git-lfs-pull)
 /.lfs-assets-id
+
+# Python bytecode caches
+__pycache__/

@@ -4,6 +4,7 @@
 #include "Lodestone/Core/Image.h"
 #include "Lodestone/Editor/EditorContext.h"
 #include "Lodestone/Editor/Mcp/McpServer.h"
+#include "Lodestone/Editor/SceneView.h"
 #include "Lodestone/Renderer/RenderStats.h"
 
 #include <cstdint>
@@ -13,9 +14,10 @@
 
 namespace Lodestone {
 
-	// Renders the open document from the editor camera, for screenshots. Fails where nothing can render - headless
-	// without a graphics device
-	using ViewportCapture = std::function<std::expected<Image, Error>(uint32_t width, uint32_t height)>;
+	// Renders the open document from a camera, for screenshots (see SceneView::Capture()). Fails where nothing can
+	// render - headless without a graphics device
+	using ViewportCapture =
+		std::function<std::expected<Image, Error>(uint32_t width, uint32_t height, CaptureCamera camera)>;
 
 	// What the tools need from the application around them
 	struct EditorToolHost

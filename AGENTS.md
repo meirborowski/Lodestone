@@ -32,7 +32,8 @@ ctest --preset debug -L unit        # and run a test tier (unit, render, integra
 - macOS: install the Vulkan SDK, then run `sudo ./install_vulkan.py` in its directory, so DXC, the Vulkan loader and MoltenVK are found
 - Rendering tests render on lavapipe at a pinned Mesa version, never the GPU. Windows downloads it automatically; on Linux, build it once with `tools/build-lavapipe.sh` and reconfigure. Without lavapipe, reference-image tests are skipped with a message; macOS always skips them (see [Reference Images](docs/Testing.md#reference-images))
 - Sanitizers (GCC and Clang only): `cmake --workflow --preset asan` builds and tests with AddressSanitizer and UndefinedBehaviorSanitizer, and `--preset tsan` with ThreadSanitizer
-- Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`, and lavapipe in `.cache/lavapipe`
+- Script tests type-check the test and sample scripts with lua-language-server, which CMake downloads (pinned in `tools/luals.env`). Without it they're skipped with a message; CI requires it (`-DLS_REQUIRE_LUA_LANGUAGE_SERVER=ON`). After changing the scripting API, update the committed annotations by running the `Core` tests with `LS_UPDATE_LUA_ANNOTATIONS=1`
+- Build trees go to `build/<preset>`. Dependency archives are cached in `.cache/dependencies`, lavapipe in `.cache/lavapipe`, and lua-language-server in `.cache/luals`
 
 Code style tools, pinned to one LLVM version (install once, ideally in a virtual environment: `pip install -r tools/requirements.txt`):
 
@@ -46,22 +47,25 @@ Before every pull request: format, clang-tidy, and every test tier in Debug, Rel
 ## Project Layout
 | Path | Contents |
 |---|---|
-| `Source/Core` | `LodestoneCore` - ECS and scenes (`Lodestone/Scene`), component reflection (`Lodestone/Reflection`), the simulation (`Lodestone/Simulation`), input codes and commands (`Lodestone/Input`), assets (`Lodestone/Asset`), file formats (`Lodestone/Serialization`), skeletal animation (`Lodestone/Animation`) and physics (`Lodestone/Physics`, on Jolt, linked privately). Never links GLFW, nvrhi or miniaudio - the configure step checks |
+| `Source/Core` | `LodestoneCore` - ECS and scenes (`Lodestone/Scene`), component reflection (`Lodestone/Reflection`), the simulation (`Lodestone/Simulation`), input codes and commands (`Lodestone/Input`), assets (`Lodestone/Asset`), file formats (`Lodestone/Serialization`), skeletal animation (`Lodestone/Animation`), physics (`Lodestone/Physics`, on Jolt, linked privately) and scripting (`Lodestone/Scripting`, Lua with sol2, linked privately). Never links GLFW, nvrhi or miniaudio - the configure step checks |
 | `Source/Client` | `LodestoneClient` - window and device input (`Lodestone/Platform`, `Lodestone/Input`), the graphics device and swapchain (`Lodestone/Graphics`), the scene renderer (`Lodestone/Renderer`), shaders (`Shaders`), and audio |
 | `Source/Editor` | `LodestoneEditorLib` and the `LodestoneEditor` executable - the editor context, commands and undo (`Lodestone/Editor`, `Lodestone/Editor/Commands`), the UI panels (`Lodestone/Editor/UI`), and the MCP server, its tools and transports (`Lodestone/Editor/Mcp`). Not built in Dist |
 | `Source/Runtime` | `LodestoneRuntime` - the player for exported games |
 | `Source/Server` | `LodestoneServer` - the headless dedicated server |
-| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Client` is `LodestoneClientTests`, `Tests/Render` is `LodestoneRenderTests`, `Tests/Editor` is `LodestoneEditorTests` and `LodestoneEditorIntegrationTests` plus the Python agent smoke test, `Tests/Fuzz` is `LodestoneFuzzTests` with its corpus), the renderer's benchmark (`Tests/Benchmark`, `LodestoneBenchmark`, with its baseline), shared helpers in `Tests/Common`, files tests load in `Tests/Fixtures` (models and environments come from `tools/generate-test-assets.py`, except the CC0 HDRIs from Poly Haven in `Environments/PolyHaven`, credited in THIRD_PARTY_LICENSES.md), and reference images in `Tests/ReferenceImages` |
-| `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, `ls_configure_target()` and the layering check `ls_forbid_dependencies()` |
-| `tools` | Formatting and clang-tidy scripts, the pinned tool versions, the pinned lavapipe version and its Linux build script, the test asset generator, and the benchmark's CI summary |
+| `Tests` | Test executables by target (`Tests/Core` is `LodestoneCoreTests`, `Tests/Client` is `LodestoneClientTests`, `Tests/Render` is `LodestoneRenderTests`, `Tests/Editor` is `LodestoneEditorTests` and `LodestoneEditorIntegrationTests` plus the Python agent smoke test, `Tests/Fuzz` is `LodestoneFuzzTests` with its corpus), the renderer's benchmark (`Tests/Benchmark`, `LodestoneBenchmark`, with its baseline), shared helpers in `Tests/Common`, files tests load in `Tests/Fixtures` (models and environments come from `tools/generate-test-assets.py`, except the CC0 HDRIs from Poly Haven in `Environments/PolyHaven`, credited in THIRD_PARTY_LICENSES.md; `Scripting` is the test scripts' project, and `ScriptingMistakes` scripts the type-check must fault), and reference images in `Tests/ReferenceImages` |
+| `Samples` | Sample games, each a project, built by an agent through MCP alone: `Pong`. `Tests/Editor/SampleGameTests.cpp` plays them from start to finish |
+| `cmake` | Build configurations, compiler settings, dependencies, shader compilation (`ls_add_shaders()`), lavapipe, lua-language-server, `ls_configure_target()` and the layering check `ls_forbid_dependencies()` |
+| `tools` | Formatting and clang-tidy scripts, the pinned tool versions, the pinned lavapipe version and its Linux build script, the pinned lua-language-server version and the script type-check (`check-lua.py`), the test asset generator, and the benchmark's CI summary |
 | `docs` | Design docs, milestones and decisions |
 | `.github` | CI workflow and its composite actions |
 
 Headers live next to their sources and are included by their path below the target's source directory: `#include "Lodestone/Core/Log.h"`. Every target that compiles Lodestone code calls `ls_configure_target()`, which turns on warnings as errors.
 
-Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through. Also there: `UUID.h`, `FileSystem.h` (bounded reads, atomic writes, UTF-8 paths), `RandomGenerator.h`, `EnumFlags.h`, `Image.h` (RGBA8 images, PNG/JPEG loading and PNG saving), `HdrImage.h` (float images, Radiance .hdr), `BoundingBox.h`, `Base64.h`, `CommandLine.h` and `Environment.h`.
+Engine fundamentals in `Source/Core/Lodestone/Core`: `Base.h` (`Ref`/`Scope`, platform and configuration macros), `Error.h` (`Error`, `ErrorCode`), `Log.h` (`LS_CORE_*` and `LS_*` macros), `Assert.h` (`LS_CORE_ASSERT`, `LS_ASSERT`), and `RunMain.h`, which every executable's `main()` goes through. Also there: `UUID.h`, `FileSystem.h` (bounded reads, atomic writes, UTF-8 paths), `RandomGenerator.h`, `EnumFlags.h`, `Image.h` (RGBA8 images, PNG/JPEG loading and PNG saving), `HdrImage.h` (float images, Radiance .hdr), `BoundingBox.h`, `Rotation.h` (Euler angles, as the inspector and scripts show rotations), `Base64.h`, `CommandLine.h` and `Environment.h`.
 
 Scenes and the simulation in `Source/Core/Lodestone`: `Scene/Scene.h` (entities with UUIDs, the hierarchy, snapshots), `Scene/Entity.h` (the entity handle), `Scene/Components.h` (the core components), `Scene/SceneSerializer.h` (`.lscene` files), `Reflection/ComponentRegistry.h` (the reflection registry), `Simulation/Simulation.h` (fixed ticks, systems, interpolation, save and restore), `Input/InputCommand.h`, `Asset/AssetRegistry.h` and `Serialization/FileFormat.h` (versioned documents and migrations). See Decisions [0010](docs/Decisions/0010-component-reflection.md), [0011](docs/Decisions/0011-file-formats.md) and [0012](docs/Decisions/0012-simulation-and-rollback.md). Models are imported from glTF by `Asset/ModelImporter.h` into a CPU `Asset/Model.h` (`Asset/ModelCache.h` keeps a project's models imported for whatever needs them without a renderer), and placed in scenes as entities by `Scene/ModelEntities.h`; the components that draw and light scenes are in `Scene/RenderComponents.h` (see [Decision 0019](docs/Decisions/0019-model-import.md)). Skeletal animation is in `Lodestone/Animation`: `AnimationComponents.h` (`ModelInstance`, `ModelNode`, `Skin` and `Animator`), `Animation.h` (clip sampling, crossfades and the simulation's animation system) and `ScenePose.h`, which derives where entities are drawn from animator state - the renderer, picking and the overlay all ask it (see [Decision 0020](docs/Decisions/0020-skeletal-animation.md)). Physics is in `Lodestone/Physics`: `PhysicsComponents.h` (`RigidBody`, the colliders, `CharacterController` and `PhysicsSettings`) and `PhysicsWorld.h`, a stateful simulation system (`StatefulSystem` in `Simulation.h`) that makes Jolt bodies from the components each tick, steps them, writes transforms and velocities back, gathers collision and trigger events, answers raycasts, and saves and restores Jolt's state with the simulation's. Jolt is linked privately: its headers are only included by the module's own sources (`JoltRuntime.h`, `PhysicsLayers.h`, `StateBuffer.h`) - see [Decision 0021](docs/Decisions/0021-physics.md).
+
+Scripting is in `Lodestone/Scripting` (see [Scripting](docs/Features/Scripting.md) and [Decision 0022](docs/Decisions/0022-scripting.md)): `ScriptComponents.h` (the `Script` component: a script asset and its properties as JSON), `ScriptSystem.h` (the simulation's scripting system - behavior instances, their callbacks, physics events, hot reload), `ScriptRuntime.h` (the sandboxed Lua state: memory and instruction limits, `require` from the project, errors with tracebacks), `ScriptBindings.h` (the API: entities, components through reflection, the scene, input, physics, animation, time, the log and the math types), `ScriptAssets.h` (scripts and prefabs from a project, or from memory in tests) and `LuaAnnotations.h` (the lua-language-server annotations - `LuaApi.lua`, embedded at build time, plus what the registries add - and the files projects get). Lua and sol2 are linked privately: `ScriptRuntime.h` and `ScriptBindings.h` include sol2, so only the module's own sources include those two; everything else uses `ScriptSystem.h`.
 
 The editor in `Source/Editor/Lodestone/Editor`: `EditorContext` (the project, the open document, selection, undo history and play mode, shared by the UI and MCP), `Commands/` (every edit is a command, so it undoes - see [Decision 0015](docs/Decisions/0015-editor-commands.md)), `SceneView` (the viewport and screenshots), `UI/` (the Dear ImGui panels), and `Mcp/` (`McpServer`, the tools in `EditorTools.cpp`, and the stdio and HTTP transports - see [Decision 0016](docs/Decisions/0016-mcp-server.md)). Prefabs are in Core: `Scene/PrefabSerializer.h` and `Scene/EntitySerializer.h` (entity trees as data), and projects in `Project/Project.h`.
 
@@ -81,6 +85,7 @@ Workflows that repeat have skills in `.claude/skills/`:
 - `add-component` - adding a component, with its reflection registration and tests
 - `add-mcp-tool` - adding an MCP tool for an editor feature, with its tests
 - `run-benchmark` - measuring the renderer against its baseline, and recording a new baseline
+- `add-script-binding` - adding a function, a table or a callback to the scripting API, with its annotation and tests
 
 ## Adding a Component
 Components are plain structs with public PascalCase fields and default member initializers. Registering one in the reflection registry is what gives it serialization now, and the inspector, MCP tools, script bindings and replication as they arrive (see [Decision 0010](docs/Decisions/0010-component-reflection.md)):
@@ -102,6 +107,23 @@ registry.Register<LightComponent>("Light", "A point light")
 - State that's part of the simulation but not of files goes in an `Internal` component. Every piece of simulation state must be in a registered component - or, for a system with state of its own such as the physics world, in what its `StatefulSystem` saves - or rollback won't restore it
 - Add custom handling only where the generic path isn't enough (the scene loader applies `Hierarchy` through `Scene::SetParent`)
 - Test the registration, a save/load round trip, and anything custom. The `add-component` skill has the checklist
+
+## Adding a Script Binding
+Components need no bindings: scripts reach every registered component through reflection. Bindings are for what isn't a component - the `Scene`, `Input`, `Physics`, `Animation`, `Time` and `Log` tables, `Entity` methods, the math types and behavior callbacks:
+
+```cpp
+// In ScriptApi::BindPhysics() (Source/Core/Lodestone/Scripting/ScriptBindings.cpp)
+physics["IsSleeping"] = [this](const ScriptEntity& entity, sol::this_state state)
+{
+	Resolve(state, entity);	// raises a Lua error for an entity that's gone
+	return RequirePhysics(state).IsSleeping(entity.Id);
+};
+```
+
+- Declare it with its annotation in `Scripting/LuaApi.lua` - its parameters, return type and a description; the annotations are the API's documentation, and a test fails for a function scripts can reach that they don't declare
+- Raise Lua errors for bad arguments with `Raise(state, message)`, naming what was wrong; never assert on script input
+- Call it from a test script in `Tests/Fixtures/Scripting/Assets/Scripts` with checks of its results and errors: a test fails for an annotated function no test script calls
+- Update the committed annotations (`LS_UPDATE_LUA_ANNOTATIONS=1`). State a binding changes must be in components, so rollback restores it. The `add-script-binding` skill has the checklist
 
 ## Git
 - Work on a branch, push it to the [GitHub repo](https://github.com/meirborowski/Lodestone), and squash-merge it into main through a pull request once CI passes - never push directly to main

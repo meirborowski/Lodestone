@@ -1,5 +1,6 @@
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 
+#include "Lodestone/Core/Rotation.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 #include "Lodestone/Scene/PrefabSerializer.h"
@@ -43,8 +44,22 @@ namespace Lodestone {
 			return type;
 		}
 
+		// A rotation given as the inspector shows it, {"degrees": [x, y, z]}: Euler angles (see QuaternionFromEuler)
+		std::expected<FieldValue, Error> ReadEulerRotation(const Json::Value& json, std::string_view context)
+		{
+			if (json.size() != 1 || !json.contains("degrees"))
+				return std::unexpected(Error(ErrorCode::InvalidArgument,
+					fmt::format(
+						"{}: expected a quaternion [x, y, z, w] or Euler angles {{\"degrees\": [x, y, z]}}", context)));
+			const auto degrees =
+				Json::ToFieldValue(json["degrees"], FieldType::Vec3, fmt::format("{}.degrees", context));
+			if (!degrees)
+				return std::unexpected(degrees.error());
+			return FieldValue(QuaternionFromEuler(std::get<glm::vec3>(*degrees)));
+		}
+
 		// Reads {"Field": value} for a component type, checking every value before anything uses them. Editing tools
-		// can't set read-only fields
+		// can't set read-only fields, and can give rotations as Euler angles
 		std::expected<FieldValues, Error> ReadFieldValues(
 			const ComponentType& type, const Json::Value& fields, std::string_view context)
 		{
@@ -62,7 +77,9 @@ namespace Lodestone {
 				if (field->IsReadOnly())
 					return std::unexpected(
 						Error(ErrorCode::InvalidArgument, fmt::format("{}: the field is read-only", fieldContext)));
-				auto value = Json::ToFieldValue(json, field->GetType(), fieldContext);
+				auto value = field->GetType() == FieldType::Quat && json.is_object()
+					? ReadEulerRotation(json, fieldContext)
+					: Json::ToFieldValue(json, field->GetType(), fieldContext);
 				if (!value)
 					return std::unexpected(Error(ErrorCode::InvalidArgument, value.error().GetMessageText()));
 				if (auto valid = field->Validate(*value); !valid)

@@ -1,0 +1,743 @@
+{
+  "format": "Lodestone.Scene",
+  "version": 1,
+  "entities": [
+    {
+      "components": {
+        "ID": {
+          "ID": "d9adec4f-2277-495c-8793-e9156b220975"
+        },
+        "Name": {
+          "Name": "Camera"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            11.5,
+            0.0
+          ],
+          "Rotation": [
+            -0.7071068,
+            0.0,
+            0.0,
+            0.7071068
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "Camera": {
+          "FieldOfView": 60.0,
+          "NearPlane": 0.1,
+          "FarPlane": 500.0,
+          "Primary": true
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "8ba42566-5e2c-49f2-b35a-d61c6a373a44"
+        },
+        "Name": {
+          "Name": "Sun"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Rotation": [
+            -0.45081,
+            0.19198,
+            0.09994,
+            0.86599
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "DirectionalLight": {
+          "Color": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Intensity": 3.0,
+          "CastShadows": true
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "8d812d55-06e5-4fe4-aaf3-22b51af440ce"
+        },
+        "Name": {
+          "Name": "Field"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            16.0,
+            1.0,
+            10.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 0,
+          "CastShadows": true
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "1f3ff4bc-a54e-4db4-8090-75396ab5dcbb"
+        },
+        "Name": {
+          "Name": "Top Wall"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.5,
+            -5.25
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            17.0,
+            1.0,
+            0.5
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 1,
+          "CastShadows": true
+        },
+        "RigidBody": {
+          "Type": 0,
+          "Mass": 1.0,
+          "Friction": 0.0,
+          "Restitution": 1.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": false,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "2ddcd294-cc5d-4658-a51c-d81eab0a1ef7"
+        },
+        "Name": {
+          "Name": "Bottom Wall"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.5,
+            5.25
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            17.0,
+            1.0,
+            0.5
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 1,
+          "CastShadows": true
+        },
+        "RigidBody": {
+          "Type": 0,
+          "Mass": 1.0,
+          "Friction": 0.0,
+          "Restitution": 1.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": false,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "e992bd3e-9365-47ed-8e15-c923047775d5"
+        },
+        "Name": {
+          "Name": "Left Paddle"
+        },
+        "Transform": {
+          "Position": [
+            -7.0,
+            0.5,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            0.4,
+            1.0,
+            2.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 1,
+          "CastShadows": true
+        },
+        "RigidBody": {
+          "Type": 1,
+          "Mass": 1.0,
+          "Friction": 0.0,
+          "Restitution": 1.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": false,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "Script": {
+          "Script": "2a85a57f-e17a-4f14-b170-5215886db243",
+          "Properties": "{\"Up\": \"W\", \"Down\": \"S\"}"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "f4b366ff-1d13-4927-9fd6-406ab2dbdbec"
+        },
+        "Name": {
+          "Name": "Right Paddle"
+        },
+        "Transform": {
+          "Position": [
+            7.0,
+            0.5,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            0.4,
+            1.0,
+            2.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 1,
+          "CastShadows": true
+        },
+        "RigidBody": {
+          "Type": 1,
+          "Mass": 1.0,
+          "Friction": 0.0,
+          "Restitution": 1.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": false,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "Script": {
+          "Script": "2a85a57f-e17a-4f14-b170-5215886db243",
+          "Properties": "{\"Computer\": true}"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "2d3086fe-2a35-4c95-9da0-f3eb6e9e0f4b"
+        },
+        "Name": {
+          "Name": "Ball"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.5,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            0.5,
+            0.5,
+            0.5
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "MeshRenderer": {
+          "Model": "0ea7c563-8b01-43f5-a851-44e2f4e5ceac",
+          "Mesh": 2,
+          "CastShadows": true
+        },
+        "RigidBody": {
+          "Type": 2,
+          "Mass": 1.0,
+          "Friction": 0.0,
+          "Restitution": 1.0,
+          "LinearDamping": 0.0,
+          "AngularDamping": 0.0,
+          "GravityFactor": 0.0,
+          "IsTrigger": false,
+          "ContinuousCollision": true,
+          "AllowSleeping": false,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "SphereCollider": {
+          "Radius": 0.5,
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "Script": {
+          "Script": "9c3ef2a2-fd75-4ce2-a936-0e34ed28e9e8",
+          "Properties": "{}"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "a0ab5a11-7006-43bf-99c0-55e0c727c318"
+        },
+        "Name": {
+          "Name": "Left Goal"
+        },
+        "Transform": {
+          "Position": [
+            -8.5,
+            0.5,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            11.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "RigidBody": {
+          "Type": 0,
+          "Mass": 1.0,
+          "Friction": 0.5,
+          "Restitution": 0.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": true,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "Script": {
+          "Script": "e8404206-12b1-4d52-9ef0-001a8aedc25f",
+          "Properties": "{\"Scorer\": \"Right\"}"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "3e8e793b-aff8-4679-90b4-74fa13c2668a"
+        },
+        "Name": {
+          "Name": "Right Goal"
+        },
+        "Transform": {
+          "Position": [
+            8.5,
+            0.5,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            11.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "RigidBody": {
+          "Type": 0,
+          "Mass": 1.0,
+          "Friction": 0.5,
+          "Restitution": 0.0,
+          "LinearDamping": 0.05,
+          "AngularDamping": 0.05,
+          "GravityFactor": 1.0,
+          "IsTrigger": true,
+          "ContinuousCollision": false,
+          "AllowSleeping": true,
+          "LinearVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "AngularVelocity": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "BoxCollider": {
+          "Size": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "Center": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "Script": {
+          "Script": "e8404206-12b1-4d52-9ef0-001a8aedc25f",
+          "Properties": "{\"Scorer\": \"Left\"}"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "6cb975a9-18d3-4aea-a3e3-877735d7ce0c"
+        },
+        "Name": {
+          "Name": "Left Score"
+        },
+        "Transform": {
+          "Position": [
+            -1.0,
+            0.15,
+            -6.2
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "db1d7564-5c4e-42f2-9a82-44dde0456df9"
+        },
+        "Name": {
+          "Name": "Right Score"
+        },
+        "Transform": {
+          "Position": [
+            1.0,
+            0.15,
+            -6.2
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "60086777-60b0-4dc7-bbe1-2e6444eafa78"
+        },
+        "Name": {
+          "Name": "Status"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        }
+      }
+    },
+    {
+      "components": {
+        "ID": {
+          "ID": "49522b98-6769-437c-92a7-839cc01ba163"
+        },
+        "Name": {
+          "Name": "Game"
+        },
+        "Transform": {
+          "Position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "Rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "Scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "Hierarchy": {
+          "Parent": "00000000-0000-0000-0000-000000000000"
+        },
+        "Script": {
+          "Script": "9c917130-57ea-4e7c-8812-556ae53a98d3",
+          "Properties": "{}"
+        }
+      }
+    }
+  ]
+}

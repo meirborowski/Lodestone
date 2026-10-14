@@ -4,6 +4,7 @@
 #include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Reflection/ComponentRegistry.h"
 #include "Lodestone/Scene/RenderComponents.h"
+#include "Lodestone/Scripting/ScriptComponents.h"
 
 #include <glm/common.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -74,6 +75,7 @@ namespace Lodestone {
 			RegisterRenderComponents(*registry);
 			RegisterAnimationComponents(*registry);
 			RegisterPhysicsComponents(*registry);
+			RegisterScriptComponents(*registry);
 			return registry;
 		}();
 		return *s_Registry;

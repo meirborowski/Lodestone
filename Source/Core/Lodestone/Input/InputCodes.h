@@ -196,8 +196,10 @@ namespace Lodestone {
 	std::string_view ToString(GamepadButton button);
 	std::string_view ToString(GamepadAxis axis);
 
-	// The key or button with a name from ToString(), case-sensitively, or nothing if there's none
+	// The key, button or axis with a name from ToString(), case-sensitively, or nothing if there's none
 	std::optional<Key> KeyFromName(std::string_view name);
 	std::optional<MouseButton> MouseButtonFromName(std::string_view name);
+	std::optional<GamepadButton> GamepadButtonFromName(std::string_view name);
+	std::optional<GamepadAxis> GamepadAxisFromName(std::string_view name);
 
 }

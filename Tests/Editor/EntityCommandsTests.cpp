@@ -1,12 +1,14 @@
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 
 #include "Common/DescribeError.h"
+#include "Lodestone/Core/Rotation.h"
 #include "Lodestone/Editor/Commands/CommandHistory.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 #include "Lodestone/Scene/PrefabSerializer.h"
 
 #include <doctest/doctest.h>
+#include <glm/gtc/quaternion.hpp>
 
 #include <span>
 #include <string>
@@ -326,6 +328,26 @@ namespace Lodestone {
 		fixture.CheckFails(CreateScope<SetFieldsCommand>(fixture.Player, "Health", Json::Value::array()));
 		fixture.CheckFails(CreateScope<SetFieldsCommand>(fixture.Player, "Health", Json::Value::object()));
 		fixture.CheckFails(CreateScope<SetFieldsCommand>(fixture.Player, "Brain", Json::Value::object()));
+	}
+
+	TEST_CASE("Rotations can be set as Euler angles in degrees, as the inspector shows them")
+	{
+		Fixture fixture;
+
+		fixture.CheckUndoRedo(CreateScope<SetFieldsCommand>(
+			fixture.Player, "Transform", Json::Value{{"Rotation", {{"degrees", {-90.0, 30.0, 0.0}}}}}));
+		const glm::quat expected = QuaternionFromEuler(glm::vec3(-90.0f, 30.0f, 0.0f));
+		const glm::quat rotation = fixture.Get(fixture.Player).GetTransform().Rotation;
+		CHECK(glm::abs(glm::dot(rotation, expected)) == doctest::Approx(1.0f));
+
+		// Anything else in place of the quaternion is refused
+		for (const Json::Value& bad : {Json::Value{{"degrees", {1.0, 2.0}}}, Json::Value{{"radians", {1.0, 2.0, 3.0}}},
+				 Json::Value{{"degrees", {1.0, 2.0, 3.0}}, {"order", "XYZ"}}, Json::Value::object()})
+		{
+			CAPTURE(bad.dump());
+			fixture.CheckFails(
+				CreateScope<SetFieldsCommand>(fixture.Player, "Transform", Json::Value{{"Rotation", bad}}));
+		}
 	}
 
 	TEST_CASE("Continuous field edits merge into one undo step")

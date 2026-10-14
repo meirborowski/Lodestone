@@ -192,6 +192,26 @@ namespace Lodestone {
 		return std::nullopt;
 	}
 
+	std::optional<GamepadButton> GamepadButtonFromName(std::string_view name)
+	{
+		for (uint32_t index = 0; index < GamepadButtonCount; ++index)
+		{
+			if (GamepadButtonNames[index] == name)
+				return static_cast<GamepadButton>(index);
+		}
+		return std::nullopt;
+	}
+
+	std::optional<GamepadAxis> GamepadAxisFromName(std::string_view name)
+	{
+		for (uint32_t index = 0; index < GamepadAxisCount; ++index)
+		{
+			if (GamepadAxisNames[index] == name)
+				return static_cast<GamepadAxis>(index);
+		}
+		return std::nullopt;
+	}
+
 	std::string_view ToString(MouseButton button)
 	{
 		const auto index = std::to_underlying(button);

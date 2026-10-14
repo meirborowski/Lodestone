@@ -33,3 +33,4 @@ Record every significant design decision here - especially ones made without ask
 - [0019 - Model import: glTF 2.0 with cgltf, into a CPU model, instanced as entities](0019-model-import.md)
 - [0020 - Skeletal animation: poses derived from animator state, skinned on the GPU](0020-skeletal-animation.md)
 - [0021 - Physics: Jolt bodies derived from components, saved with the simulation](0021-physics.md)
+- [0022 - Scripting: Lua behaviors on entities, reflected components, a sandboxed VM](0022-scripting.md)

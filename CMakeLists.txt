@@ -28,6 +28,7 @@ include(LodestoneTarget)
 include(Shaders)
 if(LS_BUILD_TESTS)
 	include(Lavapipe)
+	include(LuaLanguageServer)
 endif()
 
 add_subdirectory(Source/Core)

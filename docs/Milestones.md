@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 7. Physics
-- **In progress:** Milestone 7 is built on `milestone-7-physics`, as [Decision 0021](Decisions/0021-physics.md) designs it (the prediction scope confirmed there, as Networking documents it): Jolt 5.6.0, linked privately by Core; the `RigidBody`, `BoxCollider`, `SphereCollider`, `CapsuleCollider`, `MeshCollider`, `CharacterController` and `PhysicsSettings` components; `PhysicsWorld`, a stateful simulation system (new in `Simulation`) that makes bodies from the components each tick, steps them, writes transforms and velocities back, finds collision and trigger events, answers raycasts, and saves and restores Jolt's state, with deterministic body IDs; the character controller moved by input commands; play mode running physics; the selection's colliders drawn in the viewport; the `physics_raycast` and `physics_events` MCP tools (44 tools); and the agent smoke test playing a body through a trigger onto a collider. Every item is done; what remains is review, the pull request and CI
-- **Next:** Milestone 8, scripting
+- **Active milestone:** 8. Scripting
+- **In progress:** Milestone 8 is built on `milestone-8-scripting`, as [Decision 0022](Decisions/0022-scripting.md) designs it: Lua behaviors on entities through the `Script` component, with properties as JSON; the API - entities, every component through reflection, the scene and prefabs, input, physics, animation, time, the log and the math types; the sandbox with memory and instruction limits; deterministic hashing and random numbers; hot reload in play mode; errors with tracebacks; lua-language-server annotations generated from the bindings, written into projects, with the test and sample scripts type-checked by a pinned lua-language-server; the `script_write`, `script_read` and `script_api` MCP tools (47 tools); and Pong in `Samples/Pong`, built by an agent through MCP alone, which also added Euler-angle rotations to the editing tools and scene-camera screenshots. Every item is done; what remains is review, the pull request and CI
+- **Next:** Milestone 9, audio
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -31,7 +31,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 - [x] [4. Editor and AI control](#4-editor-and-ai-control)
 - [x] [5. 3D renderer](#5-3d-renderer)
 - [x] [6. Animation](#6-animation)
-- [ ] [7. Physics](#7-physics)
+- [x] [7. Physics](#7-physics)
 - [ ] [8. Scripting](#8-scripting)
 - [ ] [9. Audio](#9-audio)
 - [ ] [10. In-game UI and text](#10-in-game-ui-and-text)
@@ -125,11 +125,11 @@ The [prediction scope](Features/Networking.md#prediction), which the character c
 **Acceptance:** restoring a saved state and re-simulating the same input commands reproduces the same physics state on the same machine.
 
 ### 8. Scripting
-- [ ] Full scripting API, including animation and physics
-- [ ] Hot reload
-- [ ] [Sandbox](Features/Scripting.md#sandbox)
-- [ ] LuaLS annotation files generated from the bindings, and CI type-checking of the test and sample scripts
-- [ ] Mid-point validation: using only the MCP tools, an agent builds a small single-player game (e.g. Pong) in `Samples/`. Fix every gap found along the way
+- [x] Full scripting API, including animation and physics
+- [x] Hot reload
+- [x] [Sandbox](Features/Scripting.md#sandbox)
+- [x] LuaLS annotation files generated from the bindings, and CI type-checking of the test and sample scripts
+- [x] Mid-point validation: using only the MCP tools, an agent builds a small single-player game (e.g. Pong) in `Samples/`. Fix every gap found along the way
 
 **Acceptance:** the test scenes exercise the entire scripting API; the sample game plays from start to finish.
 

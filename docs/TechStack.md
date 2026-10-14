@@ -41,14 +41,14 @@ When adding a dependency, add it to THIRD_PARTY_LICENSES.md. Only permissively l
 ## Build Prerequisites
 - CMake 3.28+ and Ninja
 - Git LFS
-- Python 3.12+, for the formatting and clang-tidy scripts in `tools/`, and for the MCP end-to-end tests, which drive the editor from Python as an agent would (the configure step requires it when the editor is built)
+- Python 3.12+, for the formatting and clang-tidy scripts in `tools/`, the script type-check, and the MCP end-to-end tests, which drive the editor from Python as an agent would (the configure step requires it when tests are built)
 - clang-format and clang-tidy, at the LLVM version CI pins: `pip install -r tools/requirements.txt` (see [Enforcement](CodeStyle.md#enforcement))
 - A graphics driver with Vulkan 1.3, to run the engine. Rendering tests don't need one: they render on lavapipe (see [Reference Images](Testing.md#reference-images))
 - macOS: the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home) 1.4.363.0, for DXC (which has no macOS release), MoltenVK and the Vulkan loader. After installing it, run `sudo ./install_vulkan.py` in the SDK's directory to install it system-wide, so programs find the loader and MoltenVK
 - Ubuntu: the development files GLFW compiles against, and the Vulkan loader: `sudo apt install pkg-config libwayland-dev libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan1`. Building lavapipe once (`tools/build-lavapipe.sh`) also needs `curl python3-venv ninja-build glslang-tools libdrm-dev zlib1g-dev llvm-19-dev libpolly-19-dev`
 - Optional, on any platform: the Vulkan SDK, for the Khronos validation layer in Debug builds. Without it, only NVRHI's validation runs
 
-Everything else is fetched by CMake: the libraries, DXC on Windows and Linux, ShaderMake, and lavapipe on Windows. Document the setup steps for each platform in AGENTS.md and the README.
+Everything else is fetched by CMake: the libraries, DXC on Windows and Linux, ShaderMake, lavapipe on Windows, and lua-language-server for the script type-check. Document the setup steps for each platform in AGENTS.md and the README.
 
 ## Dependencies
 - Declared in `cmake/Dependencies.cmake` with `ls_declare_dependency()`: an archive URL (a release tag, or a commit for sol2) and its SHA256 hash

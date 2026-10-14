@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "Lua 5.4",
+  "runtime.builtin": {
+    "io": "disable",
+    "debug": "disable",
+    "ffi": "disable",
+    "jit": "disable",
+    "bit32": "disable"
+  },
+  "workspace.library": [
+    "../Scripting/.lodestone"
+  ],
+  "workspace.checkThirdParty": false,
+  "diagnostics.globals": [],
+  "diagnostics.severity": {
+    "undefined-field": "Error",
+    "undefined-global": "Error"
+  }
+}
