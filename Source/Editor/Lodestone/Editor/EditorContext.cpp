@@ -14,6 +14,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <system_error>
@@ -352,8 +353,22 @@ namespace Lodestone {
 		m_AnimationPreview.reset();
 		const uint32_t tickRate = m_Project ? m_Project->GetSettings().TickRate : DefaultTickRate;
 		m_Simulation = CreateScope<Simulation>(*m_Scene, SimulationConfig{.TickRate = tickRate});
+		m_Physics = CreateScope<PhysicsWorld>(*m_Scene, PhysicsWorldConfig{.Models = m_ModelLookup});
+		m_RecentPhysicsEvents.clear();
 		for (const auto& [name, system] : m_PlaySystems)
 			m_Simulation->AddSystem(name, system);
+		// Physics steps after gameplay, which may have moved bodies this tick
+		m_Simulation->AddSystem("Physics", *m_Physics);
+		m_Simulation->AddSystem("PhysicsEvents",
+			[this](SimulationContext& simulation)
+			{
+				for (const PhysicsEvent& event : m_Physics->GetEvents())
+				{
+					if (m_RecentPhysicsEvents.size() == MaxRecentPhysicsEvents)
+						m_RecentPhysicsEvents.pop_front();
+					m_RecentPhysicsEvents.push_back({.Tick = simulation.GetTick(), .Event = event});
+				}
+			});
 		// Animators advance after gameplay, which may have started clips this tick
 		m_Simulation->AddSystem("Animation", [this](SimulationContext& simulation)
 			{ AdvanceAnimators(simulation.GetScene(), simulation.GetDeltaTime(), m_ModelLookup); });
@@ -372,6 +387,7 @@ namespace Lodestone {
 		if (m_PlayState == PlayState::Editing)
 			return std::unexpected(Error(ErrorCode::InvalidState, "Play mode isn't running"));
 		m_Simulation.reset();
+		m_Physics.reset();
 		m_Scene->RestoreSnapshot(m_EditSnapshot);
 		m_EditSnapshot = SceneSnapshot();
 		m_QueuedInput.clear();
@@ -429,6 +445,40 @@ namespace Lodestone {
 			.Playing = playing,
 		};
 		return {};
+	}
+
+	std::optional<RaycastHit> EditorContext::Raycast(
+		const glm::vec3& origin, const glm::vec3& direction, const RaycastOptions& options)
+	{
+		if (m_Physics)
+			return m_Physics->Raycast(origin, direction, options);
+		return CreateQueryWorld()->Raycast(origin, direction, options);
+	}
+
+	std::vector<RaycastHit> EditorContext::RaycastAll(
+		const glm::vec3& origin, const glm::vec3& direction, const RaycastOptions& options)
+	{
+		if (m_Physics)
+			return m_Physics->RaycastAll(origin, direction, options);
+		return CreateQueryWorld()->RaycastAll(origin, direction, options);
+	}
+
+	Scope<PhysicsWorld> EditorContext::CreateQueryWorld()
+	{
+		// Sized for the document - a body at most for each entity - and never stepped, so it needs no threads and
+		// little scratch memory
+		const auto bodies = static_cast<uint32_t>(std::min<size_t>(m_Scene->GetEntityCount() + 1, 65536));
+		auto world = CreateScope<PhysicsWorld>(*m_Scene,
+			PhysicsWorldConfig{
+				.Models = m_ModelLookup,
+				.MaxBodies = bodies,
+				.MaxBodyPairs = 1024,
+				.MaxContactConstraints = 1024,
+				.WorkerThreads = 0,
+				.TempMemory = 64u * 1024,
+			});
+		world->Sync();
+		return world;
 	}
 
 	PoseOptions EditorContext::GetPoseOptions() const

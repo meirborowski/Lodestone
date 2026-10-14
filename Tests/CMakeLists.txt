@@ -74,6 +74,7 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/AssetTests.cpp
 		Core/Base64Tests.cpp
 		Core/BaseTests.cpp
+	Core/BodyIdAllocatorTests.cpp
 		Core/BoundingBoxTests.cpp
 		Core/CommandLineTests.cpp
 		Core/ComponentRegistryTests.cpp
@@ -91,7 +92,9 @@ ls_add_test_executable(LodestoneCoreTests
 		Core/ModelCacheTests.cpp
 		Core/ModelEntitiesTests.cpp
 		Core/ModelImporterTests.cpp
-		Core/PrefabSerializerTests.cpp
+		Core/PhysicsComponentsTests.cpp
+	Core/PhysicsWorldTests.cpp
+	Core/PrefabSerializerTests.cpp
 		Core/ProjectTests.cpp
 		Core/RandomGeneratorTests.cpp
 		Core/ReferenceImageTests.cpp
@@ -125,10 +128,9 @@ ls_add_test_executable(LodestoneClientTests
 # Rendering tests, on lavapipe wherever it's available (see cmake/Lavapipe.cmake and Render/RenderTestDevice.h).
 # Without it, only the tests that don't compare against reference images are registered - on macOS, they check that
 # MoltenVK provides a Vulkan device and renders
-if(LS_LAVAPIPE_DRIVER)
-	set(LS_RENDER_EXCLUDED_SUITE "")
-else()
-	set(LS_RENDER_EXCLUDED_SUITE ReferenceImages)
+set(LS_RENDER_TEST_OPTIONS "")
+if(NOT LS_LAVAPIPE_DRIVER)
+	set(LS_RENDER_TEST_OPTIONS EXCLUDE_SUITE ReferenceImages)
 endif()
 ls_add_test_executable(LodestoneRenderTests
 	PREFIX Render
@@ -143,7 +145,7 @@ ls_add_test_executable(LodestoneRenderTests
 		Render/TriangleRenderTests.cpp
 	LIBRARIES
 		LodestoneClient
-	EXCLUDE_SUITE ${LS_RENDER_EXCLUDED_SUITE}
+	${LS_RENDER_TEST_OPTIONS}
 )
 if(LS_LAVAPIPE_DRIVER)
 	target_compile_definitions(LodestoneRenderTests PRIVATE LS_LAVAPIPE_DRIVER="${LS_LAVAPIPE_DRIVER}")

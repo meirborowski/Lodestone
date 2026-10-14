@@ -11,9 +11,12 @@
 #include "Lodestone/Editor/EditorCamera.h"
 #include "Lodestone/Editor/LogBuffer.h"
 #include "Lodestone/Input/InputCommand.h"
+#include "Lodestone/Physics/PhysicsWorld.h"
 #include "Lodestone/Project/Project.h"
 #include "Lodestone/Scene/Scene.h"
 #include "Lodestone/Simulation/Simulation.h"
+
+#include <glm/vec3.hpp>
 
 #include <cstdint>
 #include <deque>
@@ -169,6 +172,26 @@ namespace Lodestone {
 		// How the scene is drawn now: between ticks while playing, and with the preview while editing
 		PoseOptions GetPoseOptions() const;
 
+		// Physics (see docs/Decisions/0021-physics.md). Play mode runs a physics world for the scene, after the play
+		// systems and before animation
+		static constexpr size_t MaxRecentPhysicsEvents = 256;
+		struct RecentPhysicsEvent
+		{
+			uint64_t Tick = 0;
+			PhysicsEvent Event;
+		};
+		// The world of the running play session, or nullptr while editing
+		const PhysicsWorld* GetPhysicsWorld() const { return m_Physics.get(); }
+		// The latest collision and trigger events of the play session, oldest first: kept after it stops, until the
+		// next one starts
+		const std::deque<RecentPhysicsEvent>& GetRecentPhysicsEvents() const { return m_RecentPhysicsEvents; }
+		// Casts a ray into the running physics world, or while editing into one built from the document (see
+		// PhysicsWorld::Raycast())
+		std::optional<RaycastHit> Raycast(
+			const glm::vec3& origin, const glm::vec3& direction, const RaycastOptions& options = {});
+		std::vector<RaycastHit> RaycastAll(
+			const glm::vec3& origin, const glm::vec3& direction, const RaycastOptions& options = {});
+
 		LogBuffer& GetLog() { return m_Log; }
 
 	private:
@@ -177,6 +200,8 @@ namespace Lodestone {
 		std::vector<InputCommand> SampleInput(uint64_t tick, const Simulation::InputSampler& live);
 		void RescanAssets();
 		void UpdateAnimationPreview(double elapsedSeconds);
+		// A physics world of the document as it is, for queries while editing
+		Scope<PhysicsWorld> CreateQueryWorld();
 
 	private:
 		const ComponentRegistry* m_Components;
@@ -194,6 +219,9 @@ namespace Lodestone {
 
 		PlayState m_PlayState = PlayState::Editing;
 		std::vector<std::pair<std::string, SystemFunction>> m_PlaySystems;
+		// Before the simulation, which runs it, so it's destroyed after
+		Scope<PhysicsWorld> m_Physics;
+		std::deque<RecentPhysicsEvent> m_RecentPhysicsEvents;
 		Scope<Simulation> m_Simulation;
 		SceneSnapshot m_EditSnapshot;
 		std::deque<InputCommand> m_QueuedInput;

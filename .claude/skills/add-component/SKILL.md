@@ -11,6 +11,7 @@ Components are the data entities carry. The reflection registry is how every eng
 - A struct named `<Name>Component` in the module that owns it (core components are in `Source/Core/Lodestone/Scene/Components.h`), with public PascalCase fields and default member initializers. Components must be default-constructible and copyable
 - Use the reflected field types for everything that's saved, edited or replicated: `bool`, `int32_t`, `uint32_t`, `float`, `glm::vec2/3/4`, `glm::quat`, `std::string`, `UUID`. Refer to other entities and to assets by `UUID`, never by handle or path
 - Data the simulation needs but files mustn't contain goes in a separate component registered as `ComponentFlags::Internal`
+- A component that drives a system with state of its own, outside the registry (as the physics components drive Jolt), needs that system to be a `StatefulSystem` that saves and restores its state - see `PhysicsWorld` and [Decision 0021](../../../docs/Decisions/0021-physics.md)
 - Keep logic out of components: systems (`Simulation::AddSystem`) and engine code act on them
 
 ## 2. Register it

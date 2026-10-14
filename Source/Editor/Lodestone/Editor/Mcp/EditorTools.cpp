@@ -6,8 +6,10 @@
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
 #include "Lodestone/Input/InputCodes.h"
+#include "Lodestone/Physics/PhysicsWorld.h"
 #include "Lodestone/Scene/Entity.h"
 
+#include <glm/geometric.hpp>
 #include <glm/vec4.hpp>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/std.h>
@@ -1465,6 +1467,114 @@ namespace Lodestone {
 				}});
 		}
 
+		Json::Value DescribeHit(const Scene& scene, const RaycastHit& hit)
+		{
+			const auto* name = scene.GetRegistry().try_get<NameComponent>(scene.FindHandle(hit.Entity));
+			return {{"entity", hit.Entity.ToString()},
+				{"name", name != nullptr ? Json::Value(name->Name) : Json::Value()},
+				{"point", Json::FromFieldValue(hit.Point)}, {"normal", Json::FromFieldValue(hit.Normal)},
+				{"distance", hit.Distance}};
+		}
+
+		void AddPhysicsTools(McpServer& server, EditorContext& context)
+		{
+			server.AddTool({.Name = "physics_raycast",
+				.Title = "Cast a ray",
+				.Description =
+					"Casts a ray into the physics world and reports what it hits: the entity, the point, the surface "
+					"normal and the distance. In play mode it's the running world; while editing, the document's "
+					"colliders where they are. Triggers are passed through unless asked for",
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"origin": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Where the ray starts, in world space"},
+					"direction": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3, "description": "Which way it goes; needn't be normalized"},
+					"maxDistance": {"type": "number", "exclusiveMinimum": 0, "description": "How far it reaches, in meters; 1000 by default"},
+					"includeTriggers": {"type": "boolean", "description": "Whether triggers can be hit; false by default"},
+					"ignore": {"type": "string", "description": "The UUID of an entity the ray passes through"},
+					"all": {"type": "boolean", "description": "Reports every entity hit, nearest first, instead of the nearest; false by default"}},
+					"required": ["origin", "direction"]})"),
+				.ReadOnly = true,
+				.Handler = [&context](const Json::Value& json)
+				{
+					const Arguments arguments(json);
+					const auto origin = arguments.Vec3("origin");
+					const auto direction = arguments.Vec3("direction");
+					const auto maxDistance = arguments.Float("maxDistance", 1000.0f, 1.0e-6f, 1.0e6f);
+					const auto includeTriggers = arguments.Bool("includeTriggers", false);
+					const auto ignore = arguments.OptionalId("ignore");
+					const auto all = arguments.Bool("all", false);
+					if (!origin)
+						return Fail(origin.error());
+					if (!direction)
+						return Fail(direction.error());
+					if (glm::length(*direction) == 0.0f)
+						return Fail(ArgumentError("'direction' can't be zero"));
+					if (!maxDistance)
+						return Fail(maxDistance.error());
+					if (!includeTriggers)
+						return Fail(includeTriggers.error());
+					if (!ignore)
+						return Fail(ignore.error());
+					if (!all)
+						return Fail(all.error());
+					const RaycastOptions options{
+						.MaxDistance = *maxDistance, .IncludeTriggers = *includeTriggers, .Ignore = *ignore};
+					const Scene& scene = context.GetScene();
+					if (*all)
+					{
+						Json::Value hits = Json::Value::array();
+						for (const RaycastHit& hit : context.RaycastAll(*origin, *direction, options))
+							hits.push_back(DescribeHit(scene, hit));
+						return McpToolResult::Structured({{"hits", std::move(hits)}});
+					}
+					const std::optional<RaycastHit> hit = context.Raycast(*origin, *direction, options);
+					return McpToolResult::Structured({{"hit", hit ? DescribeHit(scene, *hit) : Json::Value()}});
+				}});
+
+			server.AddTool({.Name = "physics_events",
+				.Title = "Physics events",
+				.Description = fmt::format(
+					"The latest collision and trigger events of play mode, oldest first (up to {}): which two entities "
+					"began or ended touching (CollisionBegin, CollisionEnd), or entered or left a trigger "
+					"(TriggerEnter, TriggerExit; the trigger first), and on which tick. Kept after play mode stops, "
+					"until it starts again",
+					EditorContext::MaxRecentPhysicsEvents),
+				.InputSchema = Schema(R"({"type": "object", "properties": {
+					"sinceTick": {"type": "integer", "minimum": 0, "description": "Only events from this tick on"}}})"),
+				.ReadOnly = true,
+				.Handler = [&context](const Json::Value& json)
+				{
+					const Arguments arguments(json);
+					uint64_t since = 0;
+					if (arguments.Has("sinceTick"))
+					{
+						const Json::Value& value = arguments.Get("sinceTick");
+						const bool whole =
+							value.is_number_unsigned() || (value.is_number_integer() && value.get<int64_t>() >= 0);
+						if (!whole)
+							return Fail(ArgumentError("'sinceTick' must be a whole number from 0"));
+						since = value.get<uint64_t>();
+					}
+					const Scene& scene = context.GetScene();
+					const auto describe = [&scene](UUID id)
+					{
+						const auto* name = scene.GetRegistry().try_get<NameComponent>(scene.FindHandle(id));
+						return Json::Value{
+							{"id", id.ToString()}, {"name", name != nullptr ? Json::Value(name->Name) : Json::Value()}};
+					};
+					Json::Value events = Json::Value::array();
+					for (const auto& [tick, event] : context.GetRecentPhysicsEvents())
+					{
+						if (tick < since)
+							continue;
+						events.push_back({{"tick", tick}, {"type", ToString(event.Type)},
+							{"first", describe(event.First)}, {"second", describe(event.Second)}});
+					}
+					const Simulation* simulation = context.GetSimulation();
+					return McpToolResult::Structured({{"playState", ToString(context.GetPlayState())},
+						{"tick", simulation != nullptr ? Json::Value(simulation->GetTick()) : Json::Value()},
+						{"events", std::move(events)}});
+				}});
+		}
 	}
 
 	void RegisterEditorTools(McpServer& server, EditorContext& context, EditorToolHost host)
@@ -1477,6 +1587,7 @@ namespace Lodestone {
 		AddHistoryTools(server, context);
 		AddPlayTools(server, context);
 		AddAnimationTools(server, context);
+		AddPhysicsTools(server, context);
 		AddViewTools(server, context, std::move(host.Capture), std::move(host.GetRenderStats));
 		AddLogAndAssetTools(server, context);
 	}

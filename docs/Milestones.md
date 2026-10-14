@@ -16,9 +16,9 @@ Tick an item (`[x]`) when it's done, and tick the milestone in [Progress](#progr
 ## Current State
 Keep this section current, so a new session can pick up where the last one stopped.
 
-- **Active milestone:** 6. Animation
-- **In progress:** Milestone 6 is built on `milestone-6-animation`, as [Decision 0020](Decisions/0020-skeletal-animation.md) designs it: skins, skin weights (with each joint's bind-pose bounds) and clips (step, linear and cubic spline) in `Model` and `ModelImporter`; the `ModelInstance`, `ModelNode`, `Skin` and `Animator` components, placed by `BuildModelEntities()`; clip sampling, crossfades and play mode's animation system; `ScenePose`, which derives where entities are drawn from animator state, for the renderer, picking and the overlay; GPU skinning in every pass, culled by joint bounds; the editor's Animation panel (a timeline previewing clips without editing) and the `animation_clips` and `animation_preview` MCP tools (42 tools). `SkinnedArm.glb` (generated) is the test model, with a reference image and the agent smoke test previewing it. Every item is done; what remains is review, the pull request and CI
-- **Next:** Milestone 7, physics - confirm the prediction scope first (see its section below)
+- **Active milestone:** 7. Physics
+- **In progress:** Milestone 7 is built on `milestone-7-physics`, as [Decision 0021](Decisions/0021-physics.md) designs it (the prediction scope confirmed there, as Networking documents it): Jolt 5.6.0, linked privately by Core; the `RigidBody`, `BoxCollider`, `SphereCollider`, `CapsuleCollider`, `MeshCollider`, `CharacterController` and `PhysicsSettings` components; `PhysicsWorld`, a stateful simulation system (new in `Simulation`) that makes bodies from the components each tick, steps them, writes transforms and velocities back, finds collision and trigger events, answers raycasts, and saves and restores Jolt's state, with deterministic body IDs; the character controller moved by input commands; play mode running physics; the selection's colliders drawn in the viewport; the `physics_raycast` and `physics_events` MCP tools (44 tools); and the agent smoke test playing a body through a trigger onto a collider. Every item is done; what remains is review, the pull request and CI
+- **Next:** Milestone 8, scripting
 - **Watch for:** MSVC Build Tools 14.52 reaching the `windows-2025-vs2026` image - CI posts a notice until then ([Decision 0004](Decisions/0004-msvc-cpp23-switch.md))
 
 ## Open Decisions
@@ -30,7 +30,7 @@ Keep this section current, so a new session can pick up where the last one stopp
 - [x] [3. ECS, scenes and assets](#3-ecs-scenes-and-assets)
 - [x] [4. Editor and AI control](#4-editor-and-ai-control)
 - [x] [5. 3D renderer](#5-3d-renderer)
-- [ ] [6. Animation](#6-animation)
+- [x] [6. Animation](#6-animation)
 - [ ] [7. Physics](#7-physics)
 - [ ] [8. Scripting](#8-scripting)
 - [ ] [9. Audio](#9-audio)
@@ -114,13 +114,13 @@ Keep this section current, so a new session can pick up where the last one stopp
 **Acceptance:** clip sampling, looping and crossfade tests pass against known poses; reference-image tests of skinned meshes at fixed animation times pass.
 
 ### 7. Physics
-Before starting, confirm the [prediction scope](Features/Networking.md#prediction) and record it as a decision - the character controller and physics state handling are built around it.
+The [prediction scope](Features/Networking.md#prediction), which the character controller and physics state handling are built around, was confirmed before starting, in [Decision 0021](Decisions/0021-physics.md).
 
-- [ ] Jolt integration, stepped once per simulation tick
-- [ ] Rigid bodies, colliders, triggers and raycasts, authored as components
-- [ ] Collision and trigger events
-- [ ] Character controller component (Jolt `CharacterVirtual`), driven by input commands
-- [ ] Physics state included in simulation save/restore
+- [x] Jolt integration, stepped once per simulation tick
+- [x] Rigid bodies, colliders, triggers and raycasts, authored as components
+- [x] Collision and trigger events
+- [x] Character controller component (Jolt `CharacterVirtual`), driven by input commands
+- [x] Physics state included in simulation save/restore
 
 **Acceptance:** restoring a saved state and re-simulating the same input commands reproduces the same physics state on the same machine.
 

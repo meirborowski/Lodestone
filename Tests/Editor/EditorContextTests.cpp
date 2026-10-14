@@ -6,6 +6,7 @@
 #include "Lodestone/Asset/Model.h"
 #include "Lodestone/Core/FileSystem.h"
 #include "Lodestone/Editor/Commands/EntityCommands.h"
+#include "Lodestone/Physics/PhysicsComponents.h"
 #include "Lodestone/Scene/Entity.h"
 #include "Lodestone/Scene/EntitySerializer.h"
 
@@ -444,6 +445,56 @@ namespace Lodestone {
 		CHECK(time() == 0.0f);
 	}
 
+	TEST_CASE("Play mode simulates physics after gameplay, records its events, and stopping puts bodies back")
+	{
+		Fixture fixture;
+		const UUID floor = fixture.CreateEntity("Floor", {},
+			{{"Transform", {{"Position", {0.0, -0.5, 0.0}}}}, {"BoxCollider", {{"Size", {20.0, 1.0, 20.0}}}}});
+		const UUID box = fixture.CreateEntity("Box", {},
+			{{"Transform", {{"Position", {0.0, 3.0, 0.0}}}}, {"RigidBody", Json::Value::object()},
+				{"BoxCollider", Json::Value::object()}});
+		const auto height = [&fixture, box]
+		{ return fixture.Context.GetScene().FindEntity(box).GetTransform().Position.y; };
+		// Gameplay runs before physics: what it sets, physics sees in the same tick
+		bool launched = false;
+		fixture.Context.AddPlaySystem("Launch",
+			[&launched, box](SimulationContext& simulation)
+			{
+				if (simulation.GetTick() == 90)
+				{
+					simulation.GetScene().FindEntity(box).Get<RigidBodyComponent>().LinearVelocity.y = 5.0f;
+					launched = true;
+				}
+			});
+		CHECK(fixture.Context.GetPhysicsWorld() == nullptr);
+
+		REQUIRE(fixture.Context.StartPlay().has_value());
+		REQUIRE(fixture.Context.GetPhysicsWorld() != nullptr);
+		REQUIRE(fixture.Context.Step(90).has_value());
+		CHECK(height() == doctest::Approx(0.5f).epsilon(0.03));
+		REQUIRE(fixture.Context.Step(6).has_value());
+		CHECK(launched);
+		CHECK(height() > 0.8f);
+		const auto& events = fixture.Context.GetRecentPhysicsEvents();
+		REQUIRE_FALSE(events.empty());
+		CHECK(events.front().Event.Type == PhysicsEventType::CollisionBegin);
+		CHECK(events.front().Tick < 90);
+		const auto hit = fixture.Context.Raycast(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f));
+		CHECK(hit.value_or(RaycastHit{}).Entity == box);
+
+		REQUIRE(fixture.Context.StopPlay().has_value());
+		CHECK(fixture.Context.GetPhysicsWorld() == nullptr);
+		CHECK(height() == 3.0f);
+		CHECK_FALSE(events.empty());
+		// While editing, raycasts see the document's colliders where they are
+		CHECK(fixture.Context.Raycast(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f))
+				  .value_or(RaycastHit{})
+				  .Point.y == doctest::Approx(3.5f));
+		CHECK(fixture.Context.RaycastAll(glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f)).size() == 2);
+		CHECK(fixture.Context.Raycast(glm::vec3(5.0f, 10.0f, 0.0f), glm::vec3(0.0f, -1.0f, 0.0f))
+				  .value_or(RaycastHit{})
+				  .Entity == floor);
+	}
 	TEST_CASE("An animation preview poses an animator without editing the document, and can play on")
 	{
 		Fixture fixture;

@@ -256,13 +256,15 @@ def run(agent, project_directory, client, model_file, animated_file):
     tools = {tool["name"] for tool in agent.request("tools/list")["tools"]}
     for needed in ["project_create", "asset_import", "entity_create", "component_set", "prefab_create",
                    "prefab_instantiate", "model_instantiate", "document_save", "scene_open", "viewport_screenshot",
-                   "render_stats", "play_start", "input_send", "animation_clips", "animation_preview"]:
+                   "render_stats", "play_start", "input_send", "animation_clips", "animation_preview",
+                   "physics_raycast", "physics_events"]:
         check(needed in tools, f"The editor has no {needed} tool")
 
     # A project, and what components exist
     agent.tool("project_create", {"directory": str(project_directory), "name": "Smoke Test"})
     components = {component["name"] for component in agent.data("component_types")["components"]}
-    check({"Name", "Transform", "Hierarchy", "MeshRenderer", "DirectionalLight", "PointLight"} <= components,
+    check({"Name", "Transform", "Hierarchy", "MeshRenderer", "DirectionalLight", "PointLight", "RigidBody", "BoxCollider",
+           "CharacterController"} <= components,
           f"Missing components in {components}")
 
     # The empty scene, to compare the finished one with
@@ -372,6 +374,33 @@ def run(agent, project_directory, client, model_file, animated_file):
     check(agent.data("edit_history") == history, "Previewing a clip edited the document")
     agent.data("animation_preview", {"stop": True})
 
+    # Physics: the ground gets a collider, and a crate dropped through a trigger lands on it in play mode. Raycasts
+    # see the crate where it's placed while editing, and where it fell while playing
+    agent.data("component_add", {"entity": ground, "component": "BoxCollider"})
+    crate = agent.data("entity_create", {"name": "Crate", "components": {
+        "Transform": {"Position": [4, 4, -3]}, "MeshRenderer": cube, "RigidBody": {}, "BoxCollider": {}}})["id"]
+    zone = agent.data("entity_create", {"name": "Zone", "components": {
+        "Transform": {"Position": [4, 2, -3]}, "RigidBody": {"Type": 0, "IsTrigger": True},
+        "BoxCollider": {"Size": [2, 0.5, 2]}}})["id"]
+    down = {"origin": [4, 10, -3], "direction": [0, -1, 0]}
+    hit = agent.data("physics_raycast", down)["hit"]
+    check(hit is not None and hit["entity"] == crate and abs(hit["point"][1] - 4.5) < 1e-3,
+          f"Before playing, the ray hit {hit}")
+    agent.data("play_start", {"paused": True})
+    agent.data("play_step", {"ticks": 120})
+    # On the ground, whose top is at 0.1, sunk no deeper than physics lets resting bodies sink
+    hit = agent.data("physics_raycast", down)["hit"]
+    check(hit is not None and hit["entity"] == crate and 1.07 < hit["point"][1] < 1.11,
+          f"After falling, the ray hit {hit}")
+    events = agent.data("physics_events")["events"]
+    check([event["type"] for event in events] == ["TriggerEnter", "TriggerExit", "CollisionBegin"],
+          f"Physics reported {events}")
+    check(events[0]["first"]["id"] == zone and events[0]["second"]["id"] == crate,
+          f"The trigger event was {events[0]}")
+    check({events[2]["first"]["id"], events[2]["second"]["id"]} == {ground, crate}, f"The landing was {events[2]}")
+    agent.data("play_stop")
+    placed = agent.data("entity_get", {"entity": crate})["worldPosition"]
+    check(placed == [4, 4, -3], f"Play mode didn't put the crate back: it's at {placed}")
     # Nothing went wrong along the way
     errors = agent.data("log_read", {"level": "error"})["entries"]
     check(not errors, f"The editor logged errors: {[entry['message'] for entry in errors]}")

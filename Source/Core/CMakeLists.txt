@@ -54,6 +54,18 @@ target_sources(LodestoneCore PRIVATE
 	Lodestone/Input/InputCodes.cpp
 	Lodestone/Input/InputCodes.h
 	Lodestone/Input/InputCommand.h
+	Lodestone/Physics/BodyIdAllocator.cpp
+	Lodestone/Physics/BodyIdAllocator.h
+	Lodestone/Physics/JoltRuntime.cpp
+	Lodestone/Physics/JoltRuntime.h
+	Lodestone/Physics/PhysicsComponents.cpp
+	Lodestone/Physics/PhysicsComponents.h
+	Lodestone/Physics/PhysicsLayers.cpp
+	Lodestone/Physics/PhysicsLayers.h
+	Lodestone/Physics/PhysicsWorld.cpp
+	Lodestone/Physics/PhysicsWorld.h
+	Lodestone/Physics/StateBuffer.cpp
+	Lodestone/Physics/StateBuffer.h
 	Lodestone/Project/Project.cpp
 	Lodestone/Project/Project.h
 	Lodestone/Reflection/ComponentRegistry.cpp
@@ -105,7 +117,7 @@ target_compile_definitions(LodestoneCore PUBLIC
 
 target_link_libraries(LodestoneCore
 	PUBLIC spdlog::spdlog glm::glm EnTT::EnTT nlohmann_json::nlohmann_json
-	PRIVATE stb::stb cgltf::cgltf
+	PRIVATE stb::stb cgltf::cgltf Jolt::Jolt
 )
 
 ls_configure_target(LodestoneCore)

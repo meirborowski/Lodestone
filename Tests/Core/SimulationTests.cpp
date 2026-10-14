@@ -6,8 +6,11 @@
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <cstddef>
 #include <limits>
+#include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace Lodestone {
@@ -188,6 +191,65 @@ namespace Lodestone {
 		CHECK(SceneSerializer::SerializeToText(world.WorldScene) == original);
 	}
 
+	TEST_CASE("Stateful systems run in order with the others, and their state is saved and restored with the scene's")
+	{
+		// Counts its ticks, and records the order systems ran in
+		class CountingSystem final : public StatefulSystem
+		{
+		public:
+			CountingSystem(std::vector<std::string>& order, std::string name)
+				: m_Order(&order), m_Name(std::move(name))
+			{
+			}
+
+			void Update([[maybe_unused]] SimulationContext& context) override
+			{
+				++m_Count;
+				m_Order->push_back(m_Name);
+			}
+
+			void SaveState(std::vector<std::byte>& state) const override
+			{
+				state.push_back(static_cast<std::byte>(m_Count));
+			}
+
+			void RestoreState(std::span<const std::byte> state) override
+			{
+				REQUIRE(state.size() == 1);
+				m_Count = std::to_integer<int>(state[0]);
+			}
+
+			int GetCount() const { return m_Count; }
+
+		private:
+			std::vector<std::string>* m_Order;
+			std::string m_Name;
+			int m_Count = 0;
+		};
+
+		Scene scene;
+		Simulation simulation(scene);
+		std::vector<std::string> order;
+		CountingSystem first(order, "First");
+		CountingSystem second(order, "Second");
+		simulation.AddSystem("First", first);
+		simulation.AddSystem("Plain", [&order](SimulationContext&) { order.emplace_back("Plain"); });
+		simulation.AddSystem("Second", second);
+
+		simulation.Step({});
+		CHECK(order == std::vector<std::string>{"First", "Plain", "Second"});
+		simulation.Step({});
+		const SimulationState saved = simulation.SaveState();
+		CHECK(saved.Systems.size() == 2);
+		for (int tick = 0; tick < 5; ++tick)
+			simulation.Step({});
+		CHECK(first.GetCount() == 7);
+
+		simulation.RestoreState(saved);
+		CHECK(first.GetCount() == 2);
+		CHECK(second.GetCount() == 2);
+		CHECK(simulation.GetTick() == 2);
+	}
 	TEST_CASE("Two simulations given the same input commands stay identical")
 	{
 		TestWorld first;

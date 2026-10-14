@@ -27,6 +27,15 @@ namespace Lodestone {
 		m_Systems.push_back({.Name = std::move(name), .Function = std::move(system)});
 	}
 
+	void Simulation::AddSystem(std::string name, StatefulSystem& system)
+	{
+		m_Systems.push_back({
+			.Name = std::move(name),
+			.Function = [&system](SimulationContext& context) { system.Update(context); },
+			.State = &system,
+		});
+	}
+
 	void Simulation::Step(std::span<const InputCommand> inputs)
 	{
 		for (size_t index = 0; index < inputs.size(); ++index)
@@ -85,12 +94,24 @@ namespace Lodestone {
 
 	SimulationState Simulation::SaveState() const
 	{
-		return {.Tick = m_Tick, .Scene = m_Scene->SaveSnapshot()};
+		SimulationState state{.Tick = m_Tick, .Scene = m_Scene->SaveSnapshot()};
+		for (const System& system : m_Systems)
+			if (system.State != nullptr)
+				system.State->SaveState(state.Systems.emplace_back());
+		return state;
 	}
 
 	void Simulation::RestoreState(const SimulationState& state)
 	{
+		LS_CORE_ASSERT(state.Systems.size() ==
+				static_cast<size_t>(
+					std::ranges::count_if(m_Systems, [](const System& system) { return system.State != nullptr; })),
+			"The state was saved by a simulation with different systems");
 		m_Scene->RestoreSnapshot(state.Scene);
+		auto saved = state.Systems.begin();
+		for (const System& system : m_Systems)
+			if (system.State != nullptr)
+				system.State->RestoreState(*saved++);
 		m_Tick = state.Tick;
 	}
 

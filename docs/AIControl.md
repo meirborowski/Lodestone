@@ -40,6 +40,7 @@ The tools so far (`Source/Editor/Lodestone/Editor/Mcp/EditorTools.cpp`):
 | Undo | `edit_undo`, `edit_redo`, `edit_history` |
 | Play mode | `play_start` (optionally paused), `play_stop`, `play_pause`, `play_step`, `play_status`, `input_send` |
 | Animation | `animation_clips`, `animation_preview` |
+| Physics | `physics_raycast`, `physics_events` |
 | View and rendering | `viewport_screenshot`, `render_stats`, `camera_set`, `camera_frame` |
 | Logs and assets | `log_read`, `asset_list`, `asset_import`, `asset_rescan` |
 
@@ -49,6 +50,8 @@ Rendering is set up with the generic component tools: `MeshRenderer` (a model as
 
 Animated models play their clips through an `Animator` on the model instance's root (set its `Clip`, `Time`, `Speed`, `Playing` and `Loop` fields with `component_set`); `animation_clips` lists a model's clips by index, name and length, with the animator's state, and `animation_preview` poses the model with a clip at a time - in the viewport and in screenshots - without changing the document, as the editor's timeline does (see [Decision 0020](Decisions/0020-skeletal-animation.md)).
 
+Physics is set up with the generic component tools too: `RigidBody` (static, kinematic or dynamic; a trigger with `IsTrigger`), the colliders `BoxCollider`, `SphereCollider`, `CapsuleCollider` and `MeshCollider`, `CharacterController` (a character driven by a player's input: WASD or the left stick walk, the mouse or the right stick turn, Space or gamepad A jump) and `PhysicsSettings` (gravity). Play mode simulates them; `physics_raycast` casts a ray into the running world, or while editing into the document's colliders where they are, and reports the entity, point, normal and distance it hits; `physics_events` lists play mode's latest collision and trigger events with their ticks, so an agent can check what touched what during a playtest (see [Decision 0021](Decisions/0021-physics.md)).
+
 ## Testing
 - Every MCP tool has in-process tests that call it directly (`Tests/Editor/EditorToolsTests.cpp`), including with missing and wrongly typed arguments
-- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it imports a model and builds a scene with entities, components - meshes and lights among them - prefab instances and a model instance, saves and reloads it, screenshots it, reads the renderer's stats, plays it with input, and previews an animated model's clips
+- Each transport has end-to-end tests: the HTTP transport over loopback, with the security checks (`Tests/Editor/HttpTransportTests.cpp`), and the agent smoke test, which drives the real headless editor over stdio and over HTTP from a separate process (`Tests/Editor/McpAgentSmokeTest.py`): it imports a model and builds a scene with entities, components - meshes and lights among them - prefab instances and a model instance, saves and reloads it, screenshots it, reads the renderer's stats, plays it with input, previews an animated model's clips, and drops a body through a trigger onto a collider, checking raycasts and physics events
