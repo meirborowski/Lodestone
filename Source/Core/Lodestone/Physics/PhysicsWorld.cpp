@@ -46,6 +46,7 @@
 #include <iterator>
 #include <map>
 #include <mutex>
+#include <ranges>
 #include <thread>
 #include <tuple>
 #include <unordered_map>
@@ -725,11 +726,11 @@ namespace Lodestone {
 			chain.push_back(current);
 			current = m_Scene->FindHandle(registry.get<HierarchyComponent>(current).Parent);
 		}
-		for (auto link = chain.rbegin(); link != chain.rend(); ++link)
+		for (const entt::entity link : std::views::reverse(chain))
 		{
-			const entt::entity parent = m_Scene->FindHandle(registry.get<HierarchyComponent>(*link).Parent);
-			const auto& transform = registry.get<TransformComponent>(*link);
-			m_Poses[*link] = parent == entt::null ? Compose(Pose{}, transform) : Compose(m_Poses.at(parent), transform);
+			const entt::entity parent = m_Scene->FindHandle(registry.get<HierarchyComponent>(link).Parent);
+			const auto& transform = registry.get<TransformComponent>(link);
+			m_Poses[link] = parent == entt::null ? Compose(Pose{}, transform) : Compose(m_Poses.at(parent), transform);
 		}
 		return m_Poses.at(entity);
 	}
@@ -800,8 +801,8 @@ namespace Lodestone {
 			for (entt::entity current = entity; current != *owner; current = GetParent(current))
 				chain.push_back(current);
 			Pose placement{.Scale = poses.Get(*owner).Scale};
-			for (auto link = chain.rbegin(); link != chain.rend(); ++link)
-				placement = Compose(placement, registry.get<TransformComponent>(*link));
+			for (const entt::entity link : std::views::reverse(chain))
+				placement = Compose(placement, registry.get<TransformComponent>(link));
 			part.Entity = entt::to_integral(entity);
 			part.Position = placement.Position;
 			part.Rotation = placement.Rotation;
