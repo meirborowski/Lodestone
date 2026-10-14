@@ -277,8 +277,11 @@ function(ls_add_jolt)
 	# with asserts - except under ThreadSanitizer. With asserts, Jolt's mutexes note which thread holds them, and read
 	# that outside the lock to check a thread doesn't lock twice (Jolt/Core/Mutex.h): a race in the checking itself,
 	# which ThreadSanitizer rightly reports when physics jobs on several threads share a lock. Without asserts it checks
-	# Jolt's actual locking, and every other build runs Jolt's asserts
-	if(NOT LS_ENABLE_THREAD_SANITIZER)
+	# Jolt's actual locking, and every other build runs Jolt's asserts. Jolt turns them on by itself in builds without
+	# NDEBUG, unless JPH_NO_DEBUG says not to
+	if(LS_ENABLE_THREAD_SANITIZER)
+		target_compile_definitions(Jolt PUBLIC JPH_NO_DEBUG)
+	else()
 		target_compile_definitions(Jolt PUBLIC $<$<CONFIG:Debug,Release>:JPH_ENABLE_ASSERTS>)
 	endif()
 	# Under sanitizers, Jolt allocates with the system allocator, so every allocation is checked
