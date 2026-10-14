@@ -37,6 +37,13 @@ if(MSVC)
 	add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX)
 endif()
 
+# On x86-64, code may use SSE4.2 and POPCNT, which Jolt is built for (see docs/Decisions/0021-physics.md). Every target
+# is built for that instruction set, not just the ones Jolt's flags reach, so code inlined into several targets is the
+# same in each. MSVC needs no flag for it
+if(NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|amd64)$" AND NOT CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+	add_compile_options(-msse4.2 -mpopcnt)
+endif()
+
 if(LS_ENABLE_SANITIZERS)
 	if(MSVC)
 		message(FATAL_ERROR "LS_ENABLE_SANITIZERS supports GCC and Clang only")

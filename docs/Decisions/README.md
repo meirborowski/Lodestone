@@ -32,3 +32,4 @@ Record every significant design decision here - especially ones made without ask
 - [0018 - The scene renderer: forward PBR with a prepass, CSM and PCSS, GTAO and split-sum IBL](0018-scene-renderer.md)
 - [0019 - Model import: glTF 2.0 with cgltf, into a CPU model, instanced as entities](0019-model-import.md)
 - [0020 - Skeletal animation: poses derived from animator state, skinned on the GPU](0020-skeletal-animation.md)
+- [0021 - Physics: Jolt bodies derived from components, saved with the simulation](0021-physics.md)

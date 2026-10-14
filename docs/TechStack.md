@@ -36,6 +36,7 @@ When adding a dependency, add it to THIRD_PARTY_LICENSES.md. Only permissively l
 - macOS: Apple Clang (Xcode 16.3+). CI uses Xcode 16.4
 - Ubuntu 24.04+: GCC 14+ and Clang 19+ (Ubuntu 24.04's default GCC 13 is too old - install the `gcc-14` / `g++-14` packages)
   - Clang 18 can't use `std::expected` with libstdc++: libstdc++ only enables `<expected>` when `__cpp_concepts >= 202002L`, and Clang 18 reports a lower value. Milestone 1's CI confirms that Clang 19 works
+- CPUs: x86-64 with SSE4.2 and POPCNT (every x86-64 CPU of the last fifteen years), or 64-bit ARM (Apple silicon). GCC and Clang build every target for that x86-64 baseline, which Jolt needs (see [Decision 0021](Decisions/0021-physics.md))
 
 ## Build Prerequisites
 - CMake 3.28+ and Ninja
