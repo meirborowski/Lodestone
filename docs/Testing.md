@@ -60,7 +60,7 @@ How it works:
   - macOS (Apple Clang, MoltenVK)
   - Ubuntu 24.04 (GCC 14 and Clang 19)
 - Once the runtime exists, CI also smoke-tests the Dist runtime headlessly
-- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux, which also fuzzes longer), and ThreadSanitizer (Clang on Linux, for the editor's MCP threads and everything threaded after them; it runs the `unit` and `integration` tiers except tests that render, since lavapipe's JIT-compiled threads are invisible to it)
+- Extra jobs: clang-format check, clang-tidy, AddressSanitizer + UndefinedBehaviorSanitizer (Clang on Linux, which also fuzzes longer), and ThreadSanitizer (Clang on Linux, for the editor's MCP threads and everything threaded after them; it runs the `unit` and `integration` tiers except tests that render, since lavapipe's JIT-compiled threads are invisible to it. Jolt's asserts are off there: the thread bookkeeping its mutexes keep for them races by design, and every other build runs them)
 - The windowed runtime and editor each open a window and present frames on every platform (under Xvfb on Linux)
 - Rendering tests run on lavapipe on Windows and Linux (see [Reference Images](#reference-images)). The `lavapipe` job builds it for Linux once per Mesa version and caches it
 - On macOS, the rendering tests are the smoke check: they run on MoltenVK, and fail with a clear message if it doesn't load or provides no Vulkan device
